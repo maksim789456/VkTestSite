@@ -27,7 +27,7 @@ void VkTestSiteApp::initWindow() {
   glfwInit();
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+  glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
   m_window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "VK test", nullptr, nullptr);
 }
@@ -265,14 +265,17 @@ void VkTestSiteApp::render() {
   auto _ = m_device.waitForFences(m_inFlight[m_currentFrame], true, UINT64_MAX);
   m_device.resetFences(m_inFlight[m_currentFrame]);
 
-  auto acquireResult = m_device.acquireNextImageKHR(
-    m_swapchain.swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
-
-  if (acquireResult.result != vk::Result::eSuccess) {
-    std::cerr << "Swapchain is dirty" << std::endl;
-    abort();
+  uint32_t imageIndex;
+  try {
+    auto acquireResult = m_device.acquireNextImageKHR(
+      m_swapchain.swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
+    imageIndex = acquireResult.value;
+  } catch (vk::OutOfDateKHRError) {
+    recreateSwapchain();
+    return;
+  } catch (vk::SystemError) {
+    throw std::runtime_error("Failed to acquire swapchain image!");
   }
-  uint32_t imageIndex = acquireResult.value;
 
   recordCommandBuffer(m_commandBuffers[imageIndex], imageIndex);
 
@@ -285,11 +288,20 @@ void VkTestSiteApp::render() {
   m_graphicsQueue.submit(submitInfo, m_inFlight[m_currentFrame]);
 
   auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain.swapchain, imageIndex);
-  auto presentResult = m_presentQueue.presentKHR(presentInfo);
-  if (presentResult != vk::Result::eSuccess) {
-    std::cerr << "Swapchain is dirty" << std::endl;
-    abort();
+  vk::Result presentResult;
+  try {
+    presentResult = m_presentQueue.presentKHR(presentInfo);
+  } catch (vk::OutOfDateKHRError) {
+    presentResult = vk::Result::eErrorOutOfDateKHR;
+  } catch (vk::SystemError) {
+    throw std::runtime_error("Failed to present swapchain image!");
   }
+
+  if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
+    recreateSwapchain();
+    return;
+  }
+
   m_presentQueue.waitIdle();
 
   m_currentFrame = imageIndex;
@@ -319,9 +331,38 @@ void VkTestSiteApp::recordCommandBuffer(const vk::CommandBuffer &commandBuffer, 
   commandBuffer.end();
 }
 
+void VkTestSiteApp::recreateSwapchain() {
+  int width = 0, height = 0;
+  while (width == 0 || height == 0) {
+    glfwGetFramebufferSize(m_window, &width, &height);
+    glfwWaitEvents();
+  }
+
+  m_device.waitIdle();
+  cleanupSwapchain();
+
+  m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
+  createRenderPass();
+  createPipeline();
+  createFramebuffers();
+  createCommandBuffers();
+}
+
+void VkTestSiteApp::cleanupSwapchain() {
+  m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
+  for (auto framebuffer: m_framebuffers) {
+    m_device.destroyFramebuffer(framebuffer);
+  }
+  m_device.destroyPipeline(m_graphicsPipeline);
+  m_device.destroyPipelineLayout(m_pipelineLayout);
+  m_device.destroyRenderPass(m_renderPass);
+  m_swapchain.destroy(m_device);
+}
+
 void VkTestSiteApp::cleanup() {
   ZoneScoped;
   m_device.waitIdle();
+  TracyVkDestroy(m_vkContext);
 
   for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
     m_device.destroyFence(m_inFlight[i]);
@@ -329,21 +370,14 @@ void VkTestSiteApp::cleanup() {
     m_device.destroySemaphore(m_renderFinished[i]);
   }
 
-  m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
-  m_device.destroyCommandPool(m_commandPool);
-  for (auto framebuffer: m_framebuffers) {
-    m_device.destroyFramebuffer(framebuffer);
-  }
-  m_device.destroyPipeline(m_graphicsPipeline);
-  m_device.destroyPipelineLayout(m_pipelineLayout);
-  m_device.destroyRenderPass(m_renderPass);
+  cleanupSwapchain();
 
-  m_swapchain.destroy(m_device);
+  m_device.destroyCommandPool(m_commandPool);
   m_device.destroy();
+  m_instance.destroySurfaceKHR(m_surface.release());
 #ifndef NDEBUG
   m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger, nullptr, m_didl);
 #endif
-  m_instance.destroySurfaceKHR(m_surface.release());
   m_instance.destroy();
 
   glfwDestroyWindow(m_window);

@@ -63,6 +63,8 @@ private:
   void mainLoop();
   void render();
   void recordCommandBuffer(const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
+  void recreateSwapchain();
+  void cleanupSwapchain();
   void cleanup();
 };
 
