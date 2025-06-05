@@ -215,14 +215,15 @@ void VkTestSiteApp::createPipeline() {
 
 void VkTestSiteApp::createFramebuffers() {
   ZoneScoped;
-  for (auto swapChainImageView : m_swapchain.imageViews) {
-    std::vector attachments = {swapChainImageView};
+  m_framebuffers.resize(m_swapchain.imageViews.size());
+  for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
+    std::vector attachments = {m_swapchain.imageViews[i]};
 
     auto framebufferInfo = vk::FramebufferCreateInfo(
       {}, m_renderPass, attachments,
       m_swapchain.extent.width, m_swapchain.extent.height, 1
     );
-    m_framebuffers.push_back(m_device.createFramebuffer(framebufferInfo));
+    m_framebuffers[i] = m_device.createFramebuffer(framebufferInfo);
   }
 }
 
