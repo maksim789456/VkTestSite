@@ -63,7 +63,7 @@ void VkTestSiteApp::initVk() {
   createSyncObjects();
 
   ImGui_ImplGlfw_InitForVulkan(m_window, true);
-  auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
+  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   ImGui_ImplVulkan_InitInfo vkInitInfo = {};
   vkInitInfo.ApiVersion = VK_API_VERSION_1_3;
   vkInitInfo.Instance = m_instance;
@@ -120,7 +120,7 @@ void VkTestSiteApp::createInstance() {
 
 void VkTestSiteApp::createQueues() {
   ZoneScoped;
-  auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
+  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   m_graphicsQueue = m_device.getQueue(indices.graphics, 0);
   m_presentQueue = m_device.getQueue(indices.present, 0);
 }
@@ -160,12 +160,12 @@ void VkTestSiteApp::createLogicalDevice() {
 
 void VkTestSiteApp::createRenderPass() {
   ZoneScoped;
-  auto colorAttachment = vk::AttachmentDescription(
+  const auto colorAttachment = vk::AttachmentDescription(
     {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
     vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
     vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
     vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
-  auto colorAttachmentRef = vk::AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
+  constexpr auto colorAttachmentRef = vk::AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
 
   std::vector<vk::AttachmentReference> inputAttachmentsRefs = {};
   std::vector colorAttachmentsRefs = {colorAttachmentRef};
@@ -174,7 +174,7 @@ void VkTestSiteApp::createRenderPass() {
 
   std::vector attachments = {colorAttachment};
   std::vector subpasses = {subpass};
-  auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpass);
+  const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpass);
 
   m_renderPass = m_device.createRenderPass(renderPassInfo);
 }
@@ -256,21 +256,21 @@ void VkTestSiteApp::createFramebuffers() {
 
 void VkTestSiteApp::createCommandPool() {
   ZoneScoped;
-  auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
+  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
 
-  auto poolInfo = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, indices.graphics);
+  const auto poolInfo = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, indices.graphics);
   m_commandPool = m_device.createCommandPool(poolInfo);
 }
 
 void VkTestSiteApp::createCommandBuffers() {
   ZoneScoped;
-  auto commandBufInfo = vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary,
+  const auto commandBufInfo = vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary,
                                                       m_swapchain.imageViews.size());
   m_commandBuffers = m_device.allocateCommandBuffers(commandBufInfo);
 }
 
 void VkTestSiteApp::createSyncObjects() {
-  auto fenceInfo = vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled);
+  constexpr auto fenceInfo = vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled);
   for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
     m_inFlight.push_back(m_device.createFence(fenceInfo));
     m_imageAvailable.push_back(m_device.createSemaphore(vk::SemaphoreCreateInfo()));
@@ -296,8 +296,7 @@ void VkTestSiteApp::mainLoop() {
 
     ImGui::Render();
     const auto draw_data = ImGui::GetDrawData();
-    const bool is_min = draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f;
-    if (!is_min) {
+    if (draw_data->DisplaySize.x > 0.0f && draw_data->DisplaySize.y > 0.0f) {
       render(draw_data);
       FrameMark;
     }
@@ -311,7 +310,7 @@ void VkTestSiteApp::render(ImDrawData* draw_data) {
 
   uint32_t imageIndex;
   try {
-    auto acquireResult = m_device.acquireNextImageKHR(
+    const auto acquireResult = m_device.acquireNextImageKHR(
       m_swapchain.swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
     imageIndex = acquireResult.value;
   } catch (vk::OutOfDateKHRError) {
@@ -324,14 +323,14 @@ void VkTestSiteApp::render(ImDrawData* draw_data) {
   recordCommandBuffer(draw_data, m_commandBuffers[imageIndex], imageIndex);
 
   vk::PipelineStageFlags pipelineStageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-  auto submitInfo = vk::SubmitInfo(
+  const auto submitInfo = vk::SubmitInfo(
     m_imageAvailable[m_currentFrame],
     pipelineStageFlags,
     m_commandBuffers[imageIndex],
     m_renderFinished[m_currentFrame]);
   m_graphicsQueue.submit(submitInfo, m_inFlight[m_currentFrame]);
 
-  auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain.swapchain, imageIndex);
+  const auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain.swapchain, imageIndex);
   vk::Result presentResult;
   try {
     presentResult = m_presentQueue.presentKHR(presentInfo);
@@ -356,16 +355,16 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData* draw_data, const vk::Command
   commandBuffer.reset();
   commandBuffer.begin(vk::CommandBufferBeginInfo());
 
-  auto renderArea = vk::Rect2D({}, m_swapchain.extent);
-  auto colorClearValue = vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
-  auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, colorClearValue);
+  const auto renderArea = vk::Rect2D({}, m_swapchain.extent);
+  constexpr auto colorClearValue = vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
+  const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, colorClearValue);
 
   commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eInline);
-  std::vector viewports = {
+  const std::vector viewports = {
     vk::Viewport(0, 0, m_swapchain.extent.width, m_swapchain.extent.height, 0.0f, 1.0f)
   };
   commandBuffer.setViewport(0, viewports);
-  std::vector scissors = {
+  const std::vector scissors = {
     vk::Rect2D({}, m_swapchain.extent),
   };
   commandBuffer.setScissor(0, scissors);
@@ -395,7 +394,7 @@ void VkTestSiteApp::recreateSwapchain() {
 
 void VkTestSiteApp::cleanupSwapchain() {
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
-  for (auto framebuffer: m_framebuffers) {
+  for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
   }
   m_device.destroyPipeline(m_graphicsPipeline);
