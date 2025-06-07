@@ -17,9 +17,17 @@ const std::vector LAYERS = {
 void VkTestSiteApp::run() {
   ZoneScoped;
   initWindow();
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
   initVk();
   mainLoop();
+
+  m_device.waitIdle();
+  ImGui_ImplVulkan_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
   cleanup();
+  glfwDestroyWindow(m_window);
+  glfwTerminate();
 }
 
 void VkTestSiteApp::initWindow() {
@@ -53,6 +61,25 @@ void VkTestSiteApp::initVk() {
   createCommandPool();
   createCommandBuffers();
   createSyncObjects();
+
+  ImGui_ImplGlfw_InitForVulkan(m_window, true);
+  auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
+  ImGui_ImplVulkan_InitInfo vkInitInfo = {};
+  vkInitInfo.ApiVersion = VK_API_VERSION_1_3;
+  vkInitInfo.Instance = m_instance;
+  vkInitInfo.PhysicalDevice = m_physicalDevice;
+  vkInitInfo.Device = m_device;
+  vkInitInfo.QueueFamily = indices.graphics;
+  vkInitInfo.Queue = m_graphicsQueue;
+  vkInitInfo.RenderPass = m_renderPass;
+  vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
+  vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+  vkInitInfo.Subpass = 0;
+  vkInitInfo.DescriptorPoolSize = 100;
+  if (!ImGui_ImplVulkan_Init(&vkInitInfo)) {
+    std::cerr << "Failed to initialize Imgui Vulkan render" << std::endl;
+    abort();
+  }
 }
 
 void VkTestSiteApp::createInstance() {
@@ -255,12 +282,29 @@ void VkTestSiteApp::mainLoop() {
   ZoneScoped;
   while (!glfwWindowShouldClose(m_window)) {
     glfwPollEvents();
-    render();
-    FrameMark;
+    if (glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0)
+    {
+      ImGui_ImplGlfw_Sleep(10);
+      continue;
+    }
+
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+
+    ImGui::ShowDemoWindow();
+
+    ImGui::Render();
+    const auto draw_data = ImGui::GetDrawData();
+    const bool is_min = draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f;
+    if (!is_min) {
+      render(draw_data);
+      FrameMark;
+    }
   }
 }
 
-void VkTestSiteApp::render() {
+void VkTestSiteApp::render(ImDrawData* draw_data) {
   ZoneScoped;
   auto _ = m_device.waitForFences(m_inFlight[m_currentFrame], true, UINT64_MAX);
   m_device.resetFences(m_inFlight[m_currentFrame]);
@@ -277,7 +321,7 @@ void VkTestSiteApp::render() {
     throw std::runtime_error("Failed to acquire swapchain image!");
   }
 
-  recordCommandBuffer(m_commandBuffers[imageIndex], imageIndex);
+  recordCommandBuffer(draw_data, m_commandBuffers[imageIndex], imageIndex);
 
   vk::PipelineStageFlags pipelineStageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
   auto submitInfo = vk::SubmitInfo(
@@ -307,7 +351,7 @@ void VkTestSiteApp::render() {
   m_currentFrame = imageIndex;
 }
 
-void VkTestSiteApp::recordCommandBuffer(const vk::CommandBuffer &commandBuffer, uint32_t imageIndex) {
+void VkTestSiteApp::recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer &commandBuffer, uint32_t imageIndex) {
   ZoneScoped;
   commandBuffer.reset();
   commandBuffer.begin(vk::CommandBufferBeginInfo());
@@ -327,6 +371,7 @@ void VkTestSiteApp::recordCommandBuffer(const vk::CommandBuffer &commandBuffer, 
   commandBuffer.setScissor(0, scissors);
   commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline);
   commandBuffer.draw(3, 1, 0, 0);
+  ImGui_ImplVulkan_RenderDrawData(draw_data, commandBuffer);
   commandBuffer.endRenderPass();
   commandBuffer.end();
 }
@@ -361,7 +406,6 @@ void VkTestSiteApp::cleanupSwapchain() {
 
 void VkTestSiteApp::cleanup() {
   ZoneScoped;
-  m_device.waitIdle();
   TracyVkDestroy(m_vkContext);
 
   for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
@@ -379,7 +423,4 @@ void VkTestSiteApp::cleanup() {
   m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger, nullptr, m_didl);
 #endif
   m_instance.destroy();
-
-  glfwDestroyWindow(m_window);
-  glfwTerminate();
 }

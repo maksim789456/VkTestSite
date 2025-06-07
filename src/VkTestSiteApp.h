@@ -3,6 +3,9 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
+#include <imgui.h>
+#include <imgui_impl_vulkan.h>
+#include <imgui_impl_glfw.h>
 #include <tracy/Tracy.hpp>
 
 #include "utils.cpp"
@@ -61,8 +64,8 @@ private:
   void createSyncObjects();
 
   void mainLoop();
-  void render();
-  void recordCommandBuffer(const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
+  void render(ImDrawData* draw_data);
+  void recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
   void recreateSwapchain();
   void cleanupSwapchain();
   void cleanup();

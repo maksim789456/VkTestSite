@@ -6,6 +6,13 @@
     "vulkan-headers",
     "tracy",
     "shaderc",
-    "imgui"
+    {
+      "name": "imgui",
+      "default-features": false,
+      "features": [
+        "glfw-binding",
+        "vulkan-binding"
+      ]
+    }
   ]
 }
