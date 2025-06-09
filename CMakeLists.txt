@@ -16,6 +16,7 @@ add_executable(VkTestSite src/main.cpp
         src/Swapchain.h
         src/ShaderModule.cpp
         src/ShaderModule.h)
+        src/Vertex.h
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(VulkanHeaders CONFIG)

@@ -196,8 +196,10 @@ void VkTestSiteApp::createPipeline() {
     vk::DynamicState::eScissor,
   };
 
+  auto bindingDescription = Vertex::GetBindingDescription();
+  auto attributeDescription = Vertex::GetAttributeDescriptions();
   auto dynamicStateInfo = vk::PipelineDynamicStateCreateInfo({}, dynamicStates);
-  auto vertexInputInfo = vk::PipelineVertexInputStateCreateInfo({}, 0, nullptr, 0, nullptr); //TODO
+  auto vertexInputInfo = vk::PipelineVertexInputStateCreateInfo({}, bindingDescription, attributeDescription); //TODO
   auto inputAssembly = vk::PipelineInputAssemblyStateCreateInfo({}, vk::PrimitiveTopology::eTriangleList, false);
   auto viewportState = vk::PipelineViewportStateCreateInfo({}, 1, nullptr, 1, nullptr);
   auto rasterizer = vk::PipelineRasterizationStateCreateInfo(

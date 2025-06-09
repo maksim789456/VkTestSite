@@ -17,6 +17,7 @@
 #include "QueueFamilyIndices.cpp"
 #include "Swapchain.h"
 #include "ShaderModule.h"
+#include "Vertex.h"
 
 #ifndef VkTestSite_App_HPP
 #define VkTestSite_App_HPP
