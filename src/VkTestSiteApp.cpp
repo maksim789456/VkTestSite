@@ -19,6 +19,7 @@ void VkTestSiteApp::run() {
   initWindow();
   IMGUI_CHECKVERSION();
   ImGui::CreateContext();
+  ImGui::ApplyCurrentStyle();
   initVk();
   mainLoop();
 

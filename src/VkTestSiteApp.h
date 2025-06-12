@@ -6,6 +6,7 @@
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
 #include <imgui_impl_glfw.h>
+#include "ImGUIStyle.h"
 #include <tracy/Tracy.hpp>
 
 #include "utils.cpp"
