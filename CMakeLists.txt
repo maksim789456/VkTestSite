@@ -17,6 +17,8 @@ add_executable(VkTestSite src/main.cpp
         src/ShaderModule.cpp
         src/ShaderModule.h
         src/Vertex.h
+        src/DescriptorSet.cpp
+        src/DescriptorSet.h
         src/DescriptorPool.h
         src/ImGUIStyle.h)
 
