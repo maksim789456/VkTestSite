@@ -17,6 +17,7 @@ add_executable(VkTestSite src/main.cpp
         src/ShaderModule.cpp
         src/ShaderModule.h
         src/Vertex.h
+        src/DescriptorPool.h
         src/ImGUIStyle.h)
 
 find_package(glfw3 CONFIG REQUIRED)
