@@ -19,6 +19,8 @@
 #include "Swapchain.h"
 #include "ShaderModule.h"
 #include "Vertex.h"
+#include "DescriptorPool.h"
+#include "DescriptorSet.h"
 
 #ifndef VkTestSite_App_HPP
 #define VkTestSite_App_HPP
@@ -44,6 +46,8 @@ private:
   vk::PipelineLayout m_pipelineLayout;
   vk::Pipeline m_graphicsPipeline;
   vk::CommandPool m_commandPool;
+  DescriptorPool m_descriptorPool;
+  DescriptorSet m_descriptorSet;
 
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<vk::CommandBuffer> m_commandBuffers;
@@ -61,6 +65,7 @@ private:
   void createRenderPass();
   void createPipeline();
   void createFramebuffers();
+  void createDescriptorSet();
   void createCommandPool();
   void createCommandBuffers();
   void createSyncObjects();

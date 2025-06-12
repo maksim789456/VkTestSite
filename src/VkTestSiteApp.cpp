@@ -3,9 +3,11 @@
 #define WINDOW_WIDTH 1024
 #define WINDOW_HEIGHT 768
 #define MAX_FRAME_IN_FLIGHT 2 //0..2 -> 3 frames
+#define MAX_TEXTURE_PER_DESCRIPTOR 64
 
 const std::vector DEVICE_EXTENSIONS = {
-  VK_KHR_SWAPCHAIN_EXTENSION_NAME
+  VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+  VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
 };
 
 const std::vector LAYERS = {
@@ -58,6 +60,8 @@ void VkTestSiteApp::initVk() {
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
   createRenderPass();
   createPipeline();
+  m_descriptorPool = DescriptorPool(m_device);
+  //createDescriptorSet();
   createFramebuffers();
   createCommandPool();
   createCommandBuffers();
@@ -144,6 +148,9 @@ void VkTestSiteApp::createLogicalDevice() {
   }
 
   vk::PhysicalDeviceFeatures device_features{};
+  vk::PhysicalDeviceVulkan12Features vulkan12_features{};
+  vulkan12_features
+      .setDescriptorIndexing(true);
   device_features
       .setSamplerAnisotropy(true)
       .setSampleRateShading(true);
@@ -155,6 +162,7 @@ void VkTestSiteApp::createLogicalDevice() {
     DEVICE_EXTENSIONS,
     &device_features
   );
+  device_create_info.pNext = &vulkan12_features;
 
   m_device = m_physicalDevice.createDevice(device_create_info);
 }
@@ -255,6 +263,32 @@ void VkTestSiteApp::createFramebuffers() {
     );
     m_framebuffers[i] = m_device.createFramebuffer(framebufferInfo);
   }
+}
+
+void VkTestSiteApp::createDescriptorSet() {
+  const auto layouts = std::vector{
+    DescriptorLayout{
+      .type = vk::DescriptorType::eUniformBuffer,
+      .stage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+      .bindingFlags = {},
+      .shaderBinding = 0,
+      .count = 1,
+      .imageInfos = {},
+      .bufferInfos = {}
+    },
+    DescriptorLayout{
+      .type = vk::DescriptorType::eCombinedImageSampler,
+      .stage = vk::ShaderStageFlagBits::eFragment,
+      .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound | vk::DescriptorBindingFlagBits::eUpdateAfterBind,
+      .shaderBinding = 1,
+      .count = MAX_TEXTURE_PER_DESCRIPTOR,
+      .imageInfos = {},
+      .bufferInfos = {}
+    }
+  };
+  const auto pushConsts = std::vector<vk::PushConstantRange>{};
+  m_descriptorSet = DescriptorSet(m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+                                  layouts, pushConsts);
 }
 
 void VkTestSiteApp::createCommandPool() {
@@ -391,11 +425,15 @@ void VkTestSiteApp::recreateSwapchain() {
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
   createRenderPass();
   createPipeline();
+  m_descriptorPool = DescriptorPool(m_device);
+  //createDescriptorSet();
   createFramebuffers();
   createCommandBuffers();
 }
 
 void VkTestSiteApp::cleanupSwapchain() {
+  //m_descriptorSet.destroy(m_device);
+  m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
   for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
