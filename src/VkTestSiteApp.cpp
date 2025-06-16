@@ -57,6 +57,19 @@ void VkTestSiteApp::initVk() {
   m_physicalDevice = *deviceTmp;
   createLogicalDevice();
   createQueues();
+
+  VmaAllocatorCreateInfo allocatorInfo = {};
+  allocatorInfo.flags = {};
+  allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+  allocatorInfo.physicalDevice = m_physicalDevice;
+  allocatorInfo.device = m_device;
+  allocatorInfo.instance = m_instance;
+  auto allocCreateResult = vmaCreateAllocator(&allocatorInfo, &m_allocator);
+  if (allocCreateResult != VK_SUCCESS) {
+    std::cerr << "vmaCreateAllocator failed with error code: " << allocCreateResult << std::endl;
+    throw std::runtime_error("Failed to create VMA allocator");
+  }
+
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
   createRenderPass();
   createPipeline();
@@ -150,6 +163,7 @@ void VkTestSiteApp::createLogicalDevice() {
   vk::PhysicalDeviceFeatures device_features{};
   vk::PhysicalDeviceVulkan12Features vulkan12_features{};
   vulkan12_features
+      .setHostQueryReset(true)
       .setDescriptorIndexing(true);
   device_features
       .setSamplerAnisotropy(true)
@@ -302,7 +316,7 @@ void VkTestSiteApp::createCommandPool() {
 void VkTestSiteApp::createCommandBuffers() {
   ZoneScoped;
   const auto commandBufInfo = vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary,
-                                                      m_swapchain.imageViews.size());
+                                                            m_swapchain.imageViews.size());
   m_commandBuffers = m_device.allocateCommandBuffers(commandBufInfo);
 }
 
@@ -319,8 +333,7 @@ void VkTestSiteApp::mainLoop() {
   ZoneScoped;
   while (!glfwWindowShouldClose(m_window)) {
     glfwPollEvents();
-    if (glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0)
-    {
+    if (glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0) {
       ImGui_ImplGlfw_Sleep(10);
       continue;
     }
@@ -340,7 +353,7 @@ void VkTestSiteApp::mainLoop() {
   }
 }
 
-void VkTestSiteApp::render(ImDrawData* draw_data) {
+void VkTestSiteApp::render(ImDrawData *draw_data) {
   ZoneScoped;
   auto _ = m_device.waitForFences(m_inFlight[m_currentFrame], true, UINT64_MAX);
   m_device.resetFences(m_inFlight[m_currentFrame]);
@@ -387,7 +400,8 @@ void VkTestSiteApp::render(ImDrawData* draw_data) {
   m_currentFrame = imageIndex;
 }
 
-void VkTestSiteApp::recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer &commandBuffer, uint32_t imageIndex) {
+void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::CommandBuffer &commandBuffer,
+                                        uint32_t imageIndex) {
   ZoneScoped;
   commandBuffer.reset();
   commandBuffer.begin(vk::CommandBufferBeginInfo());
@@ -457,6 +471,7 @@ void VkTestSiteApp::cleanup() {
   cleanupSwapchain();
 
   m_device.destroyCommandPool(m_commandPool);
+  vmaDestroyAllocator(m_allocator);
   m_device.destroy();
   m_instance.destroySurfaceKHR(m_surface.release());
 #ifndef NDEBUG

@@ -20,18 +20,22 @@ add_executable(VkTestSite src/main.cpp
         src/DescriptorSet.cpp
         src/DescriptorSet.h
         src/DescriptorPool.h
-        src/ImGUIStyle.h)
+        src/ImGUIStyle.h
+        src/VmaUsage.cpp)
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(VulkanHeaders CONFIG)
+find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Tracy CONFIG REQUIRED)
 find_package(unofficial-shaderc CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 target_link_libraries(VkTestSite PRIVATE
         glfw
         Vulkan::Headers
         Vulkan::Vulkan
+        GPUOpen::VulkanMemoryAllocator
         Tracy::TracyClient
         unofficial::shaderc::shaderc
         imgui::imgui

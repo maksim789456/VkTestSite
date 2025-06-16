@@ -4,6 +4,7 @@
     "glm",
     "vulkan",
     "vulkan-headers",
+    "vulkan-memory-allocator",
     "tracy",
     "shaderc",
     {

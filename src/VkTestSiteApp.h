@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef VkTestSite_App_HPP
+#define VkTestSite_App_HPP
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
@@ -8,6 +11,8 @@
 #include <imgui_impl_glfw.h>
 #include "ImGUIStyle.h"
 #include <tracy/Tracy.hpp>
+
+#include "vk_mem_alloc.h"
 
 #include "utils.cpp"
 #include <string>
@@ -22,9 +27,6 @@
 #include "DescriptorPool.h"
 #include "DescriptorSet.h"
 
-#ifndef VkTestSite_App_HPP
-#define VkTestSite_App_HPP
-
 class VkTestSiteApp {
 public:
   void run();
@@ -32,6 +34,7 @@ public:
 private:
   GLFWwindow *m_window = nullptr;
   vk::Instance m_instance;
+  VmaAllocator m_allocator = nullptr;
 #ifndef NDEBUG
   vk::DebugUtilsMessengerEXT m_debugMessenger;
   vk::detail::DispatchLoaderDynamic m_didl;
