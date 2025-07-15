@@ -3,24 +3,23 @@
 #ifndef SHADERMODULE_H
 #define SHADERMODULE_H
 
-#include <shaderc/shaderc.hpp>
+#include <spirv-reflect/spirv_reflect.h>
 #include <vulkan/vulkan.hpp>
 #include <fstream>
 #include <tracy/Tracy.hpp>
 
 class ShaderModule {
 public:
-  vk::PipelineShaderStageCreateInfo pipeline_info;
+  vk::PipelineShaderStageCreateInfo vertexPipelineInfo;
+  vk::PipelineShaderStageCreateInfo fragmentPipelineInfo;
 
-  ShaderModule();
-  ShaderModule(vk::ShaderStageFlagBits stage);
+  ShaderModule() = default;
   void load(const std::string &path);
   void compile(const vk::Device &device);
   void destroy(const vk::Device &device) const;
 
 private:
-  vk::ShaderStageFlagBits stage;
-  std::string source;
+  std::vector<char> spv;
   vk::ShaderModule module;
 };
 

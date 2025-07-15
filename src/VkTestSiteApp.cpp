@@ -204,14 +204,11 @@ void VkTestSiteApp::createRenderPass() {
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
-  auto vertexShaderModule = ShaderModule(vk::ShaderStageFlagBits::eVertex);
-  vertexShaderModule.load("../res/shaders/test.vert");
-  vertexShaderModule.compile(m_device);
-  auto fragmentShaderModule = ShaderModule(vk::ShaderStageFlagBits::eFragment);
-  fragmentShaderModule.load("../res/shaders/test.frag");
-  fragmentShaderModule.compile(m_device);
+  auto shaderModule = ShaderModule();
+  shaderModule.load("../res/shaders/test.slang.spv");
+  shaderModule.compile(m_device);
   std::vector shaderStages = {
-    vertexShaderModule.pipeline_info, fragmentShaderModule.pipeline_info
+    shaderModule.vertexPipelineInfo, shaderModule.fragmentPipelineInfo
   };
 
   std::vector dynamicStates = {
@@ -261,8 +258,7 @@ void VkTestSiteApp::createPipeline() {
   }
   m_graphicsPipeline = result.value;
 
-  vertexShaderModule.destroy(m_device);
-  fragmentShaderModule.destroy(m_device);
+  shaderModule.destroy(m_device);
 }
 
 void VkTestSiteApp::createFramebuffers() {

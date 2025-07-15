@@ -6,7 +6,6 @@
     "vulkan-headers",
     "vulkan-memory-allocator",
     "tracy",
-    "shaderc",
     {
       "name": "imgui",
       "default-features": false,
