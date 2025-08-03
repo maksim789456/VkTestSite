@@ -21,6 +21,8 @@ add_executable(VkTestSite src/main.cpp
         src/DescriptorSet.h
         src/DescriptorPool.h
         src/ImGUIStyle.h
+        src/Ubo.h
+        src/Ubo.tpp
         src/VmaUsage.cpp)
 
 find_package(glfw3 CONFIG REQUIRED)
