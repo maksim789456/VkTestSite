@@ -55,6 +55,8 @@ void VkTestSiteApp::initVk() {
     abort();
   }
   m_physicalDevice = *deviceTmp;
+  const auto props = m_physicalDevice.getProperties();
+  std::cout << "Physical device: " << props.deviceName << std::endl;
   createLogicalDevice();
   createQueues();
 
