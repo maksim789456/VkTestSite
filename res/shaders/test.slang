@@ -20,6 +20,11 @@ struct VSInput
     uint vertexID: SV_VertexID;
 };
 
+struct UBO {
+  float4 viewPos;
+  float4x4 viewProj;
+}
+[[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
 struct VSOutput
 {
     float4 Pos : SV_Position;

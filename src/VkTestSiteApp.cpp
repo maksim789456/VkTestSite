@@ -74,7 +74,8 @@ void VkTestSiteApp::initVk() {
   createRenderPass();
   createPipeline();
   m_descriptorPool = DescriptorPool(m_device);
-  //createDescriptorSet();
+  createUniformBuffers();
+  createDescriptorSet();
   createFramebuffers();
   createCommandPool();
   createCommandBuffers();
@@ -267,7 +268,7 @@ void VkTestSiteApp::createPipeline() {
 void VkTestSiteApp::createFramebuffers() {
   ZoneScoped;
   m_framebuffers.resize(m_swapchain.imageViews.size());
-  for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
+  for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
     std::vector attachments = {m_swapchain.imageViews[i]};
 
     auto framebufferInfo = vk::FramebufferCreateInfo(
@@ -278,7 +279,19 @@ void VkTestSiteApp::createFramebuffers() {
   }
 }
 
+void VkTestSiteApp::createUniformBuffers() {
+  for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
+      m_uniforms.emplace_back(m_allocator,
+        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+  }
+}
+
 void VkTestSiteApp::createDescriptorSet() {
+  std::vector<vk::DescriptorBufferInfo> uniform_infos;
+  for (const auto &ub: m_uniforms) {
+    uniform_infos.emplace_back(ub.getBufferInfo());
+  }
+
   const auto layouts = std::vector{
     DescriptorLayout{
       .type = vk::DescriptorType::eUniformBuffer,
@@ -287,7 +300,7 @@ void VkTestSiteApp::createDescriptorSet() {
       .shaderBinding = 0,
       .count = 1,
       .imageInfos = {},
-      .bufferInfos = {}
+      .bufferInfos = uniform_infos
     },
     DescriptorLayout{
       .type = vk::DescriptorType::eCombinedImageSampler,
@@ -419,6 +432,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   };
   commandBuffer.setScissor(0, scissors);
   commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline);
+  m_descriptorSet.bind(commandBuffer, imageIndex, {});
   commandBuffer.draw(3, 1, 0, 0);
   ImGui_ImplVulkan_RenderDrawData(draw_data, commandBuffer);
   commandBuffer.endRenderPass();
@@ -439,13 +453,18 @@ void VkTestSiteApp::recreateSwapchain() {
   createRenderPass();
   createPipeline();
   m_descriptorPool = DescriptorPool(m_device);
-  //createDescriptorSet();
+  createUniformBuffers();
+  createDescriptorSet();
   createFramebuffers();
   createCommandBuffers();
 }
 
 void VkTestSiteApp::cleanupSwapchain() {
-  //m_descriptorSet.destroy(m_device);
+  for (auto& uniform: m_uniforms) {
+    uniform.destroy();
+  }
+  m_uniforms.clear();
+  m_descriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
   for (const auto framebuffer: m_framebuffers) {

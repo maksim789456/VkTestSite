@@ -12,6 +12,9 @@
 #include "ImGUIStyle.h"
 #include <tracy/Tracy.hpp>
 
+#include <glm/vec4.hpp>
+#include <glm/mat4x4.hpp>
+
 #include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
 
 #include "utils.cpp"
@@ -26,6 +29,12 @@
 #include "Vertex.h"
 #include "DescriptorPool.h"
 #include "DescriptorSet.h"
+#include "Ubo.h"
+
+struct alignas(16) UniformBufferObject {
+  glm::vec4 viewPos;
+  glm::mat4 viewProj;
+};
 
 class VkTestSiteApp {
 public:
@@ -53,6 +62,7 @@ private:
   DescriptorSet m_descriptorSet;
 
   std::vector<vk::Framebuffer> m_framebuffers;
+  std::vector<UniformBuffer<UniformBufferObject>> m_uniforms;
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::Fence> m_inFlight;
   std::vector<vk::Semaphore> m_imageAvailable;
@@ -68,6 +78,7 @@ private:
   void createRenderPass();
   void createPipeline();
   void createFramebuffers();
+  void createUniformBuffers();
   void createDescriptorSet();
   void createCommandPool();
   void createCommandBuffers();
