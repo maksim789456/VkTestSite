@@ -12,7 +12,7 @@
 #include "ImGUIStyle.h"
 #include <tracy/Tracy.hpp>
 
-#include "vk_mem_alloc.h"
+#include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
 
 #include "utils.cpp"
 #include <string>
