@@ -28,8 +28,10 @@ void DescriptorSet::setup_layout(
   m_descriptorLayouts = layouts;
 
   auto layoutBindingsFlags = std::vector<vk::DescriptorBindingFlags>();
+  auto layoutBindingsAllFlags = vk::DescriptorBindingFlags{};
   auto layoutBindings = std::vector<vk::DescriptorSetLayoutBinding>();
   for (const auto &layout: m_descriptorLayouts) {
+    layoutBindingsAllFlags |= layout.bindingFlags;
     layoutBindingsFlags.emplace_back(layout.bindingFlags);
     layoutBindings.emplace_back(
       layout.shaderBinding, layout.type, layout.count, layout.stage
@@ -37,8 +39,7 @@ void DescriptorSet::setup_layout(
   }
 
   const auto dslFlags =
-      std::ranges::find(layoutBindingsFlags, vk::DescriptorBindingFlagBits::eUpdateAfterBind)
-      != layoutBindingsFlags.end()
+    layoutBindingsAllFlags & vk::DescriptorBindingFlagBits::eUpdateAfterBind
         ? vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool
         : vk::DescriptorSetLayoutCreateFlags{};
 

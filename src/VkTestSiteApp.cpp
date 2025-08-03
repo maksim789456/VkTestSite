@@ -161,10 +161,13 @@ void VkTestSiteApp::createLogicalDevice() {
   }
 
   vk::PhysicalDeviceFeatures device_features{};
-  vk::PhysicalDeviceVulkan12Features vulkan12_features{};
-  vulkan12_features
-      .setHostQueryReset(true)
-      .setDescriptorIndexing(true);
+  vk::PhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
+  descriptor_indexing_features
+    .setDescriptorBindingPartiallyBound(true)
+    .setDescriptorBindingSampledImageUpdateAfterBind(true)
+    .setShaderSampledImageArrayNonUniformIndexing(true)
+    .setRuntimeDescriptorArray(true)
+    .setDescriptorBindingVariableDescriptorCount(true);
   device_features
       .setSamplerAnisotropy(true)
       .setSampleRateShading(true);
@@ -176,7 +179,7 @@ void VkTestSiteApp::createLogicalDevice() {
     DEVICE_EXTENSIONS,
     &device_features
   );
-  device_create_info.pNext = &vulkan12_features;
+  device_create_info.setPNext(&descriptor_indexing_features);
 
   m_device = m_physicalDevice.createDevice(device_create_info);
 }
