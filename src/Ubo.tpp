@@ -2,16 +2,11 @@
 
 template<typename UBO>
 UniformBuffer<UBO>::UniformBuffer(const vma::Allocator allocator, vk::Flags<vk::MemoryPropertyFlagBits> flags) {
+  ZoneScoped;
   this->allocator = allocator;
   bufferSize = sizeof(UBO);
 
-  const auto bufferCreateInfo = vk::BufferCreateInfo({}, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer);
-  const auto allocInfo = vma::AllocationCreateInfo(
-    vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
-    vma::MemoryUsage::eAutoPreferDevice,
-    flags
-  );
-  auto [buffer, alloc] = allocator.createBuffer(bufferCreateInfo, allocInfo);
+  auto [buffer, alloc] = createBuffer(allocator, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, flags);
   uniformBuffer = buffer;
   uniformBufferAlloc = alloc;
 
@@ -25,12 +20,14 @@ UniformBuffer<UBO>::UniformBuffer(const vma::Allocator allocator, vk::Flags<vk::
 
 template<typename UBO>
 void UniformBuffer<UBO>::map(const UBO &ubo) {
+  ZoneScoped;
   assert(bufferSize == sizeof(ubo));
   memcpy(uniformBufferMapped, &ubo, sizeof(ubo));
 }
 
 template<typename UBO>
 void UniformBuffer<UBO>::destroy() {
+  ZoneScoped;
   if (uniformBufferAlloc) {
     allocator.unmapMemory(uniformBufferAlloc);
     uniformBufferMapped = nullptr;

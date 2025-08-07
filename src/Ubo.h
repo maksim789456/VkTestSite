@@ -3,6 +3,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
+#include "BufferUtils.cpp"
 
 template<typename UBO>
 class UniformBuffer {

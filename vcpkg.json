@@ -7,13 +7,16 @@
     "vulkan-memory-allocator",
     "vulkan-memory-allocator-hpp",
     "tracy",
+    "spirv-reflect",
     {
       "name": "imgui",
       "default-features": false,
       "features": [
-        "glfw-binding",
+        "glfw-binding", 
         "vulkan-binding"
       ]
+    },
+    "assimp"
   ],
   "overrides": [
     {

@@ -24,6 +24,8 @@ add_executable(VkTestSite src/main.cpp
         src/Ubo.h
         src/Ubo.tpp
         src/VmaUsage.cpp
+        src/Model.cpp
+        src/Model.h
         src/Mesh.h
         src/Mesh.tpp
         src/BufferUtils.cpp)
@@ -34,7 +36,7 @@ find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 find_package(unofficial-vulkan-memory-allocator-hpp CONFIG REQUIRED)
 find_package(Vulkan REQUIRED)
 find_package(Tracy CONFIG REQUIRED)
-find_package(unofficial-shaderc CONFIG REQUIRED)
+find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 target_link_libraries(VkTestSite PRIVATE
@@ -44,8 +46,9 @@ target_link_libraries(VkTestSite PRIVATE
         GPUOpen::VulkanMemoryAllocator
         unofficial::VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
         Tracy::TracyClient
-        unofficial::shaderc::shaderc
+        unofficial::spirv-reflect
         imgui::imgui
+        assimp::assimp
 )
 
 option(TRACY_ENABLE "" ON)
