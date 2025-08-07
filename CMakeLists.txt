@@ -23,7 +23,8 @@ add_executable(VkTestSite src/main.cpp
         src/ImGUIStyle.h
         src/Ubo.h
         src/Ubo.tpp
-        src/VmaUsage.cpp)
+        src/VmaUsage.cpp
+        src/BufferUtils.cpp)
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(VulkanHeaders CONFIG)
