@@ -24,6 +24,8 @@ add_executable(VkTestSite src/main.cpp
         src/Ubo.h
         src/Ubo.tpp
         src/VmaUsage.cpp
+        src/Mesh.h
+        src/Mesh.tpp
         src/BufferUtils.cpp)
 
 find_package(glfw3 CONFIG REQUIRED)
