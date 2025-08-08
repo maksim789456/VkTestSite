@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <vulkan/vulkan.hpp>
 #include <tracy/Tracy.hpp>
 
@@ -202,4 +203,29 @@ std::optional<vk::PhysicalDevice> static pickPhysicalDevice(
 
   std::cerr << "Failed to found a suitable GPU!" << std::endl;
   return std::nullopt;
+}
+
+template<typename Func>
+static void executeSingleTimeCommands(
+  const vk::Device device,
+  const vk::Queue queue,
+  const vk::CommandPool commandPool,
+  const Func&& executor
+) {
+  const auto allocInfo = vk::CommandBufferAllocateInfo(commandPool, vk::CommandBufferLevel::ePrimary, 1);
+  const auto cmd = device.allocateCommandBuffers(allocInfo).front();
+
+  constexpr auto beginInfo = vk::CommandBufferBeginInfo(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
+  cmd.begin(beginInfo);
+  executor(cmd);
+  cmd.end();
+
+  auto submitInfo = vk::SubmitInfo{};
+  submitInfo.setCommandBufferCount(1);
+  submitInfo.setPCommandBuffers(&cmd);
+
+  queue.submit(submitInfo);
+  queue.waitIdle();
+
+  device.freeCommandBuffers(commandPool, cmd);
 }
