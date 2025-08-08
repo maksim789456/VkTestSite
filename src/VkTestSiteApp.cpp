@@ -101,6 +101,11 @@ void VkTestSiteApp::initVk() {
     std::cerr << "Failed to initialize Imgui Vulkan render" << std::endl;
     abort();
   }
+
+  const auto imguiCmdsInfo = vk::CommandBufferAllocateInfo(
+    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
+  );
+  m_imguiCommandBuffers = m_device.allocateCommandBuffersUnique(imguiCmdsInfo);
 }
 
 void VkTestSiteApp::createInstance() {
@@ -289,6 +294,7 @@ void VkTestSiteApp::createUniformBuffers() {
 }
 
 void VkTestSiteApp::createDescriptorSet() {
+  ZoneScoped;
   std::vector<vk::DescriptorBufferInfo> uniform_infos;
   for (const auto &ub: m_uniforms) {
     uniform_infos.emplace_back(ub.getBufferInfo());
@@ -424,19 +430,22 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   constexpr auto colorClearValue = vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
   const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, colorClearValue);
 
-  commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eInline);
-  const std::vector viewports = {
-    vk::Viewport(0, 0, m_swapchain.extent.width, m_swapchain.extent.height, 0.0f, 1.0f)
-  };
-  commandBuffer.setViewport(0, viewports);
-  const std::vector scissors = {
-    vk::Rect2D({}, m_swapchain.extent),
-  };
-  commandBuffer.setScissor(0, scissors);
-  commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline);
-  m_descriptorSet.bind(commandBuffer, imageIndex, {});
-  commandBuffer.draw(3, 1, 0, 0);
-  ImGui_ImplVulkan_RenderDrawData(draw_data, commandBuffer);
+  commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers);
+
+  { // ImGUI Secondary Cmd record -> exec
+    auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 0, m_framebuffers[imageIndex]);
+    auto imguiBeginInfo = vk::CommandBufferBeginInfo(
+      vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
+      &inheritanceInfo);
+    imguiCmd.reset();
+    imguiCmd.begin(imguiBeginInfo);
+    ImGui_ImplVulkan_RenderDrawData(draw_data, imguiCmd);
+    imguiCmd.end();
+
+    commandBuffer.executeCommands(imguiCmd);
+  }
+
   commandBuffer.endRenderPass();
   commandBuffer.end();
 }

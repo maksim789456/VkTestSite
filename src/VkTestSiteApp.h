@@ -64,6 +64,7 @@ private:
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms;
   std::vector<vk::CommandBuffer> m_commandBuffers;
+  std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
   std::vector<vk::Fence> m_inFlight;
   std::vector<vk::Semaphore> m_imageAvailable;
   std::vector<vk::Semaphore> m_renderFinished;
