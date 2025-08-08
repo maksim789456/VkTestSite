@@ -2,6 +2,7 @@
 
 #include <vulkan/vulkan.hpp>
 #include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
+#include "utils.cpp"
 
 #include <iostream>
 #include <optional>
@@ -60,4 +61,18 @@ static void fillBuffer(
   const auto mapped = allocator.mapMemory(allocation);
   memcpy(mapped, data.data(), data.size());
   allocator.unmapMemory(allocation);
+}
+
+static void copyBuffer(
+  const vk::Device device,
+  const vk::Queue graphicsQueue,
+  const vk::CommandPool commandPool,
+  const vk::Buffer srcBuffer,
+  const vk::Buffer dstBuffer,
+  const vk::DeviceSize size
+) {
+  executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
+    const auto region = vk::BufferCopy({}, {}, size);
+    cmd.copyBuffer(srcBuffer, dstBuffer, region);
+  });
 }
