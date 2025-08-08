@@ -20,7 +20,9 @@ static std::optional<std::string> getMaterialAlbedoTextureFile(
 }
 
 Model::Model(
-  vk::Device device,
+  const vk::Device device,
+  const vk::Queue graphicsQueue,
+  const vk::CommandPool commandPool,
   vma::Allocator allocator,
   std::filesystem::path modelPath
 ) {
@@ -33,11 +35,16 @@ Model::Model(
     | aiProcess_GenSmoothNormals
     | aiProcess_PreTransformVertices
   );
+  if (!scene)
+    throw std::runtime_error("Import of model failed");
 
-  const auto mesh = createMesh(allocator, scene);
+  createMesh(device, graphicsQueue, commandPool, allocator, scene);
 }
 
-Mesh<Vertex, uint32_t> *Model::createMesh(
+void Model::createMesh(
+  const vk::Device device,
+  const vk::Queue graphicsQueue,
+  const vk::CommandPool commandPool,
   vma::Allocator allocator,
   const aiScene *scene
 ) {
@@ -80,7 +87,9 @@ Mesh<Vertex, uint32_t> *Model::createMesh(
     }
   }
 
-  return new Mesh(allocator, vertices, indices);
+  m_mesh = std::make_unique<Mesh<Vertex, uint32_t> >(
+    allocator, device, graphicsQueue, commandPool, vertices, indices
+  );
 }
 
 void Model::createCommandBuffers(
