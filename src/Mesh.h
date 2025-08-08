@@ -11,6 +11,9 @@ public:
   Mesh() = default;
 
   Mesh(vma::Allocator allocator,
+       const vk::Device device,
+       const vk::Queue graphicsQueue,
+       const vk::CommandPool commandPool,
        const std::vector<VertexType> &vertices,
        const std::vector<IndexType> &indices,
        bool useStagingBuffer = true);
