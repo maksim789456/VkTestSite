@@ -1,15 +1,3 @@
-static float2 pos[3] = {
-    float2(0.0, -0.5),
-    float2(0.5, 0.5),
-    float2(-0.5, 0.5)
-};
-
-static float3 colors[3] = {
-    float3(1.0, 0.0, 0.0),
-    float3(0.0, 1.0, 0.0),
-    float3(0.0, 0.0, 1.0)
-};
-
 struct VSInput
 {
     [[vk::location(0)]] float3 inPos;
@@ -17,7 +5,6 @@ struct VSInput
     [[vk::location(2)]] float2 inTexCoord;
     [[vk::location(3)]] float4 inColor;
     [[vk::location(4)]] uint inTexIdx;
-    uint vertexID: SV_VertexID;
 };
 
 struct UBO {
@@ -25,23 +12,33 @@ struct UBO {
   float4x4 viewProj;
 }
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
+[[vk::binding(1, 0)]] Sampler2D textures[];
+
 struct VSOutput
 {
     float4 Pos : SV_Position;
-    [[vk::location(0)]] float3 Color;
+    [[vk::location(0)]] float3 Normal;
+    [[vk::location(1)]] float2 TexCoord;
+    [[vk::location(2)]] float3 FragPos;
+    [[vk::location(3)]] float3 ViewPos;
+    [[vk::location(4)]] float3 LightPos;
+    [[vk::location(5)]] float4 Color;
 }
 
 [shader("vertex")]
-VSOutput vertexMain(VSInput input)
+VSOutput vertexMain(VSInput input/*, uniform float4x4 pushModel*/)
 {
+    float4 worldPos = float4(input.inPos, 1.0);
+    //float4 diff = textures[NonUniformResourceIndex(input.inTexIdx)].Sample(input.inTexCoord);
     VSOutput out;
-    out.Pos = float4(pos[input.vertexID], 0.0, 1.0);
-    out.Color = colors[input.vertexID];
+    out.Pos = mul(ubo.viewProj, worldPos);
+    out.FragPos = worldPos.xyz;
+    out.Color = float4(1.0, 0.0, 0.0, 1.0);
     return out;
 }
 
 [shader("fragment")]
 float4 fragmentMain(VSOutput input) : SV_Target
 {
-    return float4(input.Color, 1.0);
+    return input.Color;
 }
