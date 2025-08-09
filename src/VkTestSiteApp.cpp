@@ -405,6 +405,8 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     throw std::runtime_error("Failed to acquire swapchain image!");
   }
 
+  m_camera->onUpdate(deltaTime);
+  updateUniformBuffer(imageIndex);
   recordCommandBuffer(draw_data, m_commandBuffers[imageIndex], imageIndex);
 
   vk::PipelineStageFlags pipelineStageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
@@ -433,6 +435,11 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   m_presentQueue.waitIdle();
 
   m_currentFrame = imageIndex;
+}
+
+void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
+  auto ubo = UniformBufferObject{glm::vec4(m_camera->getViewPos(), 1.0f), m_camera->getViewProj()};
+  m_uniforms[imageIndex].map(ubo);
 }
 
 void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::CommandBuffer &commandBuffer,

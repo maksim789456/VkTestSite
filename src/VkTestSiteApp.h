@@ -90,6 +90,7 @@ private:
 
   void mainLoop();
   void render(ImDrawData* draw_data, float deltaTime);
+  void updateUniformBuffer(uint32_t imageIndex);
   void recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
   void recreateSwapchain();
   void cleanupSwapchain();
