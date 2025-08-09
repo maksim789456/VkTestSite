@@ -364,6 +364,9 @@ void VkTestSiteApp::createSyncObjects() {
 void VkTestSiteApp::mainLoop() {
   ZoneScoped;
   while (!glfwWindowShouldClose(m_window)) {
+    float currentTime = static_cast<float>(glfwGetTime());
+    float deltaTime = currentTime - m_lastTime;
+    m_lastTime = currentTime;
     glfwPollEvents();
     if (glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0) {
       ImGui_ImplGlfw_Sleep(10);
@@ -379,13 +382,13 @@ void VkTestSiteApp::mainLoop() {
     ImGui::Render();
     const auto draw_data = ImGui::GetDrawData();
     if (draw_data->DisplaySize.x > 0.0f && draw_data->DisplaySize.y > 0.0f) {
-      render(draw_data);
+      render(draw_data, deltaTime);
       FrameMark;
     }
   }
 }
 
-void VkTestSiteApp::render(ImDrawData *draw_data) {
+void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   ZoneScoped;
   auto _ = m_device.waitForFences(m_inFlight[m_currentFrame], true, UINT64_MAX);
   m_device.resetFences(m_inFlight[m_currentFrame]);

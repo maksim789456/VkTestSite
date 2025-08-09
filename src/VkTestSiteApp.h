@@ -72,6 +72,7 @@ private:
   std::vector<vk::Semaphore> m_renderFinished;
 
   uint32_t m_currentFrame = 0;
+  float m_lastTime = 0.0f;
 
   void initWindow();
   void initVk();
@@ -88,7 +89,7 @@ private:
   void createSyncObjects();
 
   void mainLoop();
-  void render(ImDrawData* draw_data);
+  void render(ImDrawData* draw_data, float deltaTime);
   void recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
   void recreateSwapchain();
   void cleanupSwapchain();
