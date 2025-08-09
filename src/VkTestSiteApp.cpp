@@ -74,10 +74,10 @@ void VkTestSiteApp::initVk() {
 
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
   createRenderPass();
-  createPipeline();
-  m_descriptorPool = DescriptorPool(m_device);
   createUniformBuffers();
+  m_descriptorPool = DescriptorPool(m_device);
   createDescriptorSet();
+  createPipeline();
   createFramebuffers();
   createCommandPool();
   createCommandBuffers();
@@ -183,11 +183,11 @@ void VkTestSiteApp::createLogicalDevice() {
   vk::PhysicalDeviceFeatures device_features{};
   vk::PhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
   descriptor_indexing_features
-    .setDescriptorBindingPartiallyBound(true)
-    .setDescriptorBindingSampledImageUpdateAfterBind(true)
-    .setShaderSampledImageArrayNonUniformIndexing(true)
-    .setRuntimeDescriptorArray(true)
-    .setDescriptorBindingVariableDescriptorCount(true);
+      .setDescriptorBindingPartiallyBound(true)
+      .setDescriptorBindingSampledImageUpdateAfterBind(true)
+      .setShaderSampledImageArrayNonUniformIndexing(true)
+      .setRuntimeDescriptorArray(true)
+      .setDescriptorBindingVariableDescriptorCount(true);
   device_features
       .setSamplerAnisotropy(true)
       .setSampleRateShading(true);
@@ -268,7 +268,7 @@ void VkTestSiteApp::createPipeline() {
       .setPMultisampleState(&multisampling)
       .setPColorBlendState(&colorBlend)
       .setPDynamicState(&dynamicStateInfo)
-      .setLayout(m_pipelineLayout)
+      .setLayout(m_descriptorSet.getPipelineLayout())
       .setRenderPass(m_renderPass)
       .setSubpass(0)
       .setBasePipelineHandle(VK_NULL_HANDLE)
@@ -299,9 +299,10 @@ void VkTestSiteApp::createFramebuffers() {
 }
 
 void VkTestSiteApp::createUniformBuffers() {
+  ZoneScoped;
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
-      m_uniforms.emplace_back(m_allocator,
-        vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+    m_uniforms.emplace_back(m_allocator,
+                            vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
   }
 }
 
@@ -484,16 +485,16 @@ void VkTestSiteApp::recreateSwapchain() {
 
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
   createRenderPass();
-  createPipeline();
-  m_descriptorPool = DescriptorPool(m_device);
   createUniformBuffers();
+  m_descriptorPool = DescriptorPool(m_device);
   createDescriptorSet();
+  createPipeline();
   createFramebuffers();
   createCommandBuffers();
 }
 
 void VkTestSiteApp::cleanupSwapchain() {
-  for (auto& uniform: m_uniforms) {
+  for (auto &uniform: m_uniforms) {
     uniform.destroy();
   }
   m_uniforms.clear();
