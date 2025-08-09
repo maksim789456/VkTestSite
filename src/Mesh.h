@@ -27,6 +27,7 @@ public:
 
   vk::Buffer getVertexBuffer() { return m_verticesBuffer.get(); }
   vk::Buffer getIndicesBuffer() { return m_indicesBuffer.get(); }
+  size_t getIndicesCount() const { return m_indicesCount; }
 
 private:
   vma::UniqueBuffer m_verticesBuffer = {};
