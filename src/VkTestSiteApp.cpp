@@ -467,7 +467,9 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   commandBuffer.begin(vk::CommandBufferBeginInfo());
 
   const auto renderArea = vk::Rect2D({}, m_swapchain.extent);
-  constexpr auto colorClearValue = vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
+  auto colorClearValue = m_modelLoaded
+                           ? vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f))
+                           : vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
   const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, colorClearValue);
 
   commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers);
