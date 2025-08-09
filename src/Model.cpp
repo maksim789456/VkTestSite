@@ -26,19 +26,21 @@ Model::Model(
   vma::Allocator allocator,
   std::filesystem::path modelPath
 ) {
+  std::cout << "Loading model from: " << modelPath.string() << std::endl;
   Assimp::Importer importer;
 
   const aiScene *scene = importer.ReadFile(
     modelPath.string(),
     aiProcess_Triangulate
     | aiProcess_JoinIdenticalVertices
-    | aiProcess_GenSmoothNormals
     | aiProcess_PreTransformVertices
+    //| aiProcess_GenSmoothNormals
   );
   if (!scene)
     throw std::runtime_error("Import of model failed");
 
   createMesh(device, graphicsQueue, commandPool, allocator, scene);
+  m_name = std::string(scene->mRootNode->mName.C_Str());
 }
 
 void Model::createMesh(
@@ -59,9 +61,9 @@ void Model::createMesh(
     auto meshMaterial = scene->mMaterials[mesh->mMaterialIndex];
     auto texturePath = getMaterialAlbedoTextureFile(meshMaterial);
 
-    glm::vec3 diffuseColor(1.0f);
+    glm::vec4 diffuseColor(1.0f);
     if (aiColor3D aiDiffuseColor; meshMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, aiDiffuseColor) == AI_SUCCESS) {
-      diffuseColor = glm::vec3(aiDiffuseColor.r, aiDiffuseColor.g, aiDiffuseColor.b);
+      diffuseColor = glm::vec4(aiDiffuseColor.r, aiDiffuseColor.g, aiDiffuseColor.b, 1.0f);
     }
 
     for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
@@ -86,6 +88,8 @@ void Model::createMesh(
       }
     }
   }
+
+  std::cout << "Convert success: Vertices: " << vertices.size() << "; Indices: " << indices.size() << std::endl;
 
   m_mesh = std::make_unique<Mesh<Vertex, uint32_t> >(
     allocator, device, graphicsQueue, commandPool, vertices, indices

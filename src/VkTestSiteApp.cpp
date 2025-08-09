@@ -230,12 +230,12 @@ void VkTestSiteApp::createPipeline() {
   auto bindingDescription = Vertex::GetBindingDescription();
   auto attributeDescription = Vertex::GetAttributeDescriptions();
   auto dynamicStateInfo = vk::PipelineDynamicStateCreateInfo({}, dynamicStates);
-  auto vertexInputInfo = vk::PipelineVertexInputStateCreateInfo({}, bindingDescription, attributeDescription); //TODO
+  auto vertexInputInfo = vk::PipelineVertexInputStateCreateInfo({}, bindingDescription, attributeDescription);
   auto inputAssembly = vk::PipelineInputAssemblyStateCreateInfo({}, vk::PrimitiveTopology::eTriangleList, false);
   auto viewportState = vk::PipelineViewportStateCreateInfo({}, 1, nullptr, 1, nullptr);
   auto rasterizer = vk::PipelineRasterizationStateCreateInfo(
     {}, false, false, vk::PolygonMode::eFill,
-    vk::CullModeFlagBits::eBack, vk::FrontFace::eClockwise,
+    vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise,
     false, {}, {}, {}, 1.0f);
   auto multisampling = vk::PipelineMultisampleStateCreateInfo({}, vk::SampleCountFlagBits::e1, false);
   auto colorAttachment = vk::PipelineColorBlendAttachmentState(false);
