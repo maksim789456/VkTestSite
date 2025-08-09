@@ -12,7 +12,9 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
 
+#include "DescriptorSet.h"
 #include "Mesh.h"
+#include "Swapchain.h"
 #include "Vertex.h"
 
 struct alignas(16) ModelPushConsts {
@@ -33,6 +35,16 @@ public:
 
   void createCommandBuffers(vk::Device device, vk::CommandPool commandPool, uint32_t imagesCount);
 
+  vk::CommandBuffer cmdDraw(
+    vk::Framebuffer framebuffer,
+    vk::RenderPass renderPass,
+    vk::Pipeline pipeline,
+    const Swapchain &swapchain,
+    const DescriptorSet &descriptorSet,
+    uint32_t subpass,
+    uint32_t imageIndex
+  );
+
   ~Model() = default;
 
 private:
@@ -44,7 +56,7 @@ private:
     const aiScene *scene
   );
 
-  ModelPushConsts calcPushConsts() const;
+  [[nodiscard]] ModelPushConsts calcPushConsts() const;
 
   std::string m_name;
   std::unique_ptr<Mesh<Vertex, uint32_t> > m_mesh;
@@ -52,6 +64,6 @@ private:
   std::map<uint32_t, vk::Image> m_textures; //TODO: texture model
   std::map<uint32_t, vk::DescriptorImageInfo> m_textureDescriptors;
   vk::UniqueSampler m_sampler;
-  std::vector<vk::CommandBuffer> m_commandBuffers;
+  std::vector<vk::UniqueCommandBuffer> m_commandBuffers;
 };
 #endif //MODEL_H

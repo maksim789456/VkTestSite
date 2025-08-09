@@ -100,11 +100,48 @@ void Model::createCommandBuffers(
   const auto info = vk::CommandBufferAllocateInfo(
     commandPool, vk::CommandBufferLevel::eSecondary, imagesCount
   );
-  m_commandBuffers = device.allocateCommandBuffers(info);
+  m_commandBuffers = device.allocateCommandBuffersUnique(info);
 }
 
 inline ModelPushConsts Model::calcPushConsts() const {
   return ModelPushConsts{
     .model = glm::translate(glm::mat4(1), m_position)
   };
+}
+
+vk::CommandBuffer Model::cmdDraw(
+  const vk::Framebuffer framebuffer,
+  const vk::RenderPass renderPass,
+  const vk::Pipeline pipeline,
+  const Swapchain &swapchain,
+  const DescriptorSet &descriptorSet,
+  const uint32_t subpass,
+  const uint32_t imageIndex
+) {
+  const auto inheritanceInfo = vk::CommandBufferInheritanceInfo(renderPass, subpass, framebuffer);
+  const auto beginInfo = vk::CommandBufferBeginInfo(
+    vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
+    &inheritanceInfo
+  );
+
+  const auto cmdBuf = m_commandBuffers[imageIndex].get();
+  //const auto push_consts = calcPushConsts();
+
+  cmdBuf.reset();
+  cmdBuf.begin(beginInfo);
+
+  swapchain.cmdSetViewport(cmdBuf);
+  swapchain.cmdSetScissor(cmdBuf);
+
+  cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+  cmdBuf.bindVertexBuffers(0, m_mesh.get()->getVertexBuffer(), {0});
+  cmdBuf.bindIndexBuffer(m_mesh.get()->getIndicesBuffer(), 0, vk::IndexType::eUint32);
+  descriptorSet.bind(cmdBuf, imageIndex, {});
+  //cmdBuf.pushConstants(descriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eVertex,
+  //                     0, sizeof(push_consts), &push_consts);
+
+  cmdBuf.drawIndexed(m_mesh.get()->getIndicesCount(), 1, 0, 0, 0);
+  cmdBuf.end();
+
+  return cmdBuf;
 }
