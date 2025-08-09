@@ -472,9 +472,23 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
                            : vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
   const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, colorClearValue);
 
-  commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers);
+  commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
+    // Model temp render
+    if (m_modelLoaded) {
+      auto modelCmd = m_model->cmdDraw(
+        m_framebuffers[imageIndex],
+        m_renderPass,
+        m_graphicsPipeline,
+        m_swapchain,
+        m_descriptorSet,
+        0,
+        imageIndex
+      );
 
-  { // ImGUI Secondary Cmd record -> exec
+      commandBuffer.executeCommands(modelCmd);
+    }
+  } {
+    // ImGUI Secondary Cmd record -> exec
     auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
     auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 0, m_framebuffers[imageIndex]);
     auto imguiBeginInfo = vk::CommandBufferBeginInfo(
