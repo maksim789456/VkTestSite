@@ -30,6 +30,7 @@
 #include "DescriptorPool.h"
 #include "DescriptorSet.h"
 #include "Ubo.h"
+#include "Camera.h"
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
@@ -60,6 +61,7 @@ private:
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_descriptorSet;
+  std::unique_ptr<Camera> m_camera;
 
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms;

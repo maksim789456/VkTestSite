@@ -83,6 +83,18 @@ void VkTestSiteApp::initVk() {
   createCommandBuffers();
   createSyncObjects();
 
+  m_camera = std::make_unique<Camera>();
+  auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
+    const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
+    me->m_camera->keyboardCallback(key, action);
+  };
+  auto mouseCallback = [](GLFWwindow *window, double xpos, double ypos) {
+    const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
+    me->m_camera->mouseCallback(window, xpos, ypos);
+  };
+  glfwSetWindowUserPointer(m_window, this);
+  glfwSetKeyCallback(m_window, keyCallback);
+  glfwSetCursorPosCallback(m_window, mouseCallback);
   ImGui_ImplGlfw_InitForVulkan(m_window, true);
   const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   ImGui_ImplVulkan_InitInfo vkInitInfo = {};

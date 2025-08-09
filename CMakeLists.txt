@@ -28,7 +28,8 @@ add_executable(VkTestSite src/main.cpp
         src/Model.h
         src/Mesh.h
         src/Mesh.tpp
-        src/BufferUtils.cpp)
+        src/BufferUtils.cpp
+        src/Camera.h)
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(VulkanHeaders CONFIG)
