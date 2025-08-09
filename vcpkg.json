@@ -16,7 +16,8 @@
         "vulkan-binding"
       ]
     },
-    "assimp"
+    "assimp",
+    "tinyfiledialogs"
   ],
   "overrides": [
     {

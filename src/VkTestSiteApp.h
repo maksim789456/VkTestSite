@@ -16,6 +16,7 @@
 #include <glm/mat4x4.hpp>
 
 #include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
+#include "tinyfiledialogs/tinyfiledialogs.h"
 
 #include "utils.cpp"
 #include <string>
@@ -29,6 +30,7 @@
 #include "Vertex.h"
 #include "DescriptorPool.h"
 #include "DescriptorSet.h"
+#include "Model.h"
 #include "Ubo.h"
 #include "Camera.h"
 
@@ -62,6 +64,9 @@ private:
   DescriptorPool m_descriptorPool;
   DescriptorSet m_descriptorSet;
   std::unique_ptr<Camera> m_camera;
+
+  std::unique_ptr<Model> m_model;
+  bool m_modelLoaded = false;
 
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms;

@@ -40,6 +40,7 @@ find_package(Tracy CONFIG REQUIRED)
 find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
+find_package(tinyfiledialogs CONFIG REQUIRED)
 target_link_libraries(VkTestSite PRIVATE
         glfw
         Vulkan::Headers
@@ -50,6 +51,7 @@ target_link_libraries(VkTestSite PRIVATE
         unofficial::spirv-reflect
         imgui::imgui
         assimp::assimp
+        tinyfiledialogs::tinyfiledialogs
 )
 
 option(TRACY_ENABLE "" ON)
