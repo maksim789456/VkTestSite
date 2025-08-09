@@ -118,6 +118,16 @@ Swapchain::Swapchain(
   imageViews = create_swapchain_image_views(device, images, format);
 }
 
+void Swapchain::cmdSetViewport(const vk::CommandBuffer cmdBuffer) const {
+  const auto viewport = vk::Viewport(0, 0, extent.width, extent.height, 0, 1);
+  cmdBuffer.setViewport(0, viewport);
+}
+
+void Swapchain::cmdSetScissor(const vk::CommandBuffer cmdBuffer) const {
+  const auto scissorRect = vk::Rect2D(vk::Offset2D(), extent);
+  cmdBuffer.setScissor(0, scissorRect);
+}
+
 void Swapchain::destroy(const vk::Device &device) {
   for (auto image_view: imageViews) {
     device.destroyImageView(image_view);

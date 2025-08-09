@@ -18,6 +18,8 @@ public:
     const vk::Device &device,
     const vk::PhysicalDevice &physical_device,
     GLFWwindow *window);
+  void cmdSetViewport(vk::CommandBuffer cmdBuffer) const;
+  void cmdSetScissor(vk::CommandBuffer cmdBuffer) const;
   void destroy(const vk::Device &device);
 
   vk::Format format;
