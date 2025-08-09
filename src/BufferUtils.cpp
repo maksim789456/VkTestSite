@@ -59,7 +59,7 @@ static void fillBuffer(
   assert(dataSize <= size);
 
   const auto mapped = allocator.mapMemory(allocation);
-  memcpy(mapped, data.data(), data.size());
+  memcpy(mapped, data.data(), dataSize);
   allocator.unmapMemory(allocation);
 }
 
