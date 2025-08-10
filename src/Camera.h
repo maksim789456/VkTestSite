@@ -67,7 +67,7 @@ public:
       glm::vec3(0.0f, 1.0f, 0.0f)
     );
 
-    rotation = glm::normalize(rotation * (pitch_rotation * yaw_rotation));
+    rotation = glm::normalize(yaw_rotation * rotation * pitch_rotation);
   }
 
   [[nodiscard]] glm::mat4 getViewProj() const { return viewProj; }
@@ -81,10 +81,7 @@ private:
   float zFar = 100.0f;
 
   glm::vec3 position = glm::vec3(0.0f, 1.2f, 0.6f);
-  glm::quat rotation = glm::quat(glm::vec3(
-    glm::radians(-90.0f),
-    glm::radians(50.0f),
-    glm::radians(180.0f)));
+  glm::quat rotation = glm::quat(glm::vec3(0.0f));
   glm::vec3 velocity = glm::vec3(0.0f);
 
   bool first_move = false;
