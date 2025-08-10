@@ -33,7 +33,7 @@ Model::Model(
     modelPath.string(),
     aiProcess_Triangulate
     | aiProcess_JoinIdenticalVertices
-    | aiProcess_PreTransformVertices
+    //| aiProcess_PreTransformVertices
     //| aiProcess_GenSmoothNormals
   );
   if (!scene)
@@ -52,11 +52,28 @@ void Model::createMesh(
 ) {
   std::vector<Vertex> vertices = {};
   std::vector<uint32_t> indices = {};
-  uint32_t index = 0;
 
-  for (unsigned int m = 0; m < scene->mNumMeshes; ++m) {
-    aiMesh *mesh = scene->mMeshes[m];
-    std::cout << "Vertices count: " << mesh->mNumVertices << std::endl;
+  auto modelMat = glm::translate(glm::mat4(1), m_position);
+  processNode(scene->mRootNode, scene, modelMat, vertices, indices);
+
+  std::cout << "Convert success: Vertices: " << vertices.size() << "; Indices: " << indices.size() << std::endl;
+
+  m_mesh = std::make_unique<Mesh<Vertex, uint32_t> >(
+    allocator, device, graphicsQueue, commandPool, vertices, indices
+  );
+}
+
+void Model::processNode(
+  const aiNode *node,
+  const aiScene *scene,
+  const glm::mat4 &parentTransform,
+  std::vector<Vertex> &vertices,
+  std::vector<uint32_t> &indices) {
+  auto transform = parentTransform * aiMatrix4x4ToGlm(node->mTransformation);
+
+  for (unsigned int m = 0; m < node->mNumMeshes; ++m) {
+    aiMesh *mesh = scene->mMeshes[node->mMeshes[m]];
+    std::cout << "Node: " << node->mName.C_Str() << "; Vertices count: " << mesh->mNumVertices << std::endl;
     auto texCords = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0] : nullptr;
     auto meshMaterial = scene->mMaterials[mesh->mMaterialIndex];
     auto texturePath = getMaterialAlbedoTextureFile(meshMaterial);
@@ -66,6 +83,8 @@ void Model::createMesh(
       diffuseColor = glm::vec4(aiDiffuseColor.r, aiDiffuseColor.g, aiDiffuseColor.b, 1.0f);
     }
 
+    uint32_t baseIndex = vertices.size();
+
     for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
       aiFace &face = mesh->mFaces[f];
       for (unsigned int i = 0; i < face.mNumIndices; ++i) {
@@ -74,26 +93,27 @@ void Model::createMesh(
         auto normal = mesh->HasNormals() ? mesh->mNormals[vertexIndex] : aiVector3D(0, 0, 0);
         auto texCord = texCords ? texCords[vertexIndex] : aiVector3D(0, 0, 0);
 
+        glm::vec4 transformedPos = transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f);
+        glm::vec3 transformedNormal = glm::mat3(glm::transpose(glm::inverse(transform))) *
+                                      glm::vec3(normal.x, normal.y, normal.z);
+
         auto vert = Vertex{
-          .Position = glm::vec3(pos.x, pos.y, pos.z),
-          .Normal = glm::vec3(normal.x, normal.y, normal.z),
+          .Position = transformedPos,
+          .Normal = glm::normalize(transformedNormal),
           .TexCoords = glm::vec2(texCord.x, 1.0f - texCord.y),
           .Color = diffuseColor,
           .TextureIdx = texturePath.has_value() ? mesh->mMaterialIndex : 0
         };
 
         vertices.push_back(vert);
-        indices.push_back(index);
-        index += 1;
+        indices.push_back(baseIndex + static_cast<uint32_t>(vertices.size() - baseIndex - 1));
       }
     }
   }
 
-  std::cout << "Convert success: Vertices: " << vertices.size() << "; Indices: " << indices.size() << std::endl;
-
-  m_mesh = std::make_unique<Mesh<Vertex, uint32_t> >(
-    allocator, device, graphicsQueue, commandPool, vertices, indices
-  );
+  for (int i = 0; i < node->mNumChildren; ++i) {
+    processNode(node->mChildren[i], scene, transform, vertices, indices);
+  }
 }
 
 void Model::createCommandBuffers(

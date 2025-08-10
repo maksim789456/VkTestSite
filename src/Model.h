@@ -56,6 +56,14 @@ private:
     const aiScene *scene
   );
 
+  void processNode(
+    const aiNode *node,
+    const aiScene *scene,
+    const glm::mat4 &parentTransform,
+    std::vector<Vertex> &vertices,
+    std::vector<uint32_t> &indices
+  );
+
   [[nodiscard]] ModelPushConsts calcPushConsts() const;
 
   std::string m_name;
