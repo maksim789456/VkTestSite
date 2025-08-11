@@ -212,7 +212,7 @@ static void executeSingleTimeCommands(
   const vk::Device device,
   const vk::Queue queue,
   const vk::CommandPool commandPool,
-  const Func&& executor
+  const Func &&executor
 ) {
   const auto allocInfo = vk::CommandBufferAllocateInfo(commandPool, vk::CommandBufferLevel::ePrimary, 1);
   const auto cmd = device.allocateCommandBuffers(allocInfo).front();
@@ -232,11 +232,65 @@ static void executeSingleTimeCommands(
   device.freeCommandBuffers(commandPool, cmd);
 }
 
-static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4& m) {
+static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4 &m) {
   return glm::mat4(
-      m.a1, m.b1, m.c1, m.d1,
-      m.a2, m.b2, m.c2, m.d2,
-      m.a3, m.b3, m.c3, m.d3,
-      m.a4, m.b4, m.c4, m.d4
+    m.a1, m.b1, m.c1, m.d1,
+    m.a2, m.b2, m.c2, m.d2,
+    m.a3, m.b3, m.c3, m.d3,
+    m.a4, m.b4, m.c4, m.d4
   );
+}
+
+static std::pair<vk::Image, vma::Allocation> createImage(
+  const vma::Allocator allocator,
+  const uint32_t width, const uint32_t height,
+  const uint32_t mipLevels,
+  const vk::SampleCountFlagBits samples,
+  const vk::Format format,
+  const vk::ImageTiling tiling,
+  const vk::ImageUsageFlags usage,
+  const vk::MemoryPropertyFlags properties
+) {
+  auto info = vk::ImageCreateInfo(
+    {}, vk::ImageType::e2D,
+    format, vk::Extent3D(width, height, 1),
+    mipLevels, 1, samples,
+    tiling, usage, vk::SharingMode::eExclusive
+  );
+  info.setInitialLayout(vk::ImageLayout::eUndefined);
+
+  const auto allocInfo = vma::AllocationCreateInfo({}, vma::MemoryUsage::eAutoPreferDevice, properties);
+  return allocator.createImage(info, allocInfo);
+}
+
+static vk::Sampler createSampler(const vk::Device device) {
+  auto info = vk::SamplerCreateInfo();
+  info.setMagFilter(vk::Filter::eLinear)
+      .setMinFilter(vk::Filter::eLinear)
+      .setAddressModeU(vk::SamplerAddressMode::eRepeat)
+      .setAddressModeV(vk::SamplerAddressMode::eRepeat)
+      .setAddressModeW(vk::SamplerAddressMode::eRepeat)
+      .setAnisotropyEnable(true)
+      .setMaxAnisotropy(16.0)
+      .setBorderColor(vk::BorderColor::eIntOpaqueWhite)
+      .setUnnormalizedCoordinates(false)
+      .setCompareEnable(false)
+      .setCompareOp(vk::CompareOp::eAlways)
+      .setMipmapMode(vk::SamplerMipmapMode::eLinear)
+      .setMipLodBias(0.0f)
+      .setMinLod(0.0f)
+      .setMaxLod(vk::LodClampNone);
+  return device.createSampler(info);
+}
+
+static vk::ImageView createImageView(
+  const vk::Device device,
+  const vk::Image image,
+  const vk::Format format,
+  const vk::ImageAspectFlags aspect,
+  const uint32_t mipLevels
+) {
+  const auto subresource = vk::ImageSubresourceRange(aspect, 0, mipLevels, 0, 1);
+  const auto info = vk::ImageViewCreateInfo({}, image, vk::ImageViewType::e2D, format, {}, subresource);
+  return device.createImageView(info);
 }

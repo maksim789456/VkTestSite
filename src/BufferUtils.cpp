@@ -76,3 +76,23 @@ static void copyBuffer(
     cmd.copyBuffer(srcBuffer, dstBuffer, region);
   });
 }
+
+static void copyBufferToImage(
+  const vk::Device device,
+  const vk::Queue graphicsQueue,
+  const vk::CommandPool commandPool,
+  const vk::Buffer buffer,
+  const vk::Image image,
+  const uint32_t width,
+  const uint32_t height
+) {
+  executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
+    constexpr auto subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
+    const auto region = vk::BufferImageCopy(
+      0, 0, 0, subresource,
+      vk::Offset3D(0, 0, 0),
+      vk::Extent3D(width, height, 1)
+    );
+    cmd.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, region);
+  });
+}
