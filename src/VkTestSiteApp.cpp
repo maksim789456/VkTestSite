@@ -555,6 +555,9 @@ void VkTestSiteApp::cleanup() {
 
   cleanupSwapchain();
 
+  if (m_modelLoaded)
+    m_model.reset();
+  m_imguiCommandBuffers.clear();
   m_device.destroyCommandPool(m_commandPool);
   vmaDestroyAllocator(m_allocator);
   m_device.destroy();
