@@ -27,14 +27,16 @@ struct VSOutput
 }
 
 [shader("vertex")]
-VSOutput vertexMain(VSInput input/*, uniform float4x4 pushModel*/)
+VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
 {
-    float4 worldPos = float4(input.inPos, 1.0);
+    float4 worldPos = mul(pushModel, float4(input.inPos, 1.0));
     VSOutput out;
     out.Pos = mul(ubo.viewProj, worldPos);
-    out.FragPos = worldPos.xyz;
-    out.Color = input.inColor;
+    out.Normal = input.inNormal;
     out.TexCoord = input.inTexCoord;
+    out.FragPos = worldPos.xyz;
+    out.ViewPos = ubo.viewPos.xyz;
+    out.Color = input.inColor;
     out.TexIdx = input.inTexIdx;
     return out;
 }
@@ -47,5 +49,9 @@ float4 fragmentMain(VSOutput input) : SV_Target
     if (input.TexIdx != 0) {
       color = diff;
     }
+
+    float gamma = 1.0 / 2.2;
+    color.rgb = pow(color.rgb, float3(gamma, gamma, gamma));
+
     return color;
 }

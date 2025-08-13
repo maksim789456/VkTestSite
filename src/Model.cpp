@@ -211,7 +211,7 @@ vk::CommandBuffer Model::cmdDraw(
   );
 
   const auto cmdBuf = m_commandBuffers[imageIndex].get();
-  //const auto push_consts = calcPushConsts();
+  const auto push_consts = calcPushConsts();
 
   cmdBuf.reset();
   cmdBuf.begin(beginInfo);
@@ -220,13 +220,13 @@ vk::CommandBuffer Model::cmdDraw(
   swapchain.cmdSetScissor(cmdBuf);
 
   cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-  cmdBuf.bindVertexBuffers(0, m_mesh.get()->getVertexBuffer(), {0});
-  cmdBuf.bindIndexBuffer(m_mesh.get()->getIndicesBuffer(), 0, vk::IndexType::eUint32);
+  cmdBuf.bindVertexBuffers(0, m_mesh->getVertexBuffer(), {0});
+  cmdBuf.bindIndexBuffer(m_mesh->getIndicesBuffer(), 0, vk::IndexType::eUint32);
   descriptorSet.bind(cmdBuf, imageIndex, {});
-  //cmdBuf.pushConstants(descriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eVertex,
-  //                     0, sizeof(push_consts), &push_consts);
+  cmdBuf.pushConstants(descriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eVertex,
+                       0, sizeof(push_consts), &push_consts);
 
-  cmdBuf.drawIndexed(m_mesh.get()->getIndicesCount(), 1, 0, 0, 0);
+  cmdBuf.drawIndexed(m_mesh->getIndicesCount(), 1, 0, 0, 0);
   cmdBuf.end();
 
   return cmdBuf;

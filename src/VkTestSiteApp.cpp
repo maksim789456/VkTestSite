@@ -256,9 +256,6 @@ void VkTestSiteApp::createPipeline() {
   std::vector colorAttachments = {colorAttachment};
   auto colorBlend = vk::PipelineColorBlendStateCreateInfo({}, false, vk::LogicOp::eCopy, colorAttachments);
 
-  auto pipelineLayoutInfo = vk::PipelineLayoutCreateInfo({}, 0, nullptr, 0, nullptr);
-  m_pipelineLayout = m_device.createPipelineLayout(pipelineLayoutInfo); //TODO
-
   auto pipelineInfo = vk::GraphicsPipelineCreateInfo({});
   pipelineInfo.setStages(shaderStages)
       .setPVertexInputState(&vertexInputInfo)
@@ -333,7 +330,9 @@ void VkTestSiteApp::createDescriptorSet() {
       .bufferInfos = {}
     }
   };
-  const auto pushConsts = std::vector<vk::PushConstantRange>{};
+  const auto pushConsts = std::vector{
+    vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
+  };
   m_descriptorSet = DescriptorSet(m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
                                   layouts, pushConsts);
 }
