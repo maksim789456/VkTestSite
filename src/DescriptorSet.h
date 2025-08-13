@@ -32,7 +32,16 @@ public:
     const std::vector<uint32_t> &dynamicOffsets
   ) const;
 
+  void updateTexture(
+    const vk::Device &device,
+    uint32_t currentFrameIdx,
+    uint32_t shaderBinding,
+    uint32_t textureIndex,
+    const vk::DescriptorImageInfo &imageInfo
+  ) const;
+
   [[nodiscard]] const vk::PipelineLayout &getPipelineLayout() const;
+
   void destroy(const vk::Device &device) const;
 
 private:
