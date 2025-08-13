@@ -30,6 +30,7 @@ add_executable(VkTestSite src/main.cpp
         src/Mesh.tpp
         src/BufferUtils.cpp
         src/Camera.h
+        src/Texture.h
         src/texture.cpp
 )
 
