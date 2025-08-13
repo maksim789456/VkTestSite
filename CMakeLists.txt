@@ -29,7 +29,9 @@ add_executable(VkTestSite src/main.cpp
         src/Mesh.h
         src/Mesh.tpp
         src/BufferUtils.cpp
-        src/Camera.h)
+        src/Camera.h
+        src/texture.cpp
+)
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(VulkanHeaders CONFIG)
@@ -41,6 +43,10 @@ find_package(unofficial-spirv-reflect CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 find_package(tinyfiledialogs CONFIG REQUIRED)
+find_package(Stb REQUIRED)
+target_include_directories(VkTestSite PRIVATE
+        ${Stb_INCLUDE_DIR}
+)
 target_link_libraries(VkTestSite PRIVATE
         glfw
         Vulkan::Headers

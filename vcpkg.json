@@ -17,7 +17,8 @@
       ]
     },
     "assimp",
-    "tinyfiledialogs"
+    "tinyfiledialogs",
+    "stb"
   ],
   "overrides": [
     {
