@@ -24,7 +24,7 @@ Model::Model(
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
   vma::Allocator allocator,
-  std::filesystem::path modelPath
+  const std::filesystem::path &modelPath
 ) {
   std::cout << "Loading model from: " << modelPath.string() << std::endl;
   Assimp::Importer importer;
@@ -40,6 +40,10 @@ Model::Model(
     throw std::runtime_error("Import of model failed");
 
   createMesh(device, graphicsQueue, commandPool, allocator, scene);
+  const auto modelParent = modelPath.parent_path();
+  loadTextures(device, graphicsQueue, commandPool, allocator, scene, modelParent);
+  m_sampler = createSamplerUnique(device);
+  createTextureInfos();
   m_name = std::string(scene->mRootNode->mName.C_Str());
 }
 
@@ -116,6 +120,51 @@ void Model::processNode(
   }
 }
 
+void Model::loadTextures(
+  const vk::Device device,
+  const vk::Queue graphicsQueue,
+  const vk::CommandPool commandPool,
+  const vma::Allocator allocator,
+  const aiScene *scene,
+  const std::filesystem::path &modelParent
+) {
+  std::vector<std::pair<uint32_t, std::string> > texturesFiles;
+  texturesFiles.reserve(scene->mNumTextures);
+
+  for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx) {
+    aiMaterial *material = scene->mMaterials[matIdx];
+    if (const auto path = getMaterialAlbedoTextureFile(material); path.has_value())
+      texturesFiles.emplace_back(matIdx, path.value());
+  }
+
+  const auto absoluteModelParent = std::filesystem::canonical(modelParent);
+  for (const auto &[matIdx, texFile]: texturesFiles) {
+    std::filesystem::path texturePath = absoluteModelParent / texFile;
+    std::cout << "Loading texture: " << texturePath << "\n";
+
+    auto texture = Texture::createFromFile(
+      device,
+      allocator,
+      graphicsQueue,
+      commandPool,
+      texturePath
+    );
+
+    /*vk::Image::generateMipmaps(
+        device,
+        graphicsQueue,
+        commandPool,
+        texture.image,
+        vk::Format::eR8G8B8A8Srgb,
+        texture.width,
+        texture.height,
+        texture.mipLevels
+    );*/
+
+    this->m_textures[matIdx] = std::move(texture);
+  }
+}
+
 void Model::createCommandBuffers(
   const vk::Device device,
   const vk::CommandPool commandPool,
@@ -125,6 +174,19 @@ void Model::createCommandBuffers(
     commandPool, vk::CommandBufferLevel::eSecondary, imagesCount
   );
   m_commandBuffers = device.allocateCommandBuffersUnique(info);
+}
+
+void Model::updateTextureDescriptors(
+  const vk::Device device,
+  const DescriptorSet &descriptorSet,
+  const uint32_t imageCount,
+  const uint32_t shaderBinding
+) {
+  for (int frameIdx = 0; frameIdx < imageCount; ++frameIdx) {
+    for (auto &[matIdx, texDescriptor]: m_textureDescriptors) {
+      descriptorSet.updateTexture(device, frameIdx, shaderBinding, matIdx, texDescriptor);
+    }
+  }
 }
 
 inline ModelPushConsts Model::calcPushConsts() const {

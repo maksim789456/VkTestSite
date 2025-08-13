@@ -387,6 +387,7 @@ void VkTestSiteApp::mainLoop() {
         auto pathStr = std::string(path);
         m_model = std::make_unique<Model>(m_device, m_graphicsQueue, m_commandPool, m_allocator, pathStr);
         m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
+        m_model->updateTextureDescriptors(m_device, m_descriptorSet, m_swapchain.imageViews.size(), 1);
         m_modelLoaded = true;
       }
     }
@@ -394,7 +395,6 @@ void VkTestSiteApp::mainLoop() {
       m_model.reset();
       m_modelLoaded = false;
     }
-
     ImGui::End();
 
     ImGui::Render();
