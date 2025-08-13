@@ -77,7 +77,7 @@ Swapchain::Swapchain(
   auto indices = QueueFamilyIndices(surface, physical_device);
   auto format_khr = get_swapchain_surface_format(surface, physical_device);
   this->format = format_khr.format;
-  auto present_mode = vk::PresentModeKHR::eImmediate;
+  auto present_mode = vk::PresentModeKHR::eFifo;
   this->extent = get_swapchain_extent(window, surface, physical_device);
 
   auto capabilities = physical_device.getSurfaceCapabilitiesKHR(surface);
