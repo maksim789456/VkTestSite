@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
+#include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
 #include <tracy/Tracy.hpp>
 #include <assimp/scene.h>
 #include <glm/ext/matrix_float4x4.hpp>
@@ -241,7 +242,7 @@ static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4 &m) {
   );
 }
 
-static std::pair<vk::Image, vma::Allocation> createImage(
+static std::pair<vma::UniqueImage, vma::UniqueAllocation> createImageUnique(
   const vma::Allocator allocator,
   const uint32_t width, const uint32_t height,
   const uint32_t mipLevels,
@@ -260,10 +261,10 @@ static std::pair<vk::Image, vma::Allocation> createImage(
   info.setInitialLayout(vk::ImageLayout::eUndefined);
 
   const auto allocInfo = vma::AllocationCreateInfo({}, vma::MemoryUsage::eAutoPreferDevice, properties);
-  return allocator.createImage(info, allocInfo);
+  return allocator.createImageUnique(info, allocInfo);
 }
 
-static vk::Sampler createSampler(const vk::Device device) {
+static vk::UniqueSampler createSamplerUnique(const vk::Device device) {
   auto info = vk::SamplerCreateInfo();
   info.setMagFilter(vk::Filter::eLinear)
       .setMinFilter(vk::Filter::eLinear)
@@ -280,10 +281,10 @@ static vk::Sampler createSampler(const vk::Device device) {
       .setMipLodBias(0.0f)
       .setMinLod(0.0f)
       .setMaxLod(vk::LodClampNone);
-  return device.createSampler(info);
+  return device.createSamplerUnique(info);
 }
 
-static vk::ImageView createImageView(
+static vk::UniqueImageView createImageViewUnique(
   const vk::Device device,
   const vk::Image image,
   const vk::Format format,
@@ -292,5 +293,67 @@ static vk::ImageView createImageView(
 ) {
   const auto subresource = vk::ImageSubresourceRange(aspect, 0, mipLevels, 0, 1);
   const auto info = vk::ImageViewCreateInfo({}, image, vk::ImageViewType::e2D, format, {}, subresource);
-  return device.createImageView(info);
+  return device.createImageViewUnique(info);
+}
+
+static void cmdTransitionImageLayout(
+  const vk::CommandBuffer commandBuffer,
+  const vk::Image image,
+  const vk::Format format,
+  const vk::ImageLayout oldLayout,
+  const vk::ImageLayout newLayout,
+  const uint32_t mipLevels
+) {
+  auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
+    -> std::tuple<vk::AccessFlags, vk::AccessFlags, vk::PipelineStageFlags, vk::PipelineStageFlags> {
+        using AF = vk::AccessFlagBits;
+        using PF = vk::PipelineStageFlagBits;
+
+        if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
+          return {{}, AF::eTransferWrite, PF::eTopOfPipe, PF::eTransfer};
+        }
+        if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+          return {AF::eTransferWrite, AF::eShaderRead, PF::eTransfer, PF::eFragmentShader};
+        }
+        if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal) {
+          return {
+            {}, AF::eDepthStencilAttachmentRead | AF::eDepthStencilAttachmentWrite,
+            PF::eTopOfPipe, PF::eEarlyFragmentTests
+          };
+        }
+        throw std::runtime_error("Unsupported image layout transition!");
+      }();
+
+  vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor;
+  if (newLayout == vk::ImageLayout::eDepthAttachmentOptimal) {
+    if (format == vk::Format::eD32SfloatS8Uint || format == vk::Format::eD24UnormS8Uint) {
+      aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
+    } else {
+      aspectMask = vk::ImageAspectFlagBits::eDepth;
+    }
+  }
+
+  const auto subresource = vk::ImageSubresourceRange(aspectMask, 0, mipLevels, 0, 1);
+  const auto barrier = vk::ImageMemoryBarrier(
+    srcAccessMask, dstAccessMask,
+    oldLayout, newLayout,
+    vk::QueueFamilyIgnored, vk::QueueFamilyIgnored,
+    image, subresource
+  );
+  commandBuffer.pipelineBarrier(srcStageMask, dstStageMask, {}, {}, {}, barrier);
+}
+
+static void transitionImageLayout(
+  const vk::Device device,
+  const vk::Queue graphicsQueue,
+  const vk::CommandPool commandPool,
+  const vk::Image image,
+  const vk::Format format,
+  const vk::ImageLayout oldLayout,
+  const vk::ImageLayout newLayout,
+  const uint32_t mipLevels
+) {
+  executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
+    cmdTransitionImageLayout(cmd, image, format, oldLayout, newLayout, mipLevels);
+  });
 }

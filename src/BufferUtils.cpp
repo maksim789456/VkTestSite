@@ -63,6 +63,21 @@ static void fillBuffer(
   allocator.unmapMemory(allocation);
 }
 
+template<typename DataType>
+static void fillBufferRaw(
+  const vma::Allocator allocator,
+  const vma::Allocation allocation,
+  const vk::DeviceSize size,
+  const DataType *data,
+  const size_t dataSize
+) {
+  assert(dataSize <= size);
+
+  const auto mapped = allocator.mapMemory(allocation);
+  memcpy(mapped, data, dataSize);
+  allocator.unmapMemory(allocation);
+}
+
 static void copyBuffer(
   const vk::Device device,
   const vk::Queue graphicsQueue,
