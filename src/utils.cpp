@@ -280,7 +280,7 @@ static vk::UniqueSampler createSamplerUnique(const vk::Device device) {
       .setMipmapMode(vk::SamplerMipmapMode::eLinear)
       .setMipLodBias(0.0f)
       .setMinLod(0.0f)
-      .setMaxLod(vk::LodClampNone);
+      .setMaxLod(0.0f);
   return device.createSamplerUnique(info);
 }
 
@@ -325,7 +325,7 @@ static void cmdTransitionImageLayout(
       }();
 
   vk::ImageAspectFlags aspectMask = vk::ImageAspectFlagBits::eColor;
-  if (newLayout == vk::ImageLayout::eDepthAttachmentOptimal) {
+  if (newLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal) {
     if (format == vk::Format::eD32SfloatS8Uint || format == vk::Format::eD24UnormS8Uint) {
       aspectMask = vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
     } else {
