@@ -63,6 +63,7 @@ private:
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_descriptorSet;
+  std::unique_ptr<Texture> m_depth;
   std::unique_ptr<Camera> m_camera;
 
   std::unique_ptr<Model> m_model;
@@ -86,6 +87,7 @@ private:
   void createQueues();
   void createRenderPass();
   void createPipeline();
+  void createDepthObjets();
   void createFramebuffers();
   void createUniformBuffers();
   void createDescriptorSet();

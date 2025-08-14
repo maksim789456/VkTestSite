@@ -35,6 +35,7 @@ public:
     const std::filesystem::path &path
   );
 
+  vk::Image getImage() { return m_image.get(); };
   vk::ImageView getImageView() { return m_imageView.get(); };
 
 private:
