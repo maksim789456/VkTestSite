@@ -90,15 +90,16 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
     throw std::runtime_error("Failed to load texture image: " + path.string());
   }
 
-  const vk::DeviceSize size = width * height * channels;
+  const vk::DeviceSize size = width * height * 4;
   auto mipLevels = static_cast<uint32_t>(
     std::floor(std::log2(std::max(width, height))) + 1
   );
+  auto format = vk::Format::eR8G8B8A8Srgb;
 
   auto texture = std::make_unique<Texture>(
     device, allocator,
     width, height, mipLevels,
-    vk::Format::eR8G8B8A8Srgb,
+    format,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
     vk::ImageUsageFlagBits::eSampled
@@ -110,7 +111,7 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
   transitionImageLayout(
     device, queue, commandPool,
     texture->m_image.get(),
-    vk::Format::eR8G8B8A8Srgb,
+    format,
     vk::ImageLayout::eUndefined,
     vk::ImageLayout::eTransferDstOptimal,
     mipLevels);
@@ -135,7 +136,7 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
   transitionImageLayout(
     device, queue, commandPool,
     texture->m_image.get(),
-    vk::Format::eR8G8B8A8Srgb,
+    format,
     vk::ImageLayout::eTransferDstOptimal,
     vk::ImageLayout::eShaderReadOnlyOptimal,
     mipLevels
