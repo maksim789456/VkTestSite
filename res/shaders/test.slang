@@ -44,7 +44,7 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
 [shader("fragment")]
 float4 fragmentMain(VSOutput input) : SV_Target
 {
-    float4 diff = textures[NonUniformResourceIndex(input.TexIdx)].Sample(input.TexCoord);
+    float4 diff = textures[NonUniformResourceIndex(input.TexIdx)].Sample(saturate(input.TexCoord));
     float4 color = input.Color;
     if (input.TexIdx != 0) {
       color = diff;
