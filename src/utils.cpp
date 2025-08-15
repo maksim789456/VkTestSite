@@ -273,7 +273,7 @@ static vk::UniqueSampler createSamplerUnique(const vk::Device device) {
       .setAddressModeW(vk::SamplerAddressMode::eRepeat)
       .setAnisotropyEnable(true)
       .setMaxAnisotropy(16.0)
-      .setBorderColor(vk::BorderColor::eIntOpaqueWhite)
+      .setBorderColor(vk::BorderColor::eIntOpaqueBlack)
       .setUnnormalizedCoordinates(false)
       .setCompareEnable(false)
       .setCompareOp(vk::CompareOp::eAlways)
@@ -299,10 +299,11 @@ static vk::UniqueImageView createImageViewUnique(
 static void cmdTransitionImageLayout(
   const vk::CommandBuffer commandBuffer,
   const vk::Image image,
-  const vk::Format format,
   const vk::ImageLayout oldLayout,
   const vk::ImageLayout newLayout,
-  const uint32_t mipLevels
+  const uint32_t mipLevels,
+  const vk::Format format = vk::Format::eR32G32B32A32Sfloat,
+  const uint32_t baseMipLevel = 0
 ) {
   auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
     -> std::tuple<vk::AccessFlags, vk::AccessFlags, vk::PipelineStageFlags, vk::PipelineStageFlags> {
@@ -311,6 +312,12 @@ static void cmdTransitionImageLayout(
 
         if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
           return {{}, AF::eTransferWrite, PF::eTopOfPipe, PF::eTransfer};
+        }
+        if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eTransferSrcOptimal) {
+          return {AF::eTransferWrite, AF::eTransferRead, PF::eTransfer, PF::eTransfer};
+        }
+        if (oldLayout == vk::ImageLayout::eTransferSrcOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+          return {AF::eTransferRead, AF::eShaderRead, PF::eTransfer, PF::eFragmentShader};
         }
         if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
           return {AF::eTransferWrite, AF::eShaderRead, PF::eTransfer, PF::eFragmentShader};
@@ -333,7 +340,7 @@ static void cmdTransitionImageLayout(
     }
   }
 
-  const auto subresource = vk::ImageSubresourceRange(aspectMask, 0, mipLevels, 0, 1);
+  const auto subresource = vk::ImageSubresourceRange(aspectMask, baseMipLevel, mipLevels, 0, 1);
   const auto barrier = vk::ImageMemoryBarrier(
     srcAccessMask, dstAccessMask,
     oldLayout, newLayout,
@@ -354,6 +361,56 @@ static void transitionImageLayout(
   const uint32_t mipLevels
 ) {
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
-    cmdTransitionImageLayout(cmd, image, format, oldLayout, newLayout, mipLevels);
+    cmdTransitionImageLayout(cmd, image, oldLayout, newLayout, mipLevels, format);
+  });
+}
+
+static void generateMipmaps(
+  const vk::Device device,
+  const vk::Queue graphicsQueue,
+  const vk::CommandPool commandPool,
+  const vk::Image image,
+  const uint32_t width, const uint32_t height,
+  const uint32_t mipLevels
+) {
+  executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
+    auto mipWidth = width;
+    auto mipHeight = height;
+    for (int mipLevel = 1; mipLevel < mipLevels; ++mipLevel) {
+      cmdTransitionImageLayout(
+        cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+        1, {}, mipLevel - 1);
+
+      const auto srcSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel - 1, 0, 1);
+      const auto dstSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1);
+      auto blit = vk::ImageBlit(
+        srcSubResource,
+        {
+          vk::Offset3D(0, 0, 0),
+          vk::Offset3D(mipWidth, mipHeight, 1),
+        },
+        dstSubResource,
+        {
+          vk::Offset3D(0, 0, 0),
+          vk::Offset3D(mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1),
+        }
+      );
+      cmd.blitImage(
+        image, vk::ImageLayout::eTransferSrcOptimal,
+        image, vk::ImageLayout::eTransferDstOptimal,
+        blit, vk::Filter::eLinear
+      );
+
+      cmdTransitionImageLayout(
+        cmd, image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+        1, {}, mipLevel - 1);
+
+      mipWidth = mipWidth > 1 ? mipWidth / 2 : mipWidth;
+      mipHeight = mipHeight > 1 ? mipHeight / 2 : mipHeight;
+    }
+
+    cmdTransitionImageLayout(
+        cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+        1, {}, mipLevels - 1);
   });
 }
