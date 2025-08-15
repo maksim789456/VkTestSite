@@ -146,15 +146,6 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
   );
   allocator.destroyBuffer(stagingBuffer, stagingBufferAlloc);
 
-  transitionImageLayout(
-    device, queue, commandPool,
-    texture->m_image.get(),
-    format,
-    vk::ImageLayout::eTransferDstOptimal,
-    vk::ImageLayout::eShaderReadOnlyOptimal,
-    mipLevels
-  );
-
   return texture;
 }
 

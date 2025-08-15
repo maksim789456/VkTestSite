@@ -150,16 +150,15 @@ void Model::loadTextures(
       texturePath
     );
 
-    /*vk::Image::generateMipmaps(
+    generateMipmaps(
         device,
         graphicsQueue,
         commandPool,
-        texture.image,
-        vk::Format::eR8G8B8A8Srgb,
-        texture.width,
-        texture.height,
-        texture.mipLevels
-    );*/
+        texture->getImage(),
+        texture->width,
+        texture->height,
+        texture->mipLevels
+    );
 
     this->m_textures[matIdx] = std::move(texture);
   }
