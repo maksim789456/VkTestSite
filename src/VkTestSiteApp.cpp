@@ -263,7 +263,12 @@ void VkTestSiteApp::createPipeline() {
   depthStencil.setDepthBoundsTestEnable(false)
       .setMinDepthBounds(0.0f)
       .setMaxDepthBounds(1.0f);
-  auto colorAttachment = vk::PipelineColorBlendAttachmentState(false);
+  auto colorAttachment = vk::PipelineColorBlendAttachmentState(
+    true,
+    vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha,
+    vk::BlendOp::eAdd,
+    vk::BlendFactor::eOne, vk::BlendFactor::eOneMinusSrcAlpha,
+    vk::BlendOp::eAdd);
   colorAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
                                    vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
   std::vector colorAttachments = {colorAttachment};
