@@ -37,6 +37,7 @@ public:
 
   vk::Image getImage() { return m_image.get(); };
   vk::ImageView getImageView() { return m_imageView.get(); };
+  const uint32_t width, height, mipLevels;
 
 private:
   vma::UniqueImage m_image;
@@ -57,7 +58,7 @@ inline Texture::Texture(
   const vk::ImageAspectFlags aspects,
   const vk::ImageUsageFlags usage,
   const bool useSampler
-) {
+): width(width), height(height), mipLevels(mipLevels) {
   std::tie(m_image, m_imageAlloc) = createImageUnique(
     allocator,
     width, height, mipLevels,
@@ -84,17 +85,30 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
     &width,
     &height,
     &channels,
-    STBI_rgb_alpha
+    0
   );
   if (!origPixels) {
     throw std::runtime_error("Failed to load texture image: " + path.string());
   }
 
-  const vk::DeviceSize size = width * height * 4;
+  std::vector<uint8_t> pixels(width * height * 4);
+  const vk::DeviceSize originalSize = width * height * channels;
   auto mipLevels = static_cast<uint32_t>(
     std::floor(std::log2(std::max(width, height))) + 1
   );
   auto format = vk::Format::eR8G8B8A8Srgb;
+
+  if (channels == 4) {
+    memcpy(pixels.data(), origPixels, originalSize);
+  } else if (channels == 3) {
+    for (int i = 0; i < width * height; ++i) {
+      pixels[i * 4 + 0] = origPixels[i * 3 + 0];
+      pixels[i * 4 + 1] = origPixels[i * 3 + 1];
+      pixels[i * 4 + 2] = origPixels[i * 3 + 2];
+      pixels[i * 4 + 3] = 255;
+    }
+  }
+  stbi_image_free(origPixels);
 
   auto texture = std::make_unique<Texture>(
     device, allocator,
@@ -118,13 +132,12 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
 
   auto [stagingBuffer, stagingBufferAlloc] = createBuffer(
     allocator,
-    size,
+    pixels.size(),
     vk::BufferUsageFlagBits::eTransferSrc,
     vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
   );
 
-  fillBufferRaw(allocator, stagingBufferAlloc, size, origPixels, size);
-  stbi_image_free(origPixels);
+  fillBuffer(allocator, stagingBufferAlloc, pixels.size(), pixels);
 
   copyBufferToImage(
     device, queue, commandPool,
