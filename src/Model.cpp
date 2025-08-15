@@ -106,7 +106,7 @@ void Model::processNode(
           .Normal = glm::normalize(transformedNormal),
           .TexCoords = glm::vec2(texCord.x, 1.0f - texCord.y),
           .Color = diffuseColor,
-          .TextureIdx = texturePath.has_value() ? mesh->mMaterialIndex : 0
+          .TextureIdx = texturePath.has_value() ? mesh->mMaterialIndex : 99
         };
 
         vertices.push_back(vert);

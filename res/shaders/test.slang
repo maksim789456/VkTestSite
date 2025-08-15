@@ -46,7 +46,7 @@ float4 fragmentMain(VSOutput input) : SV_Target
 {
     float4 diff = textures[NonUniformResourceIndex(input.TexIdx)].Sample(input.TexCoord);
     float4 color = input.Color;
-    if (input.TexIdx != 0) {
+    if (input.TexIdx != 99) {
       color = diff;
     }
 
