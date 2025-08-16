@@ -53,6 +53,7 @@ private:
 #endif
   vk::UniqueSurfaceKHR m_surface;
   vk::PhysicalDevice m_physicalDevice;
+  vk::SampleCountFlagBits m_msaaSamples = vk::SampleCountFlagBits::e1;
   vk::Device m_device;
   vk::Queue m_graphicsQueue;
   vk::Queue m_presentQueue;
@@ -63,6 +64,7 @@ private:
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_descriptorSet;
+  std::unique_ptr<Texture> m_color;
   std::unique_ptr<Texture> m_depth;
   std::unique_ptr<Camera> m_camera;
 
@@ -87,6 +89,7 @@ private:
   void createQueues();
   void createRenderPass();
   void createPipeline();
+  void createColorObjets();
   void createDepthObjets();
   void createFramebuffers();
   void createUniformBuffers();

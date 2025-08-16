@@ -208,6 +208,26 @@ std::optional<vk::PhysicalDevice> static pickPhysicalDevice(
   return std::nullopt;
 }
 
+static vk::SampleCountFlagBits findMaxMsaaSamples(
+  const vk::PhysicalDevice &physical_device
+) {
+  const auto props = physical_device.getProperties();
+  const auto counts =
+      props.limits.framebufferColorSampleCounts
+      & props.limits.framebufferDepthSampleCounts;
+
+  for (int bit = static_cast<int>(vk::SampleCountFlagBits::e64);
+       bit >= static_cast<int>(vk::SampleCountFlagBits::e1);
+       bit >>= 1) {
+    const auto sampleCount = static_cast<vk::SampleCountFlagBits>(bit);
+    if (counts & sampleCount) {
+      return sampleCount;
+    }
+  }
+
+  return vk::SampleCountFlagBits::e1;
+}
+
 template<typename Func>
 static void executeSingleTimeCommands(
   const vk::Device device,
@@ -410,7 +430,7 @@ static void generateMipmaps(
     }
 
     cmdTransitionImageLayout(
-        cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-        1, {}, mipLevels - 1);
+      cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+      1, {}, mipLevels - 1);
   });
 }

@@ -57,6 +57,7 @@ void VkTestSiteApp::initVk() {
   m_physicalDevice = *deviceTmp;
   const auto props = m_physicalDevice.getProperties();
   std::cout << "Physical device: " << props.deviceName << std::endl;
+  m_msaaSamples = findMaxMsaaSamples(m_physicalDevice);
   createLogicalDevice();
   createQueues();
 
@@ -79,6 +80,7 @@ void VkTestSiteApp::initVk() {
   createDescriptorSet();
   createPipeline();
   createCommandPool();
+  createColorObjets();
   createDepthObjets();
   createFramebuffers();
   createCommandBuffers();
@@ -107,8 +109,8 @@ void VkTestSiteApp::initVk() {
   vkInitInfo.Queue = m_graphicsQueue;
   vkInitInfo.RenderPass = m_renderPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
-  vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-  vkInitInfo.Subpass = 0;
+  vkInitInfo.MSAASamples = static_cast<VkSampleCountFlagBits>(m_msaaSamples),
+      vkInitInfo.Subpass = 0;
   vkInitInfo.DescriptorPoolSize = 100;
   if (!ImGui_ImplVulkan_Init(&vkInitInfo)) {
     std::cerr << "Failed to initialize Imgui Vulkan render" << std::endl;
@@ -208,28 +210,48 @@ void VkTestSiteApp::createLogicalDevice() {
 void VkTestSiteApp::createRenderPass() {
   ZoneScoped;
   const auto colorAttachment = vk::AttachmentDescription(
-    {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
+    {}, m_swapchain.format, m_msaaSamples,
     vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
     vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-    vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
+    vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
   constexpr auto colorAttachmentRef = vk::AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
 
   const auto depthStencilAttachment = vk::AttachmentDescription(
-    {}, vk::Format::eD32SfloatS8Uint, vk::SampleCountFlagBits::e1,
+    {}, vk::Format::eD32SfloatS8Uint, m_msaaSamples,
     vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
     vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
     vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal);
   constexpr auto depthStencilAttachmentRef =
       vk::AttachmentReference(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
-  std::vector<vk::AttachmentReference> inputAttachmentsRefs = {};
-  std::vector colorAttachmentsRefs = {colorAttachmentRef};
-  auto subpass = vk::SubpassDescription({}, vk::PipelineBindPoint::eGraphics, inputAttachmentsRefs,
-                                        colorAttachmentsRefs, {}, &depthStencilAttachmentRef);
+  const auto colorResolveAttachment = vk::AttachmentDescription(
+    {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
+    vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
+    vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+    vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
+  constexpr auto colorResolveAttachmentRef = vk::AttachmentReference(2, vk::ImageLayout::eColorAttachmentOptimal);
 
-  std::vector attachments = {colorAttachment, depthStencilAttachment};
+  std::vector colorAttachmentsRefs = {colorAttachmentRef};
+  std::vector resolveAttachmentsRefs = {colorResolveAttachmentRef};
+  auto subpass = vk::SubpassDescription(
+    {}, vk::PipelineBindPoint::eGraphics,
+    {},
+    colorAttachmentsRefs,
+    resolveAttachmentsRefs,
+    &depthStencilAttachmentRef
+  );
+
+  auto dependency = vk::SubpassDependency(
+    vk::SubpassExternal, 0,
+    vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
+    vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
+    {},
+    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite
+  );
+
+  std::vector attachments = {colorAttachment, depthStencilAttachment, colorResolveAttachment};
   std::vector subpasses = {subpass};
-  const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpass);
+  const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpass, dependency);
 
   m_renderPass = m_device.createRenderPass(renderPassInfo);
 }
@@ -258,7 +280,7 @@ void VkTestSiteApp::createPipeline() {
     {}, false, false, vk::PolygonMode::eFill,
     vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise,
     false, {}, {}, {}, 1.0f);
-  auto multisampling = vk::PipelineMultisampleStateCreateInfo({}, vk::SampleCountFlagBits::e1, false);
+  auto multisampling = vk::PipelineMultisampleStateCreateInfo({}, m_msaaSamples, true, 0.2f);
   auto depthStencil = vk::PipelineDepthStencilStateCreateInfo({}, true, true, vk::CompareOp::eLess);
   depthStencil.setDepthBoundsTestEnable(false)
       .setMinDepthBounds(0.0f)
@@ -300,6 +322,18 @@ void VkTestSiteApp::createPipeline() {
   shaderModule.destroy(m_device);
 }
 
+void VkTestSiteApp::createColorObjets() {
+  m_color = std::make_unique<Texture>(
+    m_device, m_allocator,
+    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    m_swapchain.format,
+    m_msaaSamples,
+    vk::ImageAspectFlagBits::eColor,
+    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
+    false
+  );
+}
+
 void VkTestSiteApp::createDepthObjets() {
   constexpr auto depthFormat = vk::Format::eD32SfloatS8Uint;
 
@@ -307,7 +341,7 @@ void VkTestSiteApp::createDepthObjets() {
     m_device, m_allocator,
     m_swapchain.extent.width, m_swapchain.extent.height, 1,
     depthFormat,
-    vk::SampleCountFlagBits::e1,
+    m_msaaSamples,
     vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
     vk::ImageUsageFlagBits::eDepthStencilAttachment,
     false
@@ -326,7 +360,7 @@ void VkTestSiteApp::createFramebuffers() {
   ZoneScoped;
   m_framebuffers.resize(m_swapchain.imageViews.size());
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
-    std::vector attachments = {m_swapchain.imageViews[i], m_depth->getImageView()};
+    std::vector attachments = {m_color->getImageView(), m_depth->getImageView(), m_swapchain.imageViews[i]};
 
     auto framebufferInfo = vk::FramebufferCreateInfo(
       {}, m_renderPass, attachments,
@@ -564,6 +598,7 @@ void VkTestSiteApp::recreateSwapchain() {
   m_descriptorPool = DescriptorPool(m_device);
   createDescriptorSet();
   createPipeline();
+  createColorObjets();
   createDepthObjets();
   createFramebuffers();
   createCommandBuffers();
@@ -577,6 +612,7 @@ void VkTestSiteApp::cleanupSwapchain() {
   m_descriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
+  m_color.reset();
   m_depth.reset();
   for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
