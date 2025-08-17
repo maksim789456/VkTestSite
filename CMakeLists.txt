@@ -60,6 +60,9 @@ target_link_libraries(VkTestSite PRIVATE
         assimp::assimp
         tinyfiledialogs::tinyfiledialogs
 )
+target_compile_definitions(VkTestSite PRIVATE
+        VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+)
 
 option(TRACY_ENABLE "" ON)
 option(TRACY_ON_DEMAND "" ON)

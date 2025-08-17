@@ -3,9 +3,8 @@
 #ifndef VkTestSite_App_HPP
 #define VkTestSite_App_HPP
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
+#include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <imgui_impl_vulkan.h>
 #include <imgui_impl_glfw.h>
@@ -45,11 +44,11 @@ public:
 
 private:
   GLFWwindow *m_window = nullptr;
+  vk::detail::DynamicLoader m_loader;
   vk::Instance m_instance;
   VmaAllocator m_allocator = nullptr;
 #ifndef NDEBUG
   vk::DebugUtilsMessengerEXT m_debugMessenger;
-  vk::detail::DispatchLoaderDynamic m_didl;
 #endif
   vk::UniqueSurfaceKHR m_surface;
   vk::PhysicalDevice m_physicalDevice;

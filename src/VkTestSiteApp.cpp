@@ -45,6 +45,9 @@ void VkTestSiteApp::initWindow() {
 
 void VkTestSiteApp::initVk() {
   ZoneScoped;
+  m_loader = {};
+  const auto vkGetInstanceProcAddr = m_loader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+  VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
   createInstance();
 
   VkSurfaceKHR surface_tmp;
@@ -109,9 +112,12 @@ void VkTestSiteApp::initVk() {
   vkInitInfo.Queue = m_graphicsQueue;
   vkInitInfo.RenderPass = m_renderPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
-  vkInitInfo.MSAASamples = static_cast<VkSampleCountFlagBits>(m_msaaSamples),
-      vkInitInfo.Subpass = 0;
+  vkInitInfo.MSAASamples = static_cast<VkSampleCountFlagBits>(m_msaaSamples);
+  vkInitInfo.Subpass = 0;
   vkInitInfo.DescriptorPoolSize = 100;
+  vkInitInfo.CheckVkResultFn = [](const VkResult err) {
+    if (err != VK_SUCCESS) std::cerr << "Imgui Vk Error: " << err << std::endl;
+  };
   if (!ImGui_ImplVulkan_Init(&vkInitInfo)) {
     std::cerr << "Failed to initialize Imgui Vulkan render" << std::endl;
     abort();
@@ -142,7 +148,9 @@ void VkTestSiteApp::createInstance() {
     required_extensions.emplace_back(glfw_extensions[i]);
   }
 
-  //required_extensions.emplace_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+#ifndef NDEBUG
+  required_extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
 
   const auto enabled_extensions = gatherExtensions(required_extensions, vk::enumerateInstanceExtensionProperties());
   const auto enabled_layers = gatherLayers(required_layers, vk::enumerateInstanceLayerProperties());
@@ -151,11 +159,10 @@ void VkTestSiteApp::createInstance() {
   auto create_info = makeInstanceCreateInfoChain({}, app_info,
                                                  enabled_layers, enabled_extensions);
   m_instance = vk::createInstance(create_info.get<vk::InstanceCreateInfo>());
+  VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
 
 #ifndef NDEBUG
-  m_didl = vk::detail::DispatchLoaderDynamic(m_instance, vkGetInstanceProcAddr);
-  m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(create_info.get<vk::DebugUtilsMessengerCreateInfoEXT>(),
-                                                             nullptr, m_didl);
+  m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(create_info.get<vk::DebugUtilsMessengerCreateInfoEXT>());
 #endif
 }
 
@@ -205,6 +212,7 @@ void VkTestSiteApp::createLogicalDevice() {
   device_create_info.setPNext(&descriptor_indexing_features);
 
   m_device = m_physicalDevice.createDevice(device_create_info);
+  VULKAN_HPP_DEFAULT_DISPATCHER.init(m_device);
 }
 
 void VkTestSiteApp::createRenderPass() {
@@ -625,7 +633,7 @@ void VkTestSiteApp::cleanupSwapchain() {
 
 void VkTestSiteApp::cleanup() {
   ZoneScoped;
-  TracyVkDestroy(m_vkContext);
+  //TracyVkDestroy(m_vkContext);
 
   for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
     m_device.destroyFence(m_inFlight[i]);
@@ -643,7 +651,7 @@ void VkTestSiteApp::cleanup() {
   m_device.destroy();
   m_instance.destroySurfaceKHR(m_surface.release());
 #ifndef NDEBUG
-  m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger, nullptr, m_didl);
+  m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger);
 #endif
   m_instance.destroy();
 }
