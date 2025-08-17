@@ -338,7 +338,7 @@ void VkTestSiteApp::createColorObjets() {
     m_msaaSamples,
     vk::ImageAspectFlagBits::eColor,
     vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
-    false
+    false, "Color attachment"
   );
 }
 
@@ -352,7 +352,7 @@ void VkTestSiteApp::createDepthObjets() {
     m_msaaSamples,
     vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
     vk::ImageUsageFlagBits::eDepthStencilAttachment,
-    false
+    false, "Depth attachment"
   );
 
   transitionImageLayout(

@@ -162,7 +162,7 @@ std::optional<vk::PhysicalDevice> static pickPhysicalDevice(
   const std::vector<const char *> &required_extensions
 ) {
   ZoneScoped;
-  std::vector<vk::PhysicalDevice> physical_devices = instance.enumeratePhysicalDevices();
+  const std::vector<vk::PhysicalDevice> physical_devices = instance.enumeratePhysicalDevices();
 
   if (physical_devices.empty()) {
     std::cerr << "No GPU's devices found" << std::endl;
@@ -226,6 +226,23 @@ static vk::SampleCountFlagBits findMaxMsaaSamples(
   }
 
   return vk::SampleCountFlagBits::e1;
+}
+
+template<typename T>
+static void setObjectName(
+  const vk::Device device,
+  const T &object,
+  const std::string &name
+) {
+#ifndef NDEBUG
+  const vk::DebugUtilsObjectNameInfoEXT nameInfo{
+    T::objectType,
+    reinterpret_cast<uint64_t>(static_cast<typename T::CType>(object)),
+    name.c_str()
+  };
+
+  device.setDebugUtilsObjectNameEXT(nameInfo);
+#endif
 }
 
 template<typename Func>

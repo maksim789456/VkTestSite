@@ -24,7 +24,8 @@ public:
     vk::SampleCountFlagBits samples,
     vk::ImageAspectFlags aspects,
     vk::ImageUsageFlags usage,
-    bool useSampler
+    bool useSampler = false,
+    const std::string &name = "Texture"
   );
 
   static std::unique_ptr<Texture> createFromFile(
@@ -57,7 +58,8 @@ inline Texture::Texture(
   const vk::SampleCountFlagBits samples,
   const vk::ImageAspectFlags aspects,
   const vk::ImageUsageFlags usage,
-  const bool useSampler
+  const bool useSampler,
+  const std::string &name
 ): width(width), height(height), mipLevels(mipLevels) {
   std::tie(m_image, m_imageAlloc) = createImageUnique(
     allocator,
@@ -65,10 +67,15 @@ inline Texture::Texture(
     samples, format, vk::ImageTiling::eOptimal,
     usage, vk::MemoryPropertyFlagBits::eDeviceLocal
   );
+  setObjectName(device, m_image.get(), std::format("{} ", name));
+  auto info = allocator.getAllocationInfo(m_imageAlloc.get());
+  setObjectName(device, info.deviceMemory, std::format("{} memory", name));
 
   m_imageView = createImageViewUnique(device, m_image.get(), format, aspects, mipLevels);
+  setObjectName(device, m_imageView.get(), std::format("{} view", name));
   if (useSampler) {
     m_sampler = createSamplerUnique(device);
+    setObjectName(device, m_sampler.get(), std::format("{} sampler", name));
   }
 }
 
@@ -119,7 +126,8 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
     vk::ImageUsageFlagBits::eSampled
     | vk::ImageUsageFlagBits::eTransferSrc
     | vk::ImageUsageFlagBits::eTransferDst,
-    false
+    false,
+    path.filename().string()
   );
 
   transitionImageLayout(
