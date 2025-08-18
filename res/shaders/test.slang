@@ -36,6 +36,7 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
     out.TexCoord = input.inTexCoord;
     out.FragPos = worldPos.xyz;
     out.ViewPos = ubo.viewPos.xyz;
+    out.LightPos = ubo.viewPos.xyz;
     out.Color = input.inColor;
     out.TexIdx = input.inTexIdx;
     return out;
@@ -44,14 +45,30 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
 [shader("fragment")]
 float4 fragmentMain(VSOutput input) : SV_Target
 {
-    float4 diff = textures[NonUniformResourceIndex(input.TexIdx)].Sample(input.TexCoord);
-    float4 color = input.Color;
-    if (input.TexIdx != 99) {
-      color = diff;
+    float3 lightColor = float3(1.0);
+
+    float3 albedo = textures[NonUniformResourceIndex(input.TexIdx)].Sample(input.TexCoord).rgb;
+    if (input.TexIdx == 99) {
+      albedo = input.Color.rgb;
     }
 
-    float gamma = 1.0 / 2.2;
-    color.rgb = pow(color.rgb, float3(gamma, gamma, gamma));
+    float3 normal = normalize(input.Normal);
+    float3 lightDir = normalize(input.LightPos - input.FragPos);
+    float3 viewDir = normalize(input.ViewPos - input.FragPos);
+    float3 halfwayDir = normalize(lightDir + viewDir);
 
-    return color;
+    float3 ambient = 0.1 * albedo;
+
+    float3 diffuse = 0.8 * max(dot(normal, lightDir), 0.0) * albedo;
+
+    float shininess = 32.0;
+    float3 specularColor = float3(1.0);
+    float spec = 0.11 * pow(max(dot(normal, halfwayDir), 0.0), shininess);
+    float3 specular = spec * specularColor;
+
+    float3 result = lightColor * (ambient + diffuse + specular);
+    float gamma = 1.0 / 2.2;
+    result.rgb = pow(result.rgb, float3(gamma, gamma, gamma));
+
+    return float4(result, 1.0);
 }
