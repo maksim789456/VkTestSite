@@ -33,8 +33,8 @@ Model::Model(
     modelPath.string(),
     aiProcess_Triangulate
     | aiProcess_JoinIdenticalVertices
-    //| aiProcess_PreTransformVertices
-    //| aiProcess_GenSmoothNormals
+    | aiProcess_GenNormals
+    | aiProcess_CalcTangentSpace
   );
   if (!scene)
     throw std::runtime_error("Import of model failed");
@@ -95,16 +95,19 @@ void Model::processNode(
         auto vertexIndex = face.mIndices[i];
         auto pos = mesh->mVertices[vertexIndex];
         auto normal = mesh->HasNormals() ? mesh->mNormals[vertexIndex] : aiVector3D(0, 0, 0);
+        auto tangent = mesh->HasTangentsAndBitangents() ? mesh->mTangents[vertexIndex] : aiVector3D(0, 0, 0);
         auto texCord = texCords ? texCords[vertexIndex] : aiVector3D(0, 0, 0);
 
         glm::vec4 transformedPos = transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f);
-        glm::vec3 transformedNormal = glm::mat3(glm::transpose(glm::inverse(transform))) *
-                                      glm::vec3(normal.x, normal.y, normal.z);
+        auto normalMat = glm::mat3(glm::transpose(glm::inverse(transform)));
+        auto N = glm::normalize(normalMat * glm::vec3(normal.x, normal.y, normal.z));
+        auto T = glm::normalize(normalMat * glm::vec3(tangent.x, tangent.y, tangent.z));
+        T = glm::normalize(T - N * glm::dot(N, T));
 
         auto vert = Vertex{
           .Position = transformedPos,
-          .Normal = glm::normalize(transformedNormal),
-          .TexCoords = glm::vec2(texCord.x, 1.0f - texCord.y),
+          .Normal = N, .Tangent = T,
+          .UV = glm::vec2(texCord.x, 1.0f - texCord.y),
           .Color = diffuseColor,
           .TextureIdx = texturePath.has_value() ? mesh->mMaterialIndex : 99
         };
@@ -151,13 +154,13 @@ void Model::loadTextures(
     );
 
     generateMipmaps(
-        device,
-        graphicsQueue,
-        commandPool,
-        texture->getImage(),
-        texture->width,
-        texture->height,
-        texture->mipLevels
+      device,
+      graphicsQueue,
+      commandPool,
+      texture->getImage(),
+      texture->width,
+      texture->height,
+      texture->mipLevels
     );
 
     this->m_textures[matIdx] = std::move(texture);
