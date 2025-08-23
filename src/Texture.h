@@ -13,6 +13,8 @@
 #include <cmath>
 #include <algorithm>
 
+#define MAX_TEXTURE_PER_DESCRIPTOR 64
+
 class Texture {
 public:
   Texture(
@@ -33,7 +35,8 @@ public:
     vma::Allocator allocator,
     vk::Queue queue,
     vk::CommandPool commandPool,
-    const std::filesystem::path &path
+    const std::filesystem::path &path,
+    vk::Format format = vk::Format::eR8G8B8A8Unorm
   );
 
   vk::Image getImage() { return m_image.get(); };
@@ -84,7 +87,8 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
   const vma::Allocator allocator,
   const vk::Queue queue,
   const vk::CommandPool commandPool,
-  const std::filesystem::path &path
+  const std::filesystem::path &path,
+  const vk::Format format
 ) {
   int width, height, channels;
   stbi_uc *origPixels = stbi_load(
@@ -103,7 +107,6 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
   auto mipLevels = static_cast<uint32_t>(
     std::floor(std::log2(std::max(width, height))) + 1
   );
-  auto format = vk::Format::eR8G8B8A8Srgb;
 
   if (channels == 4) {
     memcpy(pixels.data(), origPixels, originalSize);

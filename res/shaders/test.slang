@@ -76,8 +76,6 @@ float4 fragmentMain(VSOutput input) : SV_Target
     float3 specular = spec * specularColor;
 
     float3 result = lightColor * (ambient + diffuse + specular);
-    float gamma = 1.0 / 2.2;
-    result.rgb = pow(result.rgb, float3(gamma, gamma, gamma));
 
     return float4(result, 1.0);
 }
