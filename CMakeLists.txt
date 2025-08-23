@@ -32,6 +32,8 @@ add_executable(VkTestSite src/main.cpp
         src/Camera.h
         src/Texture.h
         src/texture.cpp
+        src/TextureManager.cpp
+        src/TextureManager.h
 )
 
 find_package(glfw3 CONFIG REQUIRED)

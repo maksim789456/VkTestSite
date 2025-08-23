@@ -87,6 +87,8 @@ void VkTestSiteApp::initVk() {
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
+  m_texManager = std::make_unique<TextureManager>(
+    m_device, m_graphicsQueue, m_commandPool, m_allocator, m_descriptorSet, 1);
 
   m_camera = std::make_unique<Camera>();
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -644,6 +646,7 @@ void VkTestSiteApp::cleanup() {
 
   if (m_modelLoaded)
     m_model.reset();
+  m_texManager.reset();
   m_imguiCommandBuffers.clear();
   m_device.destroyCommandPool(m_commandPool);
   vmaDestroyAllocator(m_allocator);

@@ -108,19 +108,20 @@ void DescriptorSet::bind(
 
 void DescriptorSet::updateTexture(
   const vk::Device &device,
-  const uint32_t currentFrameIdx,
   const uint32_t shaderBinding,
   const uint32_t textureIndex,
   const vk::DescriptorImageInfo &imageInfo
 ) const {
-  const auto write = vk::WriteDescriptorSet(
-    m_descriptorSets[currentFrameIdx],
-    shaderBinding,
-    textureIndex,
-    1, vk::DescriptorType::eCombinedImageSampler,
-    &imageInfo);
+  for (auto &descriptorSet: m_descriptorSets) {
+    const auto write = vk::WriteDescriptorSet(
+      descriptorSet,
+      shaderBinding,
+      textureIndex,
+      1, vk::DescriptorType::eCombinedImageSampler,
+      &imageInfo);
 
-  device.updateDescriptorSets(write, {});
+    device.updateDescriptorSets(write, {});
+  }
 }
 
 const vk::PipelineLayout &DescriptorSet::getPipelineLayout() const {

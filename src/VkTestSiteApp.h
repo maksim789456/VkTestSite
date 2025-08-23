@@ -32,6 +32,7 @@
 #include "Model.h"
 #include "Ubo.h"
 #include "Camera.h"
+#include "TextureManager.h"
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
@@ -69,6 +70,7 @@ private:
 
   std::unique_ptr<Model> m_model;
   bool m_modelLoaded = false;
+  std::unique_ptr<TextureManager> m_texManager;
 
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms;

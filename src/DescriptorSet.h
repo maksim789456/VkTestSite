@@ -34,7 +34,6 @@ public:
 
   void updateTexture(
     const vk::Device &device,
-    uint32_t currentFrameIdx,
     uint32_t shaderBinding,
     uint32_t textureIndex,
     const vk::DescriptorImageInfo &imageInfo
