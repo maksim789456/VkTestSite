@@ -16,6 +16,7 @@
 #include "Mesh.h"
 #include "Swapchain.h"
 #include "Texture.h"
+#include "TextureManager.h"
 #include "Vertex.h"
 #include "utils.cpp"
 
@@ -32,17 +33,11 @@ public:
     vk::Queue graphicsQueue,
     vk::CommandPool commandPool,
     vma::Allocator allocator,
+    TextureManager& textureManager,
     const std::filesystem::path &modelPath
   );
 
   void createCommandBuffers(vk::Device device, vk::CommandPool commandPool, uint32_t imagesCount);
-
-  void updateTextureDescriptors(
-    vk::Device device,
-    const DescriptorSet &descriptorSet,
-    uint32_t imageCount,
-    uint32_t shaderBinding
-  );
 
   vk::CommandBuffer cmdDraw(
     vk::Framebuffer framebuffer,
@@ -73,30 +68,18 @@ private:
     std::vector<uint32_t> &indices
   );
 
-  void loadTextures(
-    vk::Device device,
-    vk::Queue graphicsQueue,
-    vk::CommandPool commandPool,
-    vma::Allocator allocator,
+  void processMaterials(
+    TextureManager& textureManager,
     const aiScene *scene,
     const std::filesystem::path &modelParent
   );
-
-  void createTextureInfos() {
-    for (auto &[texIdx, texture]: m_textures) {
-      m_textureDescriptors[texIdx] = vk::DescriptorImageInfo(
-        m_sampler.get(), texture->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    }
-  }
 
   [[nodiscard]] ModelPushConsts calcPushConsts() const;
 
   std::string m_name;
   std::unique_ptr<Mesh<Vertex, uint32_t> > m_mesh;
   glm::vec3 m_position = {};
-  std::map<uint32_t, std::unique_ptr<Texture> > m_textures = {};
-  std::map<uint32_t, vk::DescriptorImageInfo> m_textureDescriptors = {};
-  vk::UniqueSampler m_sampler;
   std::vector<vk::UniqueCommandBuffer> m_commandBuffers;
+  std::unordered_map<uint32_t, uint32_t> m_materialsMapping = {};
 };
 #endif //MODEL_H

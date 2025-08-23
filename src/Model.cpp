@@ -24,6 +24,7 @@ Model::Model(
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
   vma::Allocator allocator,
+  TextureManager& textureManager,
   const std::filesystem::path &modelPath
 ) {
   std::cout << "Loading model from: " << modelPath.string() << std::endl;
@@ -39,11 +40,9 @@ Model::Model(
   if (!scene)
     throw std::runtime_error("Import of model failed");
 
-  createMesh(device, graphicsQueue, commandPool, allocator, scene);
   const auto modelParent = modelPath.parent_path();
-  loadTextures(device, graphicsQueue, commandPool, allocator, scene, modelParent);
-  m_sampler = createSamplerUnique(device);
-  createTextureInfos();
+  processMaterials(textureManager, scene, modelParent);
+  createMesh(device, graphicsQueue, commandPool, allocator, scene);
   m_name = std::string(scene->mRootNode->mName.C_Str());
 }
 
@@ -80,7 +79,7 @@ void Model::processNode(
     std::cout << "Node: " << node->mName.C_Str() << "; Vertices count: " << mesh->mNumVertices << std::endl;
     auto texCords = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0] : nullptr;
     auto meshMaterial = scene->mMaterials[mesh->mMaterialIndex];
-    auto texturePath = getMaterialAlbedoTextureFile(meshMaterial);
+    auto materialIdx = m_materialsMapping.find(mesh->mMaterialIndex);
 
     glm::vec4 diffuseColor(1.0f);
     if (aiColor3D aiDiffuseColor; meshMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, aiDiffuseColor) == AI_SUCCESS) {
@@ -109,7 +108,7 @@ void Model::processNode(
           .Normal = N, .Tangent = T,
           .UV = glm::vec2(texCord.x, 1.0f - texCord.y),
           .Color = diffuseColor,
-          .TextureIdx = texturePath.has_value() ? mesh->mMaterialIndex : 99
+          .TextureIdx = materialIdx != m_materialsMapping.end() ? materialIdx->second : 99
         };
 
         vertices.push_back(vert);
@@ -123,16 +122,12 @@ void Model::processNode(
   }
 }
 
-void Model::loadTextures(
-  const vk::Device device,
-  const vk::Queue graphicsQueue,
-  const vk::CommandPool commandPool,
-  const vma::Allocator allocator,
+void Model::processMaterials(
+  TextureManager& textureManager,
   const aiScene *scene,
   const std::filesystem::path &modelParent
 ) {
   std::vector<std::pair<uint32_t, std::string> > texturesFiles;
-  texturesFiles.reserve(scene->mNumTextures);
 
   for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx) {
     aiMaterial *material = scene->mMaterials[matIdx];
@@ -142,28 +137,7 @@ void Model::loadTextures(
 
   const auto absoluteModelParent = std::filesystem::canonical(modelParent);
   for (const auto &[matIdx, texFile]: texturesFiles) {
-    std::filesystem::path texturePath = absoluteModelParent / texFile;
-    std::cout << "Loading texture: " << texturePath << "\n";
-
-    auto texture = Texture::createFromFile(
-      device,
-      allocator,
-      graphicsQueue,
-      commandPool,
-      texturePath
-    );
-
-    generateMipmaps(
-      device,
-      graphicsQueue,
-      commandPool,
-      texture->getImage(),
-      texture->width,
-      texture->height,
-      texture->mipLevels
-    );
-
-    this->m_textures[matIdx] = std::move(texture);
+    m_materialsMapping[matIdx] = textureManager.loadTextureFromFile(absoluteModelParent, texFile);
   }
 }
 
@@ -176,19 +150,6 @@ void Model::createCommandBuffers(
     commandPool, vk::CommandBufferLevel::eSecondary, imagesCount
   );
   m_commandBuffers = device.allocateCommandBuffersUnique(info);
-}
-
-void Model::updateTextureDescriptors(
-  const vk::Device device,
-  const DescriptorSet &descriptorSet,
-  const uint32_t imageCount,
-  const uint32_t shaderBinding
-) {
-  for (int frameIdx = 0; frameIdx < imageCount; ++frameIdx) {
-    for (auto &[matIdx, texDescriptor]: m_textureDescriptors) {
-      descriptorSet.updateTexture(device, frameIdx, shaderBinding, matIdx, texDescriptor);
-    }
-  }
 }
 
 inline ModelPushConsts Model::calcPushConsts() const {

@@ -468,9 +468,8 @@ void VkTestSiteApp::mainLoop() {
       auto path = tinyfd_openFileDialog("Open model file", nullptr, 0, nullptr, nullptr, 0);
       if (path != nullptr) {
         auto pathStr = std::string(path);
-        m_model = std::make_unique<Model>(m_device, m_graphicsQueue, m_commandPool, m_allocator, pathStr);
+        m_model = std::make_unique<Model>(m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, pathStr);
         m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
-        m_model->updateTextureDescriptors(m_device, m_descriptorSet, m_swapchain.imageViews.size(), 1);
         m_modelLoaded = true;
       }
     }
