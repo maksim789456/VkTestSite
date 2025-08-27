@@ -10,6 +10,7 @@
 #include <imgui_impl_glfw.h>
 #include "ImGUIStyle.h"
 #include <tracy/Tracy.hpp>
+#include <tracy/TracyVulkan.hpp>
 
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
@@ -23,6 +24,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <set>
+
 #include "QueueFamilyIndices.cpp"
 #include "Swapchain.h"
 #include "ShaderModule.h"
@@ -45,6 +47,8 @@ public:
 
 private:
   GLFWwindow *m_window = nullptr;
+  tracy::VkCtx *m_vkContext = nullptr;
+
   vk::detail::DynamicLoader m_loader;
   vk::Instance m_instance;
   VmaAllocator m_allocator = nullptr;

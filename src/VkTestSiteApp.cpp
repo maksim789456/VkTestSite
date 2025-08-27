@@ -3,10 +3,14 @@
 #define WINDOW_WIDTH 1024
 #define WINDOW_HEIGHT 768
 #define MAX_FRAME_IN_FLIGHT 2 //0..2 -> 3 frames
+#define MAX_MATERIAL_PER_DESCRIPTOR 64
 
 const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME,
   VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+  VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME,
+  VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
+  VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
 };
 
 const std::vector LAYERS = {
@@ -106,6 +110,16 @@ void VkTestSiteApp::initVk() {
   glfwSetWindowUserPointer(m_window, this);
   glfwSetKeyCallback(m_window, keyCallback);
   glfwSetCursorPosCallback(m_window, mouseCallback);
+
+#ifndef NDEBUG
+  const auto qpreset = reinterpret_cast<PFN_vkResetQueryPoolEXT>(vkGetDeviceProcAddr(m_device, "vkResetQueryPoolEXT"));
+  const auto gpdctd = reinterpret_cast<PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT>(vkGetInstanceProcAddr(
+    m_instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"));
+  const auto gct = reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(vkGetDeviceProcAddr(
+    m_device, "vkGetCalibratedTimestampsEXT"));
+  m_vkContext = tracy::CreateVkContext(m_physicalDevice, m_device, qpreset, gpdctd, gct);
+#endif
+
   ImGui_ImplGlfw_InitForVulkan(m_window, true);
   const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   ImGui_ImplVulkan_InitInfo vkInitInfo = {};
@@ -672,7 +686,9 @@ void VkTestSiteApp::cleanupSwapchain() {
 
 void VkTestSiteApp::cleanup() {
   ZoneScoped;
-  //TracyVkDestroy(m_vkContext);
+#ifndef NDEBUG
+  TracyVkDestroy(m_vkContext);
+#endif
 
   for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
     m_device.destroyFence(m_inFlight[i]);
