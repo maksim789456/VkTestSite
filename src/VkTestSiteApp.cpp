@@ -93,10 +93,14 @@ void VkTestSiteApp::initVk() {
   m_camera = std::make_unique<Camera>();
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
     const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
+    if (ImGui::GetIO().WantCaptureKeyboard)
+      return;
     me->m_camera->keyboardCallback(key, action);
   };
   auto mouseCallback = [](GLFWwindow *window, double xpos, double ypos) {
     const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
+    if (ImGui::GetIO().WantCaptureMouse)
+      return;
     me->m_camera->mouseCallback(window, xpos, ypos);
   };
   glfwSetWindowUserPointer(m_window, this);
