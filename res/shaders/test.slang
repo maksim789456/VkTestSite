@@ -5,7 +5,8 @@ struct VSInput
     [[vk::location(2)]] float3 inTangent;
     [[vk::location(3)]] float2 inTexCoord;
     [[vk::location(4)]] float4 inColor;
-    [[vk::location(5)]] uint inTexIdx;
+    [[vk::location(5)]] uint inAlbedoIdx;
+    [[vk::location(6)]] uint inNormalIdx;
 };
 
 struct UBO {
@@ -25,7 +26,8 @@ struct VSOutput
     [[vk::location(4)]] float3 ViewPos;
     [[vk::location(5)]] float3 LightPos;
     [[vk::location(6)]] float4 Color;
-    [[vk::location(7)]] uint TexIdx;
+    [[vk::location(7)]] uint AlbedoIdx;
+    [[vk::location(8)]] uint NormalIdx;
 }
 
 [shader("vertex")]
@@ -41,7 +43,8 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
     out.ViewPos = ubo.viewPos.xyz;
     out.LightPos = ubo.viewPos.xyz;
     out.Color = input.inColor;
-    out.TexIdx = input.inTexIdx;
+    out.AlbedoIdx = input.inAlbedoIdx;
+    out.NormalIdx = input.inNormalIdx;
     return out;
 }
 
@@ -50,17 +53,21 @@ float4 fragmentMain(VSOutput input) : SV_Target
 {
     float3 lightColor = float3(1.0);
 
-    float3 albedo = textures[NonUniformResourceIndex(input.TexIdx)].Sample(input.TexCoord).rgb;
-    if (input.TexIdx == 99) {
+    float3 albedo = textures[NonUniformResourceIndex(input.AlbedoIdx)].Sample(input.TexCoord).rgb;
+    if (input.AlbedoIdx == 99) {
       albedo = input.Color.rgb;
+    }
+
+    float3 normal = textures[NonUniformResourceIndex(input.NormalIdx)].Sample(input.TexCoord).rgb;
+    if (input.NormalIdx == 99) {
+      normal = float3(0.5, 0.5, 1.0);
     }
 
     float3 N = normalize(input.Normal);
     float3 T = normalize(input.Tangent);
     float3 B = cross(N, T);
     float3x3 TBN = float3x3(T, B, N);
-    float3 normalTex = float3(0.5, 0.5, 1.0); //TODO: load normal map
-    float3 tnorm = mul(normalize(normalTex * 2.0 - float3(1.0, 1.0, 1.0)), TBN);
+    float3 tnorm = mul(normalize(normal * 2.0 - float3(1.0, 1.0, 1.0)), TBN);
 
     float3 lightDir = normalize(input.LightPos - input.FragPos);
     float3 viewDir = normalize(input.ViewPos - input.FragPos);

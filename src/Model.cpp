@@ -19,6 +19,25 @@ static std::optional<std::string> getMaterialAlbedoTextureFile(
   return std::nullopt;
 }
 
+static std::optional<std::string> getMaterialNormalTextureFile(
+  aiMaterial *material
+) {
+  if (!material)
+    return std::nullopt;
+
+  aiString path;
+
+  if (material->GetTexture(aiTextureType_NORMALS, 0, &path) == AI_SUCCESS) {
+    return std::string(path.C_Str());
+  }
+
+  if (material->GetTexture(aiTextureType_HEIGHT, 0, &path) == AI_SUCCESS) {
+    return std::string(path.C_Str());
+  }
+
+  return std::nullopt;
+}
+
 Model::Model(
   const vk::Device device,
   const vk::Queue graphicsQueue,
@@ -79,7 +98,8 @@ void Model::processNode(
     std::cout << "Node: " << node->mName.C_Str() << "; Vertices count: " << mesh->mNumVertices << std::endl;
     auto texCords = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0] : nullptr;
     auto meshMaterial = scene->mMaterials[mesh->mMaterialIndex];
-    auto materialIdx = m_materialsMapping.find(mesh->mMaterialIndex);
+    auto albedoIdx = m_albedoMapping.find(mesh->mMaterialIndex);
+    auto normalIdx = m_normalMapping.find(mesh->mMaterialIndex);
 
     glm::vec4 diffuseColor(1.0f);
     if (aiColor3D aiDiffuseColor; meshMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, aiDiffuseColor) == AI_SUCCESS) {
@@ -108,7 +128,8 @@ void Model::processNode(
           .Normal = N, .Tangent = T,
           .UV = glm::vec2(texCord.x, 1.0f - texCord.y),
           .Color = diffuseColor,
-          .TextureIdx = materialIdx != m_materialsMapping.end() ? materialIdx->second : 99
+          .TextureIdx = albedoIdx != m_albedoMapping.end() ? albedoIdx->second : 99,
+          .NormalTextureIdx = normalIdx != m_normalMapping.end() ? normalIdx->second : 99,
         };
 
         vertices.push_back(vert);
@@ -127,17 +148,15 @@ void Model::processMaterials(
   const aiScene *scene,
   const std::filesystem::path &modelParent
 ) {
-  std::vector<std::pair<uint32_t, std::string> > texturesFiles;
+  const auto absoluteModelParent = std::filesystem::canonical(modelParent);
 
   for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx) {
     aiMaterial *material = scene->mMaterials[matIdx];
     if (const auto path = getMaterialAlbedoTextureFile(material); path.has_value())
-      texturesFiles.emplace_back(matIdx, path.value());
-  }
+      m_albedoMapping[matIdx] = textureManager.loadTextureFromFile(absoluteModelParent, path.value());
 
-  const auto absoluteModelParent = std::filesystem::canonical(modelParent);
-  for (const auto &[matIdx, texFile]: texturesFiles) {
-    m_materialsMapping[matIdx] = textureManager.loadTextureFromFile(absoluteModelParent, texFile);
+    if (const auto path = getMaterialNormalTextureFile(material); path.has_value())
+      m_normalMapping[matIdx] = textureManager.loadTextureFromFile(absoluteModelParent, path.value());
   }
 }
 

@@ -80,6 +80,7 @@ private:
   std::unique_ptr<Mesh<Vertex, uint32_t> > m_mesh;
   glm::vec3 m_position = {};
   std::vector<vk::UniqueCommandBuffer> m_commandBuffers;
-  std::unordered_map<uint32_t, uint32_t> m_materialsMapping = {};
+  std::unordered_map<uint32_t, uint32_t> m_albedoMapping = {};
+  std::unordered_map<uint32_t, uint32_t> m_normalMapping = {};
 };
 #endif //MODEL_H
