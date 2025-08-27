@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.hpp>
 #include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
 #include <stb_image.h>
+#include <imgui_impl_vulkan.h>
 
 #include "utils.cpp"
 #include "BufferUtils.cpp"
@@ -30,6 +31,12 @@ public:
     const std::string &name = "Texture"
   );
 
+  ~Texture() {
+    if (m_useSampler) {
+      ImGui_ImplVulkan_RemoveTexture(m_imguiDS.release());
+    }
+  }
+
   static std::unique_ptr<Texture> createFromFile(
     vk::Device device,
     vma::Allocator allocator,
@@ -41,12 +48,14 @@ public:
 
   vk::Image getImage() { return m_image.get(); };
   vk::ImageView getImageView() { return m_imageView.get(); };
+  ImTextureID getImGuiID() { return reinterpret_cast<ImTextureID>(static_cast<VkDescriptorSet>(m_imguiDS.get())); };
   const uint32_t width, height, mipLevels;
 
 private:
   vma::UniqueImage m_image;
   vma::UniqueAllocation m_imageAlloc;
   vk::UniqueImageView m_imageView;
+  vk::UniqueDescriptorSet m_imguiDS;
 
   bool m_useSampler = false;
   vk::UniqueSampler m_sampler;
@@ -79,6 +88,12 @@ inline Texture::Texture(
   if (useSampler) {
     m_sampler = createSamplerUnique(device);
     setObjectName(device, m_sampler.get(), std::format("{} sampler", name));
+
+    auto imguiTextureDs = ImGui_ImplVulkan_AddTexture(
+      m_sampler.get(), m_imageView.get(),
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    m_imguiDS = vk::UniqueDescriptorSet(imguiTextureDs);
   }
 }
 
@@ -129,7 +144,7 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
     vk::ImageUsageFlagBits::eSampled
     | vk::ImageUsageFlagBits::eTransferSrc
     | vk::ImageUsageFlagBits::eTransferDst,
-    false,
+    true,
     path.filename().string()
   );
 

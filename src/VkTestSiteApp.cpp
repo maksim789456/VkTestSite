@@ -483,6 +483,41 @@ void VkTestSiteApp::mainLoop() {
     }
     ImGui::End();
 
+    if (m_modelLoaded && ImGui::Begin("Texture Browser"))
+    {
+      static int selected = -1;
+
+      {
+        ImGui::BeginChild("Slots", ImVec2(ImGui::GetContentRegionAvail().x * 0.2f, 260), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar);
+        for (const auto &id: m_texManager->m_textures | std::views::keys) {
+          if (ImGui::Selectable(std::format("Slot: {}", id).c_str(), selected == id)) {
+            selected = id;
+          }
+        }
+        ImGui::EndChild();
+      }
+      ImGui::SameLine();
+
+      ImGui::BeginChild("Preview", ImVec2(0, 260));
+      if (selected != -1) {
+        if (auto tex = m_texManager->getTexture(selected); tex.has_value()) {
+          float scale = 1.0f;
+          if (tex.value()->width > tex.value()->height) {
+            scale = 256.0f / tex.value()->width;
+          } else {
+            scale = 256.0f / tex.value()->height;
+          }
+
+          ImVec2 previewSize(tex.value()->width * scale, tex.value()->height * scale);
+          ImGui::Image(tex.value()->getImGuiID(), previewSize);
+        }
+      } else {
+        ImGui::Text("Select a slot...");
+      }
+      ImGui::EndChild();
+      ImGui::End();
+    }
+
     ImGui::Render();
     const auto draw_data = ImGui::GetDrawData();
     if (draw_data->DisplaySize.x > 0.0f && draw_data->DisplaySize.y > 0.0f) {

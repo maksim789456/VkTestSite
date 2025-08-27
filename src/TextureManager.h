@@ -29,6 +29,7 @@ public:
 
   void unloadTexture(uint32_t slot);
 
+  std::unordered_map<uint32_t, std::unique_ptr<Texture> > m_textures = {};
 private:
   vk::Device m_device = nullptr;
   vk::Queue m_graphicsQueue = nullptr;
@@ -38,7 +39,6 @@ private:
 
   uint32_t m_shaderBinding = 0;
 
-  std::unordered_map<uint32_t, std::unique_ptr<Texture> > m_textures = {};
   std::unordered_map<std::string, uint32_t> m_cache = {};
   std::unordered_map<uint32_t, vk::DescriptorImageInfo> m_textureDescriptors = {};
   vk::UniqueSampler m_sampler;
