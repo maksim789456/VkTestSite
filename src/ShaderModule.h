@@ -5,8 +5,10 @@
 
 #include <spirv-reflect/spirv_reflect.h>
 #include <vulkan/vulkan.hpp>
-#include <fstream>
 #include <tracy/Tracy.hpp>
+
+#include <fstream>
+#include <iostream>
 
 class ShaderModule {
 public:
@@ -14,13 +16,13 @@ public:
   vk::PipelineShaderStageCreateInfo fragmentPipelineInfo;
 
   ShaderModule() = default;
-  void load(const std::string &path);
-  void compile(const vk::Device &device);
-  void destroy(const vk::Device &device) const;
+  void load(const vk::Device &device, const std::string &path);
+  void reflect(const vk::Device &device);
 
 private:
-  std::vector<char> spv;
-  vk::ShaderModule module;
+  std::vector<uint32_t> m_spv;
+  vk::UniqueShaderModule m_module;
+  std::unique_ptr<spv_reflect::ShaderModule> m_spvReflectModule;
 };
 
 

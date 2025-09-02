@@ -286,8 +286,8 @@ void VkTestSiteApp::createRenderPass() {
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
   auto shaderModule = ShaderModule();
-  shaderModule.load("../res/shaders/test.slang.spv");
-  shaderModule.compile(m_device);
+  shaderModule.load(m_device, "../res/shaders/test.slang.spv");
+  shaderModule.reflect(m_device);
   std::vector shaderStages = {
     shaderModule.vertexPipelineInfo, shaderModule.fragmentPipelineInfo
   };
@@ -345,8 +345,6 @@ void VkTestSiteApp::createPipeline() {
     abort();
   }
   m_graphicsPipeline = result.value;
-
-  shaderModule.destroy(m_device);
 }
 
 void VkTestSiteApp::createColorObjets() {
@@ -486,7 +484,8 @@ void VkTestSiteApp::mainLoop() {
       auto path = tinyfd_openFileDialog("Open model file", nullptr, 0, nullptr, nullptr, 0);
       if (path != nullptr) {
         auto pathStr = std::string(path);
-        m_model = std::make_unique<Model>(m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, pathStr);
+        m_model = std::make_unique<Model>(m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager,
+                                          pathStr);
         m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
         m_modelLoaded = true;
       }
@@ -497,12 +496,10 @@ void VkTestSiteApp::mainLoop() {
     }
     ImGui::End();
 
-    if (m_modelLoaded && ImGui::Begin("Texture Browser"))
-    {
-      static int selected = -1;
-
-      {
-        ImGui::BeginChild("Slots", ImVec2(ImGui::GetContentRegionAvail().x * 0.2f, 260), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar);
+    if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
+      static int selected = -1; {
+        ImGui::BeginChild("Slots", ImVec2(ImGui::GetContentRegionAvail().x * 0.2f, 260), ImGuiChildFlags_None,
+                          ImGuiWindowFlags_HorizontalScrollbar);
         for (const auto &id: m_texManager->m_textures | std::views::keys) {
           if (ImGui::Selectable(std::format("Slot: {}", id).c_str(), selected == id)) {
             selected = id;
