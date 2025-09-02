@@ -39,6 +39,7 @@
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
   glm::mat4 viewProj;
+  glm::mat4 invViewProj;
 };
 
 class VkTestSiteApp {
