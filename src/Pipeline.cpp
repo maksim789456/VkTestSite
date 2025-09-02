@@ -27,10 +27,8 @@ vk::Pipeline PipelineBuilder::build() {
   depthStencil.setDepthBoundsTestEnable(false)
       .setMinDepthBounds(0.0f)
       .setMaxDepthBounds(1.0f);
-  std::vector colorAttachments =
-      m_colorBlendAttachments.has_value()
-        ? m_colorBlendAttachments.value()
-        : makeDefaultColorAttachmentStates();
+  std::vector colorAttachments = {makeDefaultColorAttachmentState()};
+  colorAttachments = m_colorBlendAttachments.has_value() ? m_colorBlendAttachments.value() : colorAttachments;
   auto colorBlend = vk::PipelineColorBlendStateCreateInfo({}, false, vk::LogicOp::eCopy, colorAttachments);
 
   auto pipelineInfo = vk::GraphicsPipelineCreateInfo({});

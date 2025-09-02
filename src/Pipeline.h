@@ -64,10 +64,7 @@ public:
     return *this;
   }
 
-  vk::Pipeline build();
-
-private:
-  static std::vector<vk::PipelineColorBlendAttachmentState> makeDefaultColorAttachmentStates() {
+  static vk::PipelineColorBlendAttachmentState makeDefaultColorAttachmentState() {
     auto colorAttachment = vk::PipelineColorBlendAttachmentState(
       true,
       vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha,
@@ -77,9 +74,12 @@ private:
 
     colorAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
                                      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-    return {colorAttachment};
+    return colorAttachment;
   }
 
+  vk::Pipeline build();
+
+private:
   std::vector<vk::VertexInputBindingDescription> m_bindingDescriptions;
   std::vector<vk::VertexInputAttributeDescription> m_attributeDescriptions;
   std::optional<std::vector<vk::PipelineColorBlendAttachmentState> > m_colorBlendAttachments = std::nullopt;
