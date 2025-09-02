@@ -35,6 +35,7 @@
 #include "Ubo.h"
 #include "Camera.h"
 #include "TextureManager.h"
+#include "Pipeline.h"
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
