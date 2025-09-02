@@ -9,6 +9,18 @@
 
 class Camera {
 public:
+  static glm::mat4 perspectiveRZ(float fovy, float aspect, float zNear, float zFar) {
+    float f = 1.0f / tan(fovy * 0.5f);
+
+    glm::mat4 result(0.0f);
+    result[0][0] = f / aspect;
+    result[1][1] = -f;  // flip Y for Vulkan
+    result[2][2] = zNear / (zFar - zNear);
+    result[2][3] = -1.0f;
+    result[3][2] = (zFar * zNear) / (zFar - zNear);
+    return result;
+  }
+
   void onUpdate(const float deltaTime) {
     const auto rotationMatrix = glm::mat4_cast(rotation);
     const glm::vec3 offset = rotationMatrix * glm::vec4(velocity * deltaTime * 5.0f, 0.0f);
@@ -16,8 +28,7 @@ public:
 
     const auto translation = glm::translate(glm::mat4(1.0f), position);
     const auto view = glm::inverse(translation * rotationMatrix);
-    auto proj = glm::perspective(fov, aspectRatio, zNear, zFar);
-    proj[1][1] *= -1;
+    auto proj = perspectiveRZ(fov, aspectRatio, zNear, zFar);
     viewProj = proj * view;
   }
 
@@ -78,7 +89,7 @@ public:
 private:
   float fov = glm::radians(45.0f);
   float zNear = 0.1f;
-  float zFar = 100.0f;
+  float zFar = 1000.0f;
 
   glm::vec3 position = glm::vec3(0.0f, 1.2f, 0.6f);
   glm::quat rotation = glm::quat(glm::vec3(0.0f));
