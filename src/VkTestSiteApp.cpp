@@ -285,66 +285,17 @@ void VkTestSiteApp::createRenderPass() {
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
-  auto shaderModule = ShaderModule();
-  shaderModule.load(m_device, "../res/shaders/test.slang.spv");
-  shaderModule.reflect(m_device);
-  std::vector shaderStages = {
-    shaderModule.vertexPipelineInfo, shaderModule.fragmentPipelineInfo
-  };
-
-  std::vector dynamicStates = {
-    vk::DynamicState::eViewport,
-    vk::DynamicState::eScissor,
-  };
-
-  auto bindingDescription = Vertex::GetBindingDescription();
-  auto attributeDescription = Vertex::GetAttributeDescriptions();
-  auto dynamicStateInfo = vk::PipelineDynamicStateCreateInfo({}, dynamicStates);
-  auto vertexInputInfo = vk::PipelineVertexInputStateCreateInfo({}, bindingDescription, attributeDescription);
-  auto inputAssembly = vk::PipelineInputAssemblyStateCreateInfo({}, vk::PrimitiveTopology::eTriangleList, false);
-  auto viewportState = vk::PipelineViewportStateCreateInfo({}, 1, nullptr, 1, nullptr);
-  auto rasterizer = vk::PipelineRasterizationStateCreateInfo(
-    {}, false, false, vk::PolygonMode::eFill,
-    vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise,
-    false, {}, {}, {}, 1.0f);
-  auto multisampling = vk::PipelineMultisampleStateCreateInfo({}, m_msaaSamples, true, 0.2f);
-  auto depthStencil = vk::PipelineDepthStencilStateCreateInfo({}, true, true, vk::CompareOp::eGreaterOrEqual);
-  depthStencil.setDepthBoundsTestEnable(false)
-      .setMinDepthBounds(0.0f)
-      .setMaxDepthBounds(1.0f);
-  auto colorAttachment = vk::PipelineColorBlendAttachmentState(
-    true,
-    vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha,
-    vk::BlendOp::eAdd,
-    vk::BlendFactor::eOne, vk::BlendFactor::eOneMinusSrcAlpha,
-    vk::BlendOp::eAdd);
-  colorAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                                   vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-  std::vector colorAttachments = {colorAttachment};
-  auto colorBlend = vk::PipelineColorBlendStateCreateInfo({}, false, vk::LogicOp::eCopy, colorAttachments);
-
-  auto pipelineInfo = vk::GraphicsPipelineCreateInfo({});
-  pipelineInfo.setStages(shaderStages)
-      .setPVertexInputState(&vertexInputInfo)
-      .setPInputAssemblyState(&inputAssembly)
-      .setPViewportState(&viewportState)
-      .setPRasterizationState(&rasterizer)
-      .setPMultisampleState(&multisampling)
-      .setPDepthStencilState(&depthStencil)
-      .setPColorBlendState(&colorBlend)
-      .setPDynamicState(&dynamicStateInfo)
-      .setLayout(m_descriptorSet.getPipelineLayout())
-      .setRenderPass(m_renderPass)
-      .setSubpass(0)
-      .setBasePipelineHandle(VK_NULL_HANDLE)
-      .setBasePipelineIndex(-1);
-
-  auto result = m_device.createGraphicsPipeline(nullptr, pipelineInfo);
-  if (result.result != vk::Result::eSuccess) {
-    std::cerr << "Failed to create graphics pipeline" << std::endl;
-    abort();
-  }
-  m_graphicsPipeline = result.value;
+  m_graphicsPipeline = PipelineBuilder(
+        m_device,
+        m_renderPass,
+        m_descriptorSet.getPipelineLayout(),
+        "../res/shaders/test.slang.spv"
+      )
+      .withBindingDescriptions({Vertex::GetBindingDescription()})
+      .withAttributeDescriptions({Vertex::GetAttributeDescriptions()})
+      .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
+      .withMsaa(true, m_msaaSamples, 0.2f)
+      .build();
 }
 
 void VkTestSiteApp::createColorObjets() {
