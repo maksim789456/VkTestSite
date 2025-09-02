@@ -245,7 +245,7 @@ void VkTestSiteApp::createRenderPass() {
 
   const auto depthStencilAttachment = vk::AttachmentDescription(
     {}, vk::Format::eD32SfloatS8Uint, m_msaaSamples,
-    vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+    vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
     vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
     vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal);
   constexpr auto depthStencilAttachmentRef =
@@ -308,7 +308,7 @@ void VkTestSiteApp::createPipeline() {
     vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise,
     false, {}, {}, {}, 1.0f);
   auto multisampling = vk::PipelineMultisampleStateCreateInfo({}, m_msaaSamples, true, 0.2f);
-  auto depthStencil = vk::PipelineDepthStencilStateCreateInfo({}, true, true, vk::CompareOp::eLess);
+  auto depthStencil = vk::PipelineDepthStencilStateCreateInfo({}, true, true, vk::CompareOp::eGreaterOrEqual);
   depthStencil.setDepthBoundsTestEnable(false)
       .setMinDepthBounds(0.0f)
       .setMaxDepthBounds(1.0f);
@@ -605,7 +605,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   auto colorClearValue = m_modelLoaded
                            ? vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f))
                            : vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
-  auto depthClearValue = vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0));
+  auto depthClearValue = vk::ClearValue(vk::ClearDepthStencilValue(0.0f, 0));
   auto clearValues = {colorClearValue, depthClearValue};
   const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, clearValues);
 
