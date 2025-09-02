@@ -591,7 +591,11 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
 }
 
 void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
-  auto ubo = UniformBufferObject{glm::vec4(m_camera->getViewPos(), 1.0f), m_camera->getViewProj()};
+  auto ubo = UniformBufferObject{
+    glm::vec4(m_camera->getViewPos(), 1.0f),
+    m_camera->getViewProj(),
+    m_camera->getInvViewProj()
+  };
   m_uniforms[imageIndex].map(ubo);
 }
 

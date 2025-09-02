@@ -82,6 +82,7 @@ public:
   }
 
   [[nodiscard]] glm::mat4 getViewProj() const { return viewProj; }
+  [[nodiscard]] glm::mat4 getInvViewProj() const { return glm::inverse(viewProj); }
   [[nodiscard]] glm::vec3 getViewPos() const { return position; }
 
   float aspectRatio = 1.33f;
