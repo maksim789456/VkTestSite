@@ -76,7 +76,8 @@ void DescriptorSet::create(const vk::Device &device, const vk::DescriptorPool &d
           descriptorWrites.push_back(writeInfo);
         } catch (std::out_of_range &_) {
         }
-      } else if (layout.type == vk::DescriptorType::eCombinedImageSampler) {
+      } else if (layout.type == vk::DescriptorType::eCombinedImageSampler ||
+        layout.type == vk::DescriptorType::eInputAttachment) {
         try {
           auto imageInfo = layout.imageInfos.at(i);
           writeInfo.setImageInfo(imageInfo);

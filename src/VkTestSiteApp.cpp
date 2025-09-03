@@ -135,7 +135,7 @@ void VkTestSiteApp::initVk() {
   vkInitInfo.Queue = m_graphicsQueue;
   vkInitInfo.RenderPass = m_renderPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
-  vkInitInfo.MSAASamples = static_cast<VkSampleCountFlagBits>(m_msaaSamples);
+  vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
   vkInitInfo.Subpass = 1;
   vkInitInfo.DescriptorPoolSize = 100;
   vkInitInfo.CheckVkResultFn = [](const VkResult err) {
@@ -340,7 +340,7 @@ void VkTestSiteApp::createColorObjets() {
     vk::Format::eR8G8B8A8Unorm,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
+    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
     false, "Albedo G-Buffer"
   );
   m_normal = std::make_unique<Texture>(
@@ -349,7 +349,7 @@ void VkTestSiteApp::createColorObjets() {
     vk::Format::eR16G16B16A16Sfloat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
+    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
     false, "Normal G-Buffer"
   );
 }
@@ -361,9 +361,9 @@ void VkTestSiteApp::createDepthObjets() {
     m_device, m_allocator,
     m_swapchain.extent.width, m_swapchain.extent.height, 1,
     depthFormat,
-    m_msaaSamples,
+    vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
-    vk::ImageUsageFlagBits::eDepthStencilAttachment,
+    vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment,
     false, "Depth attachment"
   );
 
@@ -504,8 +504,8 @@ void VkTestSiteApp::createSyncObjects() {
 void VkTestSiteApp::mainLoop() {
   ZoneScoped;
   while (!glfwWindowShouldClose(m_window)) {
-    float currentTime = static_cast<float>(glfwGetTime());
-    float deltaTime = currentTime - m_lastTime;
+    const auto currentTime = static_cast<float>(glfwGetTime());
+    const float deltaTime = currentTime - m_lastTime;
     m_lastTime = currentTime;
     glfwPollEvents();
     if (glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0) {
@@ -677,6 +677,8 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       &inheritanceInfo);
     lightCmd.reset();
     lightCmd.begin(lightBeginInfo);
+    m_swapchain.cmdSetViewport(lightCmd);
+    m_swapchain.cmdSetScissor(lightCmd);
     lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
     m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
     lightCmd.draw(3, 1, 0, 0);
