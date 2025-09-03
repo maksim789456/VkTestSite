@@ -83,20 +83,20 @@ void VkTestSiteApp::initVk() {
   createRenderPass();
   createUniformBuffers();
   m_descriptorPool = DescriptorPool(m_device);
-  createDescriptorSet();
-  createPipeline();
   createCommandPool();
   createColorObjets();
   createDepthObjets();
+  createDescriptorSet();
+  createPipeline();
   const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
     m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
   );
-  m_lightCommandBuffers = m_device.allocateCommandBuffersUnique(lightCmdsInfo);
+  m_lightingCommandBuffers = m_device.allocateCommandBuffersUnique(lightCmdsInfo);
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
   m_texManager = std::make_unique<TextureManager>(
-    m_device, m_graphicsQueue, m_commandPool, m_allocator, m_descriptorSet, 1);
+    m_device, m_graphicsQueue, m_commandPool, m_allocator, m_geometryDescriptorSet, 1);
 
   m_camera = std::make_unique<Camera>();
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -288,7 +288,7 @@ void VkTestSiteApp::createRenderPass() {
     vk::SubpassDependency(
       vk::SubpassExternal, 0,
       vk::PipelineStageFlagBits::eBottomOfPipe,
-      vk::PipelineStageFlagBits::eColorAttachmentOutput,
+      vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
       vk::AccessFlagBits::eMemoryRead,
       vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite),
     vk::SubpassDependency(
@@ -310,7 +310,7 @@ void VkTestSiteApp::createPipeline() {
   m_geometryPipeline = PipelineBuilder(
         m_device,
         m_renderPass,
-        m_descriptorSet.getPipelineLayout(),
+        m_geometryDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/geometry.slang.spv"
       )
       .withBindingDescriptions({Vertex::GetBindingDescription()})
@@ -326,7 +326,7 @@ void VkTestSiteApp::createPipeline() {
   m_lightingPipeline = PipelineBuilder(
         m_device,
         m_renderPass,
-        m_descriptorSet.getPipelineLayout(),
+        m_lightingDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/light.slang.spv"
       )
       .withSubpass(1)
@@ -334,14 +334,23 @@ void VkTestSiteApp::createPipeline() {
 }
 
 void VkTestSiteApp::createColorObjets() {
-  m_color = std::make_unique<Texture>(
+  m_albedo = std::make_unique<Texture>(
     m_device, m_allocator,
     m_swapchain.extent.width, m_swapchain.extent.height, 1,
-    m_swapchain.format,
-    m_msaaSamples,
+    vk::Format::eR8G8B8A8Unorm,
+    vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
     vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
-    false, "Color attachment"
+    false, "Albedo G-Buffer"
+  );
+  m_normal = std::make_unique<Texture>(
+    m_device, m_allocator,
+    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    vk::Format::eR16G16B16A16Sfloat,
+    vk::SampleCountFlagBits::e1,
+    vk::ImageAspectFlagBits::eColor,
+    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransientAttachment,
+    false, "Normal G-Buffer"
   );
 }
 
@@ -371,7 +380,12 @@ void VkTestSiteApp::createFramebuffers() {
   ZoneScoped;
   m_framebuffers.resize(m_swapchain.imageViews.size());
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
-    std::vector attachments = {m_color->getImageView(), m_depth->getImageView(), m_swapchain.imageViews[i]};
+    std::vector attachments = {
+      m_depth->getImageView(),
+      m_albedo->getImageView(),
+      m_normal->getImageView(),
+      m_swapchain.imageViews[i]
+    };
 
     auto framebufferInfo = vk::FramebufferCreateInfo(
       {}, m_renderPass, attachments,
@@ -395,32 +409,72 @@ void VkTestSiteApp::createDescriptorSet() {
   for (const auto &ub: m_uniforms) {
     uniform_infos.emplace_back(ub.getBufferInfo());
   }
+  const auto uboDescriptor = DescriptorLayout{
+    .type = vk::DescriptorType::eUniformBuffer,
+    .stage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+    .bindingFlags = {},
+    .shaderBinding = 0,
+    .count = 1,
+    .imageInfos = {},
+    .bufferInfos = uniform_infos
+  };
 
-  const auto layouts = std::vector{
-    DescriptorLayout{
-      .type = vk::DescriptorType::eUniformBuffer,
-      .stage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-      .bindingFlags = {},
-      .shaderBinding = 0,
-      .count = 1,
-      .imageInfos = {},
-      .bufferInfos = uniform_infos
-    },
-    DescriptorLayout{
-      .type = vk::DescriptorType::eCombinedImageSampler,
-      .stage = vk::ShaderStageFlagBits::eFragment,
-      .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound | vk::DescriptorBindingFlagBits::eUpdateAfterBind,
-      .shaderBinding = 1,
-      .count = MAX_TEXTURE_PER_DESCRIPTOR,
-      .imageInfos = {},
-      .bufferInfos = {}
-    }
-  };
-  const auto pushConsts = std::vector{
-    vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
-  };
-  m_descriptorSet = DescriptorSet(m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
-                                  layouts, pushConsts);
+  m_geometryDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
+      uboDescriptor,
+      DescriptorLayout{
+        .type = vk::DescriptorType::eCombinedImageSampler,
+        .stage = vk::ShaderStageFlagBits::eFragment,
+        .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound |
+                        vk::DescriptorBindingFlagBits::eUpdateAfterBind,
+        .shaderBinding = 1,
+        .count = MAX_TEXTURE_PER_DESCRIPTOR,
+        .imageInfos = {},
+        .bufferInfos = {}
+      }
+    }, {
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
+    });
+
+  m_lightingDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
+      uboDescriptor,
+      DescriptorLayout{
+        .type = vk::DescriptorType::eInputAttachment,
+        .stage = vk::ShaderStageFlagBits::eFragment,
+        .bindingFlags = {},
+        .shaderBinding = 1,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+        },
+        .bufferInfos = {}
+      },
+      DescriptorLayout{
+        .type = vk::DescriptorType::eInputAttachment,
+        .stage = vk::ShaderStageFlagBits::eFragment,
+        .bindingFlags = {},
+        .shaderBinding = 2,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+        },
+        .bufferInfos = {}
+      },
+      DescriptorLayout{
+        .type = vk::DescriptorType::eInputAttachment,
+        .stage = vk::ShaderStageFlagBits::eFragment,
+        .bindingFlags = {},
+        .shaderBinding = 3,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+        },
+        .bufferInfos = {}
+      },
+    }, {});
 }
 
 void VkTestSiteApp::createCommandPool() {
@@ -592,8 +646,10 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   auto colorClearValue = m_modelLoaded
                            ? vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f))
                            : vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
+  auto albedoClearValue = vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
+  auto normalClearValue = vk::ClearValue(vk::ClearColorValue(0.5f, 0.5f, 1.0f, 1.0f));
   auto depthClearValue = vk::ClearValue(vk::ClearDepthStencilValue(0.0f, 0));
-  auto clearValues = {colorClearValue, depthClearValue};
+  auto clearValues = {depthClearValue, albedoClearValue, normalClearValue, colorClearValue};
   const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, clearValues);
 
   commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
@@ -604,7 +660,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
         m_renderPass,
         m_geometryPipeline,
         m_swapchain,
-        m_descriptorSet,
+        m_geometryDescriptorSet,
         0,
         imageIndex
       );
@@ -614,7 +670,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   }
   commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers); {
     //Light subpass
-    auto lightCmd = m_lightCommandBuffers[imageIndex].get();
+    auto lightCmd = m_lightingCommandBuffers[imageIndex].get();
     auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
     auto lightBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
@@ -622,7 +678,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
     lightCmd.reset();
     lightCmd.begin(lightBeginInfo);
     lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
-    //TODO: descriptor set
+    m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
     lightCmd.draw(3, 1, 0, 0);
     lightCmd.end();
     commandBuffer.executeCommands(lightCmd);
@@ -672,11 +728,13 @@ void VkTestSiteApp::cleanupSwapchain() {
     uniform.destroy();
   }
   m_uniforms.clear();
-  m_descriptorSet.destroy(m_device);
+  m_geometryDescriptorSet.destroy(m_device);
+  m_lightingDescriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
-  m_color.reset();
   m_depth.reset();
+  m_albedo.reset();
+  m_normal.reset();
   for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
   }
