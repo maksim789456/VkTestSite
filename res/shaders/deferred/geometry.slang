@@ -11,6 +11,7 @@ struct VSInput
 
 struct VSOutput
 {
+    float4 Pos : SV_Position;
     [[vk::location(0)]] float3 Normal;
     [[vk::location(1)]] float3 Tangent;
     [[vk::location(2)]] float2 TexCoord;
@@ -38,6 +39,7 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
 {
     float4 worldPos = mul(pushModel, float4(input.Pos, 1.0));
     VSOutput out;
+    out.Pos = mul(ubo.viewProj, worldPos);
     out.Normal = input.Normal;
     out.Tangent = input.Tangent;
     out.TexCoord = input.TexCoord;
