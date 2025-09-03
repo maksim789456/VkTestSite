@@ -65,8 +65,8 @@ private:
   vk::Queue m_presentQueue;
   Swapchain m_swapchain;
   vk::RenderPass m_renderPass;
-  vk::PipelineLayout m_pipelineLayout;
-  vk::Pipeline m_graphicsPipeline;
+  vk::Pipeline m_geometryPipeline;
+  vk::Pipeline m_lightingPipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_descriptorSet;

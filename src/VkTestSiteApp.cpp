@@ -285,16 +285,29 @@ void VkTestSiteApp::createRenderPass() {
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
-  m_graphicsPipeline = PipelineBuilder(
+  m_geometryPipeline = PipelineBuilder(
         m_device,
         m_renderPass,
         m_descriptorSet.getPipelineLayout(),
-        "../res/shaders/test.slang.spv"
+        "../res/shaders/deferred/geometry.slang.spv"
       )
       .withBindingDescriptions({Vertex::GetBindingDescription()})
       .withAttributeDescriptions({Vertex::GetAttributeDescriptions()})
+      .withColorBlendAttachments({
+        PipelineBuilder::makeDefaultColorAttachmentState(),
+        PipelineBuilder::makeDefaultColorAttachmentState(),
+      })
       .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
-      .withMsaa(true, m_msaaSamples, 0.2f)
+      .withSubpass(0)
+      .build();
+
+  m_lightingPipeline = PipelineBuilder(
+        m_device,
+        m_renderPass,
+        m_descriptorSet.getPipelineLayout(),
+        "../res/shaders/deferred/light.slang.spv"
+      )
+      .withSubpass(1)
       .build();
 }
 
@@ -567,7 +580,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       auto modelCmd = m_model->cmdDraw(
         m_framebuffers[imageIndex],
         m_renderPass,
-        m_graphicsPipeline,
+        m_geometryPipeline,
         m_swapchain,
         m_descriptorSet,
         0,
@@ -630,8 +643,8 @@ void VkTestSiteApp::cleanupSwapchain() {
   for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
   }
-  m_device.destroyPipeline(m_graphicsPipeline);
-  m_device.destroyPipelineLayout(m_pipelineLayout);
+  m_device.destroyPipeline(m_geometryPipeline);
+  m_device.destroyPipeline(m_lightingPipeline);
   m_device.destroyRenderPass(m_renderPass);
   m_swapchain.destroy(m_device);
 }
