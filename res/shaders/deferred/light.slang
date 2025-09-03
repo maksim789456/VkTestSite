@@ -5,9 +5,9 @@ struct UBO {
 }
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
 
-[[vk::binding(1, 0)]] Sampler2D depthTex;
-[[vk::binding(2, 0)]] Sampler2D albedoTex;
-[[vk::binding(3, 0)]] Sampler2D normalTex;
+[[vk::binding(1, 0)]] SubpassInput depthInput;
+[[vk::binding(2, 0)]] SubpassInput albedoInput;
+[[vk::binding(3, 0)]] SubpassInput normalInput;
 
 struct VSOutput
 {
@@ -27,14 +27,14 @@ VSOutput vertexMain(uint VertexIndex: SV_VertexID)
 [shader("fragment")]
 float4 fragmentMain(VSOutput input) : SV_Target
 {
-    float depth = depthTex.Sample(input.UV).r;
+    float depth = depthInput.SubpassLoad().r;
     float4 ndc = float4(input.UV * 2.0f - 1.0f, depth * 2.0f - 1.0f);
 
     float4 worldPosH = mul(ubo.invViewProj, ndc);
     float3 fragPos = worldPosH.xyz / worldPosH.w;
 
-    float3 normal = normalize(normalTex.Sample(input.UV).xyz);
-    float3 albedo = albedoTex.Sample(input.UV).rgb;
+    float3 normal = normalize(normalInput.SubpassLoad().rgb);
+    float3 albedo = normalInput.SubpassLoad().rgb;
 
     float3 lightDir = normalize(ubo.viewPos.xyz - fragPos); //TODO: lightPos instead view
     float3 viewDir = normalize(ubo.viewPos.xyz - fragPos);
