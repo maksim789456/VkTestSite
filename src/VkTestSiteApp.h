@@ -69,9 +69,11 @@ private:
   vk::Pipeline m_lightingPipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
-  DescriptorSet m_descriptorSet;
-  std::unique_ptr<Texture> m_color;
+  DescriptorSet m_geometryDescriptorSet;
+  DescriptorSet m_lightingDescriptorSet;
   std::unique_ptr<Texture> m_depth;
+  std::unique_ptr<Texture> m_albedo;
+  std::unique_ptr<Texture> m_normal;
   std::unique_ptr<Camera> m_camera;
 
   std::unique_ptr<Model> m_model;
@@ -82,7 +84,7 @@ private:
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms;
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
-  std::vector<vk::UniqueCommandBuffer> m_lightCommandBuffers;
+  std::vector<vk::UniqueCommandBuffer> m_lightingCommandBuffers;
   std::vector<vk::Fence> m_inFlight;
   std::vector<vk::Semaphore> m_imageAvailable;
   std::vector<vk::Semaphore> m_renderFinished;
