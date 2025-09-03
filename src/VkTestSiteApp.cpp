@@ -88,6 +88,10 @@ void VkTestSiteApp::initVk() {
   createCommandPool();
   createColorObjets();
   createDepthObjets();
+  const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
+    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
+  );
+  m_lightCommandBuffers = m_device.allocateCommandBuffersUnique(lightCmdsInfo);
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
@@ -132,7 +136,7 @@ void VkTestSiteApp::initVk() {
   vkInitInfo.RenderPass = m_renderPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
   vkInitInfo.MSAASamples = static_cast<VkSampleCountFlagBits>(m_msaaSamples);
-  vkInitInfo.Subpass = 0;
+  vkInitInfo.Subpass = 1;
   vkInitInfo.DescriptorPoolSize = 100;
   vkInitInfo.CheckVkResultFn = [](const VkResult err) {
     if (err != VK_SUCCESS) std::cerr << "Imgui Vk Error: " << err << std::endl;
@@ -236,49 +240,67 @@ void VkTestSiteApp::createLogicalDevice() {
 
 void VkTestSiteApp::createRenderPass() {
   ZoneScoped;
-  const auto colorAttachment = vk::AttachmentDescription(
-    {}, m_swapchain.format, m_msaaSamples,
-    vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-    vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-    vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
-  constexpr auto colorAttachmentRef = vk::AttachmentReference(0, vk::ImageLayout::eColorAttachmentOptimal);
+  const auto attachments = {
+    vk::AttachmentDescription( // Depth+Stencil
+      {}, vk::Format::eD32SfloatS8Uint, vk::SampleCountFlagBits::e1,
+      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+      vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilReadOnlyOptimal),
+    vk::AttachmentDescription( // Albedo
+      {}, vk::Format::eR8G8B8A8Unorm, vk::SampleCountFlagBits::e1,
+      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+      vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::AttachmentDescription( // Normal
+      {}, vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
+      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+      vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::AttachmentDescription( // Final color (swapchain)
+      {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
+      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+      vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR)
+  };
 
-  const auto depthStencilAttachment = vk::AttachmentDescription(
-    {}, vk::Format::eD32SfloatS8Uint, m_msaaSamples,
-    vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-    vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-    vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal);
-  constexpr auto depthStencilAttachmentRef =
-      vk::AttachmentReference(1, vk::ImageLayout::eDepthStencilAttachmentOptimal);
-
-  const auto colorResolveAttachment = vk::AttachmentDescription(
-    {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
-    vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eStore,
-    vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-    vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR);
-  constexpr auto colorResolveAttachmentRef = vk::AttachmentReference(2, vk::ImageLayout::eColorAttachmentOptimal);
-
-  std::vector colorAttachmentsRefs = {colorAttachmentRef};
-  std::vector resolveAttachmentsRefs = {colorResolveAttachmentRef};
-  auto subpass = vk::SubpassDescription(
+  auto colorRefs = {
+    vk::AttachmentReference{1, vk::ImageLayout::eColorAttachmentOptimal}, //Albedo
+    vk::AttachmentReference{2, vk::ImageLayout::eColorAttachmentOptimal} // Normal
+  };
+  constexpr auto depthRef = vk::AttachmentReference{0, vk::ImageLayout::eDepthStencilAttachmentOptimal};
+  auto subpass0 = vk::SubpassDescription(
     {}, vk::PipelineBindPoint::eGraphics,
-    {},
-    colorAttachmentsRefs,
-    resolveAttachmentsRefs,
-    &depthStencilAttachmentRef
+    {}, colorRefs, {}, &depthRef
   );
 
-  auto dependency = vk::SubpassDependency(
-    vk::SubpassExternal, 0,
-    vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-    vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-    {},
-    vk::AccessFlagBits::eColorAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite
+  auto inputRefs = {
+    vk::AttachmentReference{0, vk::ImageLayout::eShaderReadOnlyOptimal}, //Depth
+    vk::AttachmentReference{1, vk::ImageLayout::eShaderReadOnlyOptimal}, //Albedo
+    vk::AttachmentReference{2, vk::ImageLayout::eShaderReadOnlyOptimal} // Normal
+  };
+  constexpr auto colorRef = vk::AttachmentReference{3, vk::ImageLayout::eColorAttachmentOptimal};
+  auto subpass1 = vk::SubpassDescription(
+    {}, vk::PipelineBindPoint::eGraphics,
+    inputRefs, colorRef
   );
 
-  std::vector attachments = {colorAttachment, depthStencilAttachment, colorResolveAttachment};
-  std::vector subpasses = {subpass};
-  const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpass, dependency);
+  auto dependencies = {
+    vk::SubpassDependency(
+      vk::SubpassExternal, 0,
+      vk::PipelineStageFlagBits::eBottomOfPipe,
+      vk::PipelineStageFlagBits::eColorAttachmentOutput,
+      vk::AccessFlagBits::eMemoryRead,
+      vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite),
+    vk::SubpassDependency(
+      0, 1,
+      vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
+      vk::PipelineStageFlagBits::eFragmentShader,
+      vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+      vk::AccessFlagBits::eInputAttachmentRead),
+  };
+
+  std::vector subpasses = {subpass0, subpass1};
+  const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpasses, dependencies);
 
   m_renderPass = m_device.createRenderPass(renderPassInfo);
 }
@@ -589,10 +611,25 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
 
       commandBuffer.executeCommands(modelCmd);
     }
+  }
+  commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers); {
+    //Light subpass
+    auto lightCmd = m_lightCommandBuffers[imageIndex].get();
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
+    auto lightBeginInfo = vk::CommandBufferBeginInfo(
+      vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
+      &inheritanceInfo);
+    lightCmd.reset();
+    lightCmd.begin(lightBeginInfo);
+    lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
+    //TODO: descriptor set
+    lightCmd.draw(3, 1, 0, 0);
+    lightCmd.end();
+    commandBuffer.executeCommands(lightCmd);
   } {
     // ImGUI Secondary Cmd record -> exec
     auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 0, m_framebuffers[imageIndex]);
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
     auto imguiBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
