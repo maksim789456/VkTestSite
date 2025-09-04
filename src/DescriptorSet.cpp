@@ -68,20 +68,20 @@ void DescriptorSet::create(const vk::Device &device, const vk::DescriptorPool &d
     descriptorWrites.clear();
     const auto &descriptorSet = m_descriptorSets[i];
     for (const auto &layout: m_descriptorLayouts) {
-      auto writeInfo = vk::WriteDescriptorSet(descriptorSet, layout.shaderBinding, {}, layout.count, layout.type);
       if (layout.type == vk::DescriptorType::eUniformBuffer) {
-        try {
-          auto bufferInfo = layout.bufferInfos.at(i);
-          writeInfo.setBufferInfo(bufferInfo);
-          descriptorWrites.push_back(writeInfo);
-        } catch (std::out_of_range &_) {
-        }
+        auto writeInfo = vk::WriteDescriptorSet(
+          descriptorSet, layout.shaderBinding, {}, layout.count, layout.type,
+          {}, &layout.bufferInfos.at(i));
+        descriptorWrites.push_back(writeInfo);
       } else if (layout.type == vk::DescriptorType::eCombinedImageSampler ||
-        layout.type == vk::DescriptorType::eInputAttachment) {
+                 layout.type == vk::DescriptorType::eInputAttachment) {
         try {
-          auto imageInfo = layout.imageInfos.at(i);
-          writeInfo.setImageInfo(imageInfo);
-          descriptorWrites.push_back(writeInfo);
+          for (int y = 0; y < layout.count; y++) {
+            auto writeInfo = vk::WriteDescriptorSet(
+              descriptorSet, layout.shaderBinding, {}, layout.count, layout.type,
+              &layout.imageInfos.at(y));
+            descriptorWrites.push_back(writeInfo);
+          }
         } catch (std::out_of_range &_) {
         }
       }
