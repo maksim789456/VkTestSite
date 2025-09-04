@@ -34,7 +34,7 @@ float4 fragmentMain(VSOutput input) : SV_Target
     float3 fragPos = worldPosH.xyz / worldPosH.w;
 
     float3 normal = normalize(normalInput.SubpassLoad().rgb);
-    float3 albedo = normalInput.SubpassLoad().rgb;
+    float3 albedo = albedoInput.SubpassLoad().rgb;
 
     float3 lightDir = normalize(ubo.viewPos.xyz - fragPos); //TODO: lightPos instead view
     float3 viewDir = normalize(ubo.viewPos.xyz - fragPos);
