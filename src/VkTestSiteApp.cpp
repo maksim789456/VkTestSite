@@ -13,7 +13,7 @@ const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
 };
 
-const std::vector LAYERS = {
+const std::vector<const char *> LAYERS = {
 #ifndef NDEBUG
   "VK_LAYER_KHRONOS_validation"
 #endif
@@ -175,8 +175,16 @@ void VkTestSiteApp::createInstance() {
   required_extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
-  const auto enabled_extensions = gatherExtensions(required_extensions, vk::enumerateInstanceExtensionProperties());
-  const auto enabled_layers = gatherLayers(required_layers, vk::enumerateInstanceLayerProperties());
+  const auto enabled_extensions = gatherExtensions(required_extensions
+#ifndef NDEBUG
+    ,vk::enumerateInstanceExtensionProperties()
+#endif
+  );
+  const auto enabled_layers = gatherLayers(required_layers
+#ifndef NDEBUG
+  , vk::enumerateInstanceLayerProperties()
+#endif
+  );
 
   //vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR
   auto create_info = makeInstanceCreateInfoChain({}, app_info,
@@ -329,6 +337,8 @@ void VkTestSiteApp::createPipeline() {
         m_lightingDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/light.slang.spv"
       )
+      .depthStencil(false, false, vk::CompareOp::eAlways)
+      .withCullMode(vk::CullModeFlagBits::eNone)
       .withSubpass(1)
       .build();
 }

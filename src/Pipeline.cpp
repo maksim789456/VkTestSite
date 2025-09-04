@@ -18,7 +18,7 @@ vk::Pipeline PipelineBuilder::build() {
   auto viewportState = vk::PipelineViewportStateCreateInfo({}, 1, nullptr, 1, nullptr);
   auto rasterizer = vk::PipelineRasterizationStateCreateInfo(
     {}, false, false, vk::PolygonMode::eFill,
-    vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise,
+    m_cullMode, vk::FrontFace::eCounterClockwise,
     false, {}, {}, {}, 1.0f);
   auto multisampling = vk::PipelineMultisampleStateCreateInfo({}, m_msaaSamples, m_msaaEnabled, m_msaaMinSample);
   auto depthStencil = vk::PipelineDepthStencilStateCreateInfo(
