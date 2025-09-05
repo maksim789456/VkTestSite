@@ -5,7 +5,7 @@ TextureManager::TextureManager(
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
   const vma::Allocator allocator,
-  const DescriptorSet &descriptorSet,
+  DescriptorSet &descriptorSet,
   const uint32_t shaderBinding
 ): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool),
    m_allocator(allocator), m_descriptorSet(&descriptorSet), m_shaderBinding(shaderBinding) {
@@ -63,6 +63,12 @@ uint32_t TextureManager::loadTextureFromFile(
   m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors[slot]);
 
   return slot;
+}
+
+void TextureManager::updateDS(DescriptorSet& descriptorSet) {
+  m_descriptorSet = &descriptorSet;
+  for (const auto &slot: m_textures | std::views::keys)
+    m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors.at(slot));
 }
 
 std::optional<Texture *> TextureManager::getTexture(const uint32_t slot) {

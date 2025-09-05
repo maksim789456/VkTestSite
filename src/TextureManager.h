@@ -13,7 +13,7 @@ public:
     vk::Queue graphicsQueue,
     vk::CommandPool commandPool,
     vma::Allocator allocator,
-    const DescriptorSet &descriptorSet,
+    DescriptorSet &descriptorSet,
     uint32_t shaderBinding
   );
 
@@ -25,6 +25,8 @@ public:
     vk::Format format = vk::Format::eR8G8B8A8Unorm
   );
 
+  void updateDS(DescriptorSet& descriptorSet);
+
   std::optional<Texture *> getTexture(uint32_t slot);
 
   void unloadTexture(uint32_t slot);
@@ -35,7 +37,7 @@ private:
   vk::Queue m_graphicsQueue = nullptr;
   vk::CommandPool m_commandPool = nullptr;
   vma::Allocator m_allocator = nullptr;
-  const DescriptorSet *m_descriptorSet = nullptr;
+  DescriptorSet *m_descriptorSet = nullptr;
 
   uint32_t m_shaderBinding = 0;
 
