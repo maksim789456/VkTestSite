@@ -730,6 +730,7 @@ void VkTestSiteApp::recreateSwapchain() {
   createColorObjets();
   createDepthObjets();
   createDescriptorSet();
+  m_texManager->updateDS(m_geometryDescriptorSet);
   createPipeline();
   createFramebuffers();
   createCommandBuffers();
