@@ -727,10 +727,10 @@ void VkTestSiteApp::recreateSwapchain() {
   createRenderPass();
   createUniformBuffers();
   m_descriptorPool = DescriptorPool(m_device);
-  createDescriptorSet();
-  createPipeline();
   createColorObjets();
   createDepthObjets();
+  createDescriptorSet();
+  createPipeline();
   createFramebuffers();
   createCommandBuffers();
 }
