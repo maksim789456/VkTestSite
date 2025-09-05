@@ -250,7 +250,7 @@ void VkTestSiteApp::createRenderPass() {
   ZoneScoped;
   const auto attachments = {
     vk::AttachmentDescription( // Depth+Stencil
-      {}, vk::Format::eD32SfloatS8Uint, vk::SampleCountFlagBits::e1,
+      {}, vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e1,
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
       vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilReadOnlyOptimal),
@@ -365,14 +365,14 @@ void VkTestSiteApp::createColorObjets() {
 }
 
 void VkTestSiteApp::createDepthObjets() {
-  constexpr auto depthFormat = vk::Format::eD32SfloatS8Uint;
+  constexpr auto depthFormat = vk::Format::eD32Sfloat;
 
   m_depth = std::make_unique<Texture>(
     m_device, m_allocator,
     m_swapchain.extent.width, m_swapchain.extent.height, 1,
     depthFormat,
     vk::SampleCountFlagBits::e1,
-    vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil,
+    vk::ImageAspectFlagBits::eDepth,
     vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment,
     false, "Depth attachment"
   );
