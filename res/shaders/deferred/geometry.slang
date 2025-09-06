@@ -24,6 +24,7 @@ struct UBO {
   float4 viewPos;
   float4x4 viewProj;
   float4x4 invViewProj;
+  uint32_t displayDebugTarget;
 }
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
 [[vk::binding(1, 0)]] Sampler2D textures[];

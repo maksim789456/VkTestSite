@@ -41,6 +41,7 @@ struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
   glm::mat4 viewProj;
   glm::mat4 invViewProj;
+  uint32_t displayDebugTarget;
 };
 
 class VkTestSiteApp {
@@ -90,6 +91,7 @@ private:
   std::vector<vk::Semaphore> m_renderFinished;
 
   uint32_t m_currentFrame = 0;
+  int32_t m_debugView = 0;
   float m_lastTime = 0.0f;
 
   void initWindow();
