@@ -544,6 +544,13 @@ void VkTestSiteApp::mainLoop() {
       m_model.reset();
       m_modelLoaded = false;
     }
+
+    ImGui::Separator();
+    ImGui::Text("Select G-Buffer Debug Output");
+    ImGui::RadioButton("None", &m_debugView, 0);
+    ImGui::RadioButton("Depth", &m_debugView, 1);
+    ImGui::RadioButton("Albedo", &m_debugView, 2);
+    ImGui::RadioButton("Normal", &m_debugView, 3);
     ImGui::End();
 
     if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
@@ -641,7 +648,8 @@ void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
   auto ubo = UniformBufferObject{
     glm::vec4(m_camera->getViewPos(), 1.0f),
     m_camera->getViewProj(),
-    m_camera->getInvViewProj()
+    m_camera->getInvViewProj(),
+    static_cast<uint32_t>(m_debugView)
   };
   m_uniforms[imageIndex].map(ubo);
 }
