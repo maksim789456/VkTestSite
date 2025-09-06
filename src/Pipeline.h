@@ -66,7 +66,7 @@ public:
 
   static vk::PipelineColorBlendAttachmentState makeDefaultColorAttachmentState() {
     auto colorAttachment = vk::PipelineColorBlendAttachmentState(
-      true,
+      false,
       vk::BlendFactor::eSrcAlpha, vk::BlendFactor::eOneMinusSrcAlpha,
       vk::BlendOp::eAdd,
       vk::BlendFactor::eOne, vk::BlendFactor::eOneMinusSrcAlpha,
