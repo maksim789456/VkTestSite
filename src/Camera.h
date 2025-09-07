@@ -14,7 +14,7 @@ public:
 
     glm::mat4 result(0.0f);
     result[0][0] = f / aspect;
-    result[1][1] = -f;  // flip Y for Vulkan
+    result[1][1] = -f; // flip Y for Vulkan
     result[2][2] = zNear / (zFar - zNear);
     result[2][3] = -1.0f;
     result[3][2] = (zFar * zNear) / (zFar - zNear);
@@ -32,8 +32,9 @@ public:
     viewProj = proj * view;
   }
 
-  void keyboardCallback(int key, int action) {
-    const float value = action == GLFW_PRESS || action == GLFW_REPEAT ? 1.0f : 0.0f;
+  void keyboardCallback(int key, int action, int mods) {
+    float value = action == GLFW_PRESS || action == GLFW_REPEAT ? 1.0f : 0.0f;
+    value *= mods == GLFW_MOD_SHIFT ? 2.0f : 1.0f;
 
     switch (key) {
       case GLFW_KEY_W: velocity.z = -value;

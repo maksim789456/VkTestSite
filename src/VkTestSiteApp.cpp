@@ -103,7 +103,7 @@ void VkTestSiteApp::initVk() {
     const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
     if (ImGui::GetIO().WantCaptureKeyboard)
       return;
-    me->m_camera->keyboardCallback(key, action);
+    me->m_camera->keyboardCallback(key, action, mods);
   };
   auto mouseCallback = [](GLFWwindow *window, double xpos, double ypos) {
     const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
