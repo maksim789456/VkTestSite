@@ -2,7 +2,6 @@ struct VSInput
 {
     [[vk::location(0)]] float3 Pos;
     [[vk::location(1)]] float3 Normal;
-    [[vk::location(2)]] float3 Tangent;
     [[vk::location(3)]] float2 TexCoord;
     [[vk::location(4)]] float4 Color;
     [[vk::location(5)]] uint AlbedoIdx;
@@ -12,12 +11,12 @@ struct VSInput
 struct VSOutput
 {
     float4 Pos : SV_Position;
-    [[vk::location(0)]] float3 Normal;
-    [[vk::location(1)]] float3 Tangent;
-    [[vk::location(2)]] float2 TexCoord;
-    [[vk::location(6)]] float4 Color;
-    [[vk::location(7)]] uint AlbedoIdx;
-    [[vk::location(8)]] uint NormalIdx;
+    [[vk::location(0)]] float3 WorldPos;
+    [[vk::location(1)]] float3 Normal;
+    [[vk::location(3)]] float2 TexCoord;
+    [[vk::location(4)]] float4 Color;
+    [[vk::location(5)]] uint AlbedoIdx;
+    [[vk::location(6)]] uint NormalIdx;
 }
 
 struct UBO {
@@ -41,8 +40,8 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
     float4 worldPos = mul(pushModel, float4(input.Pos, 1.0));
     VSOutput out;
     out.Pos = mul(ubo.viewProj, worldPos);
+    out.WorldPos = worldPos.xyz;
     out.Normal = input.Normal;
-    out.Tangent = input.Tangent;
     out.TexCoord = input.TexCoord;
     out.Color = input.Color;
     out.AlbedoIdx = input.AlbedoIdx;
@@ -62,8 +61,14 @@ FSOutput fragmentMain(VSOutput input)
     out.Albedo = float4(albedo, 1.0);
 
     float3 N = normalize(input.Normal);
-    float3 T = normalize(input.Tangent);
-    float3 B = cross(N, T);
+
+    float3 Q1  = ddx(input.WorldPos);
+    float3 Q2  = ddy(input.WorldPos);
+    float2 st1 = ddx(input.TexCoord);
+    float2 st2 = ddy(input.TexCoord);
+
+    float3 T = normalize(Q1 * st2.y - Q2 * st1.y);
+    float3 B = -normalize(cross(N, T));
     float3x3 TBN = float3x3(T, B, N);
 
     float3 normal = textures[NonUniformResourceIndex(input.NormalIdx)].Sample(input.TexCoord).rgb;
@@ -88,6 +93,8 @@ FSOutput fragmentMain(VSOutput input)
       return out;
     }
 
+    float3 tangentNormal = normalize(normal * 2.0 - 1.0);
+    float3 tnorm = normalize(mul(tangentNormal, TBN));
     out.Normal = float4(tnorm, 0.0);
     return out;
 }
