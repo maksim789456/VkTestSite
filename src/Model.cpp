@@ -113,19 +113,16 @@ void Model::processNode(
       for (unsigned int i = 0; i < face.mNumIndices; ++i) {
         auto vertexIndex = face.mIndices[i];
         auto pos = mesh->mVertices[vertexIndex];
-        auto normal = mesh->HasNormals() ? mesh->mNormals[vertexIndex] : aiVector3D(0, 0, 0);
-        auto tangent = mesh->HasTangentsAndBitangents() ? mesh->mTangents[vertexIndex] : aiVector3D(0, 0, 0);
+        auto normal = mesh->HasNormals() ? mesh->mNormals[vertexIndex] : aiVector3D(0, 0, 1.0);
         auto texCord = texCords ? texCords[vertexIndex] : aiVector3D(0, 0, 0);
 
         glm::vec4 transformedPos = transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f);
         auto normalMat = glm::mat3(glm::transpose(glm::inverse(transform)));
         auto N = glm::normalize(normalMat * glm::vec3(normal.x, normal.y, normal.z));
-        auto T = glm::normalize(normalMat * glm::vec3(tangent.x, tangent.y, tangent.z));
-        T = glm::normalize(T - N * glm::dot(N, T));
 
         auto vert = Vertex{
           .Position = transformedPos,
-          .Normal = N, .Tangent = T,
+          .Normal = N,
           .UV = glm::vec2(texCord.x, 1.0f - texCord.y),
           .Color = diffuseColor,
           .TextureIdx = albedoIdx != m_albedoMapping.end() ? albedoIdx->second : 99,

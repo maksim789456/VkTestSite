@@ -10,7 +10,6 @@ class Vertex {
 public:
   glm::vec3 Position;
   glm::vec3 Normal;
-  glm::vec3 Tangent;
   glm::vec2 UV;
   glm::vec4 Color;
   uint32_t TextureIdx;
@@ -26,8 +25,6 @@ public:
       vk::VertexInputAttributeDescription(0, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, Position)));
     attributeDescriptions.push_back(
       vk::VertexInputAttributeDescription(1, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, Normal)));
-    attributeDescriptions.push_back(
-      vk::VertexInputAttributeDescription(2, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, Tangent)));
     attributeDescriptions.push_back(
       vk::VertexInputAttributeDescription(3, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, UV)));
     attributeDescriptions.push_back(
