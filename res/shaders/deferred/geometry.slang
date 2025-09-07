@@ -71,7 +71,23 @@ FSOutput fragmentMain(VSOutput input)
       normal = float3(0.5, 0.5, 1.0);
     }
 
-    float3 tnorm = mul(normalize(normal * 2.0 - float3(1.0, 1.0, 1.0)), TBN);
+    if (ubo.displayDebugTarget >= 4) {
+      float3 color;
+      switch (ubo.displayDebugTarget) {
+        case 4:
+          color.rgb = N;
+          break;
+        case 5:
+          color.rgb = T;
+          break;
+        case 6:
+          color.rgb = normal;
+          break;
+      }
+      out.Normal = float4(color, 0.0);
+      return out;
+    }
+
     out.Normal = float4(tnorm, 0.0);
     return out;
 }

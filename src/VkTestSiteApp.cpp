@@ -249,7 +249,7 @@ void VkTestSiteApp::createLogicalDevice() {
 void VkTestSiteApp::createRenderPass() {
   ZoneScoped;
   const auto attachments = {
-    vk::AttachmentDescription( // Depth+Stencil
+    vk::AttachmentDescription( // Depth
       {}, vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e1,
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
@@ -530,6 +530,8 @@ void VkTestSiteApp::mainLoop() {
     ImGui::ShowDemoWindow();
     ImGui::Begin("Test menu");
     ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_Once);
+    const auto cameraPos = m_camera->getViewPos();
+    ImGui::Text("Camera pos: %f %f %f", cameraPos.x, cameraPos.y, cameraPos.z);
     if (!m_modelLoaded && ImGui::Button("Load model")) {
       auto path = tinyfd_openFileDialog("Open model file", nullptr, 0, nullptr, nullptr, 0);
       if (path != nullptr) {
@@ -551,6 +553,9 @@ void VkTestSiteApp::mainLoop() {
     ImGui::RadioButton("Depth", &m_debugView, 1);
     ImGui::RadioButton("Albedo", &m_debugView, 2);
     ImGui::RadioButton("Normal", &m_debugView, 3);
+    ImGui::RadioButton("Normal Vert", &m_debugView, 4);
+    ImGui::RadioButton("Tangent Vert", &m_debugView, 5);
+    ImGui::RadioButton("Normal Raw", &m_debugView, 6);
     ImGui::End();
 
     if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
