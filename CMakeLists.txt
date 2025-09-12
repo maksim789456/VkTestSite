@@ -36,6 +36,7 @@ add_executable(VkTestSite src/main.cpp
         src/TextureManager.h
         src/Pipeline.cpp
         src/Pipeline.h
+        src/Light.h
 )
 
 find_package(glfw3 CONFIG REQUIRED)
