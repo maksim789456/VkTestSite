@@ -83,6 +83,8 @@ void VkTestSiteApp::initVk() {
   createRenderPass();
   createUniformBuffers();
   m_descriptorPool = DescriptorPool(m_device);
+  m_lightManager = std::make_unique<LightManager>(
+    m_allocator, m_swapchain.imageViews.size());
   createCommandPool();
   createColorObjets();
   createDepthObjets();
@@ -429,6 +431,16 @@ void VkTestSiteApp::createDescriptorSet() {
     .bufferInfos = uniform_infos
   };
 
+  const auto lightsDescriptor = DescriptorLayout{
+    .type = vk::DescriptorType::eStorageBuffer,
+    .stage = vk::ShaderStageFlagBits::eFragment,
+    .bindingFlags = {},
+    .shaderBinding = 1,
+    .count = 1,
+    .imageInfos = {},
+    .bufferInfos = m_lightManager->getBufferInfos()
+  };
+
   m_geometryDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
@@ -451,11 +463,12 @@ void VkTestSiteApp::createDescriptorSet() {
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
       uboDescriptor,
+      lightsDescriptor,
       DescriptorLayout{
         .type = vk::DescriptorType::eInputAttachment,
         .stage = vk::ShaderStageFlagBits::eFragment,
         .bindingFlags = {},
-        .shaderBinding = 1,
+        .shaderBinding = 2,
         .count = 1,
         .imageInfos = {
           vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
@@ -466,7 +479,7 @@ void VkTestSiteApp::createDescriptorSet() {
         .type = vk::DescriptorType::eInputAttachment,
         .stage = vk::ShaderStageFlagBits::eFragment,
         .bindingFlags = {},
-        .shaderBinding = 2,
+        .shaderBinding = 3,
         .count = 1,
         .imageInfos = {
           vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
@@ -477,14 +490,16 @@ void VkTestSiteApp::createDescriptorSet() {
         .type = vk::DescriptorType::eInputAttachment,
         .stage = vk::ShaderStageFlagBits::eFragment,
         .bindingFlags = {},
-        .shaderBinding = 3,
+        .shaderBinding = 4,
         .count = 1,
         .imageInfos = {
           vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
         },
         .bufferInfos = {}
       },
-    }, {});
+    }, {
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eFragment, 0, sizeof(LightPushConsts)) // Lights count
+    });
 }
 
 void VkTestSiteApp::createCommandPool() {
@@ -591,6 +606,7 @@ void VkTestSiteApp::mainLoop() {
       ImGui::End();
     }
 
+    m_lightManager->renderImGui();
     ImGui::Render();
     const auto draw_data = ImGui::GetDrawData();
     if (draw_data->DisplaySize.x > 0.0f && draw_data->DisplaySize.y > 0.0f) {
@@ -657,6 +673,7 @@ void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
     static_cast<uint32_t>(m_debugView)
   };
   m_uniforms[imageIndex].map(ubo);
+  m_lightManager->map(imageIndex);
 }
 
 void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::CommandBuffer &commandBuffer,
@@ -704,6 +721,9 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
     m_swapchain.cmdSetScissor(lightCmd);
     lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
     m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
+    auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
+    lightCmd.pushConstants(m_lightingDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eFragment, 0,
+                           sizeof(lightPush), &lightPush);
     lightCmd.draw(3, 1, 0, 0);
     lightCmd.end();
     commandBuffer.executeCommands(lightCmd);
@@ -784,6 +804,7 @@ void VkTestSiteApp::cleanup() {
   if (m_modelLoaded)
     m_model.reset();
   m_texManager.reset();
+  m_lightManager.reset();
   m_imguiCommandBuffers.clear();
   m_device.destroyCommandPool(m_commandPool);
   vmaDestroyAllocator(m_allocator);
