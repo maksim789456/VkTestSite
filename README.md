@@ -15,10 +15,12 @@ Done:
 - ImGui for gui
 - Tracy as frame debugger
 - Loading and render multiple textures
+- Deferred rendering with normal mapping
+- Light (direct, point and spot types)
 
 Todo:
 - Settings
-- Light and shadows
+- Shadows
 - Materials
 - PBR
 - Scene (maybe some floor and skybox)
