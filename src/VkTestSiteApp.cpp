@@ -750,9 +750,6 @@ void VkTestSiteApp::recreateSwapchain() {
 }
 
 void VkTestSiteApp::cleanupSwapchain() {
-  for (auto &uniform: m_uniforms) {
-    uniform.destroy();
-  }
   m_uniforms.clear();
   m_geometryDescriptorSet.destroy(m_device);
   m_lightingDescriptorSet.destroy(m_device);

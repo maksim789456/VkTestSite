@@ -6,35 +6,21 @@ UniformBuffer<UBO>::UniformBuffer(const vma::Allocator allocator, vk::Flags<vk::
   this->allocator = allocator;
   bufferSize = sizeof(UBO);
 
-  auto [buffer, alloc] = createBuffer(allocator, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, flags);
-  uniformBuffer = buffer;
-  uniformBufferAlloc = alloc;
+  std::tie(uniformBuffer, uniformBufferAlloc) =
+      createBufferUnique(allocator, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, flags);
 
   if (!uniformBuffer || !uniformBufferAlloc) {
     throw std::runtime_error("Failed to create UniformBuffer!");
   }
 
-  bufferInfo = vk::DescriptorBufferInfo(uniformBuffer, 0, bufferSize);
-  uniformBufferMapped = allocator.mapMemory(uniformBufferAlloc);
+  bufferInfo = vk::DescriptorBufferInfo(uniformBuffer.get(), 0, bufferSize);
 }
 
 template<typename UBO>
 void UniformBuffer<UBO>::map(const UBO &ubo) {
   ZoneScoped;
   assert(bufferSize == sizeof(ubo));
+  uniformBufferMapped = allocator.mapMemory(uniformBufferAlloc.get());
   memcpy(uniformBufferMapped, &ubo, sizeof(ubo));
-}
-
-template<typename UBO>
-void UniformBuffer<UBO>::destroy() {
-  ZoneScoped;
-  if (uniformBufferAlloc) {
-    allocator.unmapMemory(uniformBufferAlloc);
-    uniformBufferMapped = nullptr;
-  }
-  if (uniformBuffer) {
-    allocator.destroyBuffer(uniformBuffer, uniformBufferAlloc);
-    uniformBuffer = nullptr;
-    uniformBufferAlloc = nullptr;
-  }
+  allocator.unmapMemory(uniformBufferAlloc.get());
 }
