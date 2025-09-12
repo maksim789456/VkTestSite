@@ -26,12 +26,11 @@ class LightManager {
 public:
   LightManager() = default;
 
-  ~LightManager() = default;
-
   LightManager(const vma::Allocator allocator, const uint32_t imageCount) : m_allocator(allocator) {
     constexpr auto bufferSize = sizeof(LightData) * MAX_LIGHTS;
     m_ssboBuffers.resize(imageCount);
     m_ssboAllocations.resize(imageCount);
+    m_ssboMappings.resize(imageCount);
     m_bufferInfos.resize(imageCount);
 
     for (int i = 0; i < imageCount; ++i) {
@@ -44,6 +43,13 @@ public:
       }
 
       m_bufferInfos[i] = vk::DescriptorBufferInfo(m_ssboBuffers[i].get(), 0, bufferSize);
+      m_ssboMappings[i] = static_cast<LightData*>(m_allocator.mapMemory(m_ssboAllocations[i].get()));
+    }
+  }
+
+  ~LightManager() {
+    for (auto & m_ssboAllocation : m_ssboAllocations) {
+      m_allocator.unmapMemory(m_ssboAllocation.get());
     }
   }
 
@@ -53,11 +59,8 @@ public:
 
   [[nodiscard]] uint32_t getCount() const { return m_lights.size(); }
 
-  void map(uint32_t imageIndex) {
-    auto mapped = m_allocator.mapMemory(m_ssboAllocations[imageIndex].get());
-    auto *dst = static_cast<LightData *>(mapped);
-    std::ranges::copy(m_lights, dst);
-    m_allocator.unmapMemory(m_ssboAllocations[imageIndex].get());
+  void map(const uint32_t imageIndex) {
+    std::ranges::copy(m_lights, m_ssboMappings[imageIndex]);
   }
 
   void renderImGui() {
@@ -130,6 +133,7 @@ private:
 
   std::vector<vma::UniqueBuffer> m_ssboBuffers = {};
   std::vector<vma::UniqueAllocation> m_ssboAllocations = {};
+  std::vector<LightData*> m_ssboMappings = {};
   std::vector<vk::DescriptorBufferInfo> m_bufferInfos = {};
 };
 
