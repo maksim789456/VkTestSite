@@ -319,7 +319,7 @@ void VkTestSiteApp::createPipeline() {
         m_device,
         m_renderPass,
         m_geometryDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/geometry.slang.spv"
+        "../res/shaders/deferred/geometry.ep.slang.spv"
       )
       .withBindingDescriptions({Vertex::GetBindingDescription()})
       .withAttributeDescriptions({Vertex::GetAttributeDescriptions()})
@@ -335,7 +335,7 @@ void VkTestSiteApp::createPipeline() {
         m_device,
         m_renderPass,
         m_lightingDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/light.slang.spv"
+        "../res/shaders/deferred/light.ep.slang.spv"
       )
       .depthStencil(false, false, vk::CompareOp::eAlways)
       .withCullMode(vk::CullModeFlagBits::eNone)

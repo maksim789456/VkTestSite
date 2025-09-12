@@ -1,3 +1,5 @@
+import lighting;
+
 struct UBO {
   float4 viewPos;
   float4x4 viewProj;
@@ -6,14 +8,16 @@ struct UBO {
 }
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
 
-[[vk::binding(1, 0)]] SubpassInput depthInput;
-[[vk::binding(2, 0)]] SubpassInput albedoInput;
-[[vk::binding(3, 0)]] SubpassInput normalInput;
+[[vk::binding(1, 0)]] StructuredBuffer<Light> lights;
+
+[[vk::binding(2, 0)]] SubpassInput depthInput;
+[[vk::binding(3, 0)]] SubpassInput albedoInput;
+[[vk::binding(4, 0)]] SubpassInput normalInput;
 
 struct VSOutput
 {
     float4 Pos : SV_POSITION;
-    float2 UV;
+    [[vk::location(0)]] float2 UV;
 };
 
 [shader("vertex")]
@@ -26,10 +30,10 @@ VSOutput vertexMain(uint VertexIndex: SV_VertexID)
 }
 
 [shader("fragment")]
-float4 fragmentMain(VSOutput input) : SV_Target
+float4 fragmentMain(VSOutput input, uniform uint pushLightCount) : SV_Target
 {
     float depth = depthInput.SubpassLoad().r;
-    float4 ndc = float4(input.UV * 2.0f - 1.0f, depth * 2.0f - 1.0f);
+    float4 ndc = float4(input.UV * 2.0f - 1.0f, depth, 1.0);
 
     float4 worldPosH = mul(ubo.invViewProj, ndc);
     float3 fragPos = worldPosH.xyz / worldPosH.w;
@@ -37,11 +41,25 @@ float4 fragmentMain(VSOutput input) : SV_Target
     float3 normal = normalize(normalInput.SubpassLoad().rgb);
     float4 albedo = albedoInput.SubpassLoad();
 
+    float3 L = float3(0.0);
+    for (uint i = 0; i < pushLightCount; i++) {
+      Light light = lights[i];
+      L += light.apply(fragPos, normal);
+    }
+
+    //Light point;
+    //point.position = float4(0.0, 0.5, 0.0, 1.0);
+    //point.color = float4(0.8, 0.8, 0.8, 1.0);
+    //point.direction = float4(0.0, 0.0, 0.0, 1.0);
+    //point.info = float4(1.0, 0.1, 0.35, 0.44);
+    //float3 L = point.apply(fragPos, normal);
+
+#ifdef DEBUG
     if (ubo.displayDebugTarget > 0) {
       float3 color;
       switch (ubo.displayDebugTarget) {
         case 1:
-          color.rgb = float3(depth);
+          color.rgb = L;
           break;
         case 2:
           color.rgb = albedo.rgb;
@@ -55,21 +73,23 @@ float4 fragmentMain(VSOutput input) : SV_Target
       }
       return float4(color, 1.0);
     }
+#endif
 
     float3 lightDir = normalize(ubo.viewPos.xyz - fragPos); //TODO: lightPos instead view
     float3 viewDir = normalize(ubo.viewPos.xyz - fragPos);
     float3 halfwayDir = normalize(lightDir + viewDir);
 
-    float3 ambient = 0.1 * albedo.rgb;
+    float3 ambient = 0.0 * albedo.rgb;
 
-    float3 diffuse = 0.8 * max(dot(normal, lightDir), 0.0) * albedo.rgb;
+    //float3 diffuse = 0.8 * max(dot(normal, lightDir), 0.0) * albedo.rgb;
 
-    float shininess = 32.0;
-    float3 specularColor = float3(1.0);
-    float spec = 0.11 * pow(max(dot(normal, halfwayDir), 0.0), shininess);
-    float3 specular = spec * specularColor;
+    //float shininess = 32.0;
+    //float3 specularColor = float3(1.0);
+    //float spec = 0.11 * pow(max(dot(normal, halfwayDir), 0.0), shininess);
+    //float3 specular = spec * specularColor;
 
-    float3 result = albedo.rgb * (ambient + diffuse + specular);
+    //float3 result = albedo.rgb * (ambient + diffuse + specular);
+    float3 result = ambient + L * albedo.rgb;
 
     return float4(result, 1.0);
 }
