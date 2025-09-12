@@ -68,7 +68,8 @@ void DescriptorSet::create(const vk::Device &device, const vk::DescriptorPool &d
     descriptorWrites.clear();
     const auto &descriptorSet = m_descriptorSets[i];
     for (const auto &layout: m_descriptorLayouts) {
-      if (layout.type == vk::DescriptorType::eUniformBuffer) {
+      if (layout.type == vk::DescriptorType::eUniformBuffer ||
+          layout.type == vk::DescriptorType::eStorageBuffer) {
         auto writeInfo = vk::WriteDescriptorSet(
           descriptorSet, layout.shaderBinding, {}, layout.count, layout.type,
           {}, &layout.bufferInfos.at(i));
