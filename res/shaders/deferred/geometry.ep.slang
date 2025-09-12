@@ -68,7 +68,7 @@ FSOutput fragmentMain(VSOutput input)
     float2 st2 = ddy(input.TexCoord);
 
     float3 T = normalize(Q1 * st2.y - Q2 * st1.y);
-    float3 B = -normalize(cross(N, T));
+    float3 B = normalize(cross(N, T));
     float3x3 TBN = float3x3(T, B, N);
 
     float3 normal = textures[NonUniformResourceIndex(input.NormalIdx)].Sample(input.TexCoord).rgb;
@@ -94,7 +94,7 @@ FSOutput fragmentMain(VSOutput input)
     }
 
     float3 tangentNormal = normalize(normal * 2.0 - 1.0);
-    float3 tnorm = normalize(mul(tangentNormal, TBN));
+    float3 tnorm = normalize(mul(TBN, tangentNormal));
     out.Normal = float4(tnorm, 0.0);
     return out;
 }
