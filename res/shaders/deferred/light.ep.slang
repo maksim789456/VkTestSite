@@ -47,13 +47,6 @@ float4 fragmentMain(VSOutput input, uniform uint pushLightCount) : SV_Target
       L += light.apply(fragPos, normal);
     }
 
-    //Light point;
-    //point.position = float4(0.0, 0.5, 0.0, 1.0);
-    //point.color = float4(0.8, 0.8, 0.8, 1.0);
-    //point.direction = float4(0.0, 0.0, 0.0, 1.0);
-    //point.info = float4(1.0, 0.1, 0.35, 0.44);
-    //float3 L = point.apply(fragPos, normal);
-
 #ifdef DEBUG
     if (ubo.displayDebugTarget > 0) {
       float3 color;
@@ -75,20 +68,7 @@ float4 fragmentMain(VSOutput input, uniform uint pushLightCount) : SV_Target
     }
 #endif
 
-    float3 lightDir = normalize(ubo.viewPos.xyz - fragPos); //TODO: lightPos instead view
-    float3 viewDir = normalize(ubo.viewPos.xyz - fragPos);
-    float3 halfwayDir = normalize(lightDir + viewDir);
-
-    float3 ambient = 0.0 * albedo.rgb;
-
-    //float3 diffuse = 0.8 * max(dot(normal, lightDir), 0.0) * albedo.rgb;
-
-    //float shininess = 32.0;
-    //float3 specularColor = float3(1.0);
-    //float spec = 0.11 * pow(max(dot(normal, halfwayDir), 0.0), shininess);
-    //float3 specular = spec * specularColor;
-
-    //float3 result = albedo.rgb * (ambient + diffuse + specular);
+    float3 ambient = 0.1 * albedo.rgb; // TODO: extract ambient coefficient to ubo
     float3 result = ambient + L * albedo.rgb;
 
     return float4(result, 1.0);
