@@ -36,7 +36,7 @@ public:
     for (int i = 0; i < imageCount; ++i) {
       std::tie(m_ssboBuffers[i], m_ssboAllocations[i]) = createBufferUnique(
         allocator, bufferSize, vk::BufferUsageFlagBits::eStorageBuffer,
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+        vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
       if (!m_ssboBuffers[i] || !m_ssboAllocations[i]) {
         throw std::runtime_error("Failed to create SSBO for light!");

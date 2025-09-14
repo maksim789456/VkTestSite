@@ -12,15 +12,12 @@
 static std::pair<vk::Buffer, vma::Allocation> createBuffer(
   const vma::Allocator allocator,
   const vk::DeviceSize size,
-  const vk::BufferUsageFlags usage,
-  const vk::MemoryPropertyFlags properties
+  const vk::BufferUsageFlags bufferUsage,
+  const vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto,
+  const vma::AllocationCreateFlags flags = {}
 ) {
-  const auto bufferCreateInfo = vk::BufferCreateInfo({}, size, usage, vk::SharingMode::eExclusive);
-  const auto allocInfo = vma::AllocationCreateInfo(
-    vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
-    vma::MemoryUsage::eAutoPreferDevice,
-    properties
-  );
+  const auto bufferCreateInfo = vk::BufferCreateInfo({}, size, bufferUsage, vk::SharingMode::eExclusive);
+  const auto allocInfo = vma::AllocationCreateInfo(flags, memoryUsage);
   const auto pair = allocator.createBuffer(bufferCreateInfo, allocInfo);
   if (!pair.first || !pair.second) {
     throw std::runtime_error("Failed to create buffer!");
@@ -31,15 +28,12 @@ static std::pair<vk::Buffer, vma::Allocation> createBuffer(
 static std::pair<vma::UniqueBuffer, vma::UniqueAllocation> createBufferUnique(
   const vma::Allocator allocator,
   const vk::DeviceSize size,
-  const vk::BufferUsageFlags usage,
-  const vk::MemoryPropertyFlags properties
+  const vk::BufferUsageFlags bufferUsage,
+  const vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto,
+  const vma::AllocationCreateFlags flags = {}
 ) {
-  const auto bufferCreateInfo = vk::BufferCreateInfo({}, size, usage, vk::SharingMode::eExclusive);
-  const auto allocInfo = vma::AllocationCreateInfo(
-    vma::AllocationCreateFlagBits::eHostAccessSequentialWrite,
-    vma::MemoryUsage::eAutoPreferDevice,
-    properties
-  );
+  const auto bufferCreateInfo = vk::BufferCreateInfo({}, size, bufferUsage, vk::SharingMode::eExclusive);
+  const auto allocInfo = vma::AllocationCreateInfo(flags, memoryUsage);
   auto pair = allocator.createBufferUnique(bufferCreateInfo, allocInfo);
   if (!pair.first || !pair.second) {
     throw std::runtime_error("Failed to create buffer!");

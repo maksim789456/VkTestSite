@@ -160,7 +160,7 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
     allocator,
     pixels.size(),
     vk::BufferUsageFlagBits::eTransferSrc,
-    vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
+    vma::MemoryUsage::eCpuToGpu, vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite
   );
 
   fillBuffer(allocator, stagingBufferAlloc, pixels.size(), pixels);

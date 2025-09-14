@@ -19,7 +19,7 @@ Mesh<VertexType, IndexType>::Mesh(
       allocator,
       verticesSize,
       vk::BufferUsageFlagBits::eTransferSrc,
-      vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
+      vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite
     );
 
     fillBuffer(allocator, stagingBufferAlloc.get(), verticesSize, vertices);
@@ -28,7 +28,7 @@ Mesh<VertexType, IndexType>::Mesh(
       allocator,
       verticesSize,
       vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
-      vk::MemoryPropertyFlagBits::eDeviceLocal
+      vma::MemoryUsage::eGpuOnly
     );
 
     copyBuffer(device, graphicsQueue, commandPool, stagingBuffer.get(), m_verticesBuffer.get(), verticesSize);
@@ -37,7 +37,8 @@ Mesh<VertexType, IndexType>::Mesh(
       allocator,
       verticesSize,
       vk::BufferUsageFlagBits::eVertexBuffer,
-      vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
+      vma::MemoryUsage::eAuto,
+      vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite
     );
 
     fillBuffer(allocator, m_verticesBufferAlloc.get(), verticesSize, vertices);
@@ -49,7 +50,8 @@ Mesh<VertexType, IndexType>::Mesh(
       allocator,
       indicesSize,
       vk::BufferUsageFlagBits::eTransferSrc,
-      vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
+      vma::MemoryUsage::eAuto,
+      vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite
     );
 
     fillBuffer(allocator, stagingBufferAlloc.get(), indicesSize, indices);
@@ -58,7 +60,7 @@ Mesh<VertexType, IndexType>::Mesh(
       allocator,
       indicesSize,
       vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
-      vk::MemoryPropertyFlagBits::eDeviceLocal
+      vma::MemoryUsage::eGpuOnly
     );
 
     copyBuffer(device, graphicsQueue, commandPool, stagingBuffer.get(), m_indicesBuffer.get(), indicesSize);
@@ -67,7 +69,8 @@ Mesh<VertexType, IndexType>::Mesh(
       allocator,
       indicesSize,
       vk::BufferUsageFlagBits::eIndexBuffer,
-      vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible
+      vma::MemoryUsage::eAuto,
+      vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite
     );
 
     fillBuffer(allocator, m_indicesBufferAlloc.get(), indicesSize, indices);

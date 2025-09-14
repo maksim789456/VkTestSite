@@ -7,7 +7,8 @@ UniformBuffer<UBO>::UniformBuffer(const vma::Allocator allocator, vk::Flags<vk::
   bufferSize = sizeof(UBO);
 
   std::tie(uniformBuffer, uniformBufferAlloc) =
-      createBufferUnique(allocator, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer, flags);
+      createBufferUnique(allocator, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer,
+        vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
   if (!uniformBuffer || !uniformBufferAlloc) {
     throw std::runtime_error("Failed to create UniformBuffer!");
