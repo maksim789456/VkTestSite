@@ -61,7 +61,7 @@ float4 fragmentMain(VSOutput input, uniform uint pushLightCount) : SV_Target
         case 4:
         case 5:
         case 6:
-          color.rgb = normal;
+          color.rgb = normal * 0.5 + 0.5;
           break;
       }
       return float4(color, 1.0);

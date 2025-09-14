@@ -86,7 +86,7 @@ FSOutput fragmentMain(VSOutput input)
           color.rgb = T;
           break;
         case 6:
-          color.rgb = normal;
+          color.rgb = B;
           break;
       }
       out.Normal = float4(color, 0.0);

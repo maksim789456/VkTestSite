@@ -49,10 +49,11 @@ public struct Light
 
       if (position.w == LIGHT_SPOT)
       {
-          float theta = dot(L, normalize(-direction.xyz));
-          float epsilon = info.x - info.y; // inner - outer
-          float spotIntensity = clamp((theta - info.y) / epsilon, 0.0, 1.0);
-          result *= spotIntensity;
+          float rho = dot(L, normalize(-direction.xyz));
+          float phi = info.x;   // inner cone cosine
+          float theta = info.y; // outer cone cosine
+          float spotFactor = saturate((rho - phi) / (phi - theta));
+          result *= spotFactor;
       }
 
       return result;
@@ -64,6 +65,6 @@ public struct Light
       float linear = info.z;
       float exp = info.w;
 
-      return 1.0 / (constant + linear * distance + exp * distance * distance);
+      return 1.0 / (constant + linear * distance + exp * (distance * distance));
    }
 }

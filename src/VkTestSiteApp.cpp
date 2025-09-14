@@ -568,9 +568,9 @@ void VkTestSiteApp::mainLoop() {
     ImGui::RadioButton("Depth", &m_debugView, 1);
     ImGui::RadioButton("Albedo", &m_debugView, 2);
     ImGui::RadioButton("Normal", &m_debugView, 3);
-    ImGui::RadioButton("Normal Vert", &m_debugView, 4);
-    ImGui::RadioButton("Tangent Vert", &m_debugView, 5);
-    ImGui::RadioButton("Normal Raw", &m_debugView, 6);
+    ImGui::RadioButton("Normal (TBN)", &m_debugView, 4);
+    ImGui::RadioButton("Tangent (TBN)", &m_debugView, 5);
+    ImGui::RadioButton("BiTangent (TBN)", &m_debugView, 6);
     ImGui::End();
 
     if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
