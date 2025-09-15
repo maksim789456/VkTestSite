@@ -7,6 +7,9 @@ project(VkTestSite)
 
 set(CMAKE_CXX_STANDARD 23)
 
+add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+
 add_executable(VkTestSite src/main.cpp
         src/VkTestSiteApp.cpp
         src/VkTestSiteApp.h
@@ -37,6 +40,7 @@ add_executable(VkTestSite src/main.cpp
         src/Pipeline.cpp
         src/Pipeline.h
         src/Light.h
+        src/TracyLogSink.h
 )
 
 find_package(glfw3 CONFIG REQUIRED)
@@ -50,6 +54,8 @@ find_package(imgui CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 find_package(tinyfiledialogs CONFIG REQUIRED)
 find_package(Stb REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
+find_package(fmt CONFIG REQUIRED)
 target_include_directories(VkTestSite PRIVATE
         ${Stb_INCLUDE_DIR}
 )
@@ -64,6 +70,8 @@ target_link_libraries(VkTestSite PRIVATE
         imgui::imgui
         assimp::assimp
         tinyfiledialogs::tinyfiledialogs
+        spdlog::spdlog
+        fmt::fmt
 )
 target_compile_definitions(VkTestSite PRIVATE
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1

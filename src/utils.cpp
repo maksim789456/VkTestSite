@@ -5,12 +5,14 @@
 #include <tracy/Tracy.hpp>
 #include <assimp/scene.h>
 #include <glm/ext/matrix_float4x4.hpp>
+#include "spdlog/spdlog.h"
 
 #include <functional>
 #include <iostream>
 #include <optional>
 #include <ranges>
 #include <vector>
+#include <spdlog/spdlog.h>
 
 std::vector<char const *> static gatherLayers(
   std::vector<std::string> const &layers
@@ -91,37 +93,64 @@ VKAPI_ATTR vk::Bool32 static VKAPI_CALL debugUtilsMessangerCallback(
   vk::DebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
   vk::DebugUtilsMessageTypeFlagsEXT messageTypes,
   const vk::DebugUtilsMessengerCallbackDataEXT *pCallbackData,
-  void *
+  void *pUserData
 ) {
-  std::cerr << vk::to_string(messageSeverity) << ": " << vk::to_string(messageTypes) << ":\n";
-  std::cerr << std::string("\t") << "messageIDName   = <" << pCallbackData->pMessageIdName << ">\n";
-  std::cerr << std::string("\t") << "messageIdNumber = " << pCallbackData->messageIdNumber << "\n";
-  std::cerr << std::string("\t") << "message         = <" << pCallbackData->pMessage << ">\n";
-  if (0 < pCallbackData->queueLabelCount) {
-    std::cerr << std::string("\t") << "Queue Labels:\n";
+  spdlog::level::level_enum level;
+  switch (messageSeverity) {
+    case vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose:
+      level = spdlog::level::debug;
+      break;
+    case vk::DebugUtilsMessageSeverityFlagBitsEXT::eInfo:
+      level = spdlog::level::info;
+      break;
+    case vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning:
+      level = spdlog::level::warn;
+      break;
+    case vk::DebugUtilsMessageSeverityFlagBitsEXT::eError:
+      level = spdlog::level::err;
+      break;
+    default:
+      level = spdlog::level::info;
+      break;
+  }
+
+  std::ostringstream oss;
+  oss << vk::to_string(messageTypes)
+      << " | ID: " << pCallbackData->messageIdNumber
+      << " (" << (pCallbackData->pMessageIdName ? pCallbackData->pMessageIdName : "no_name") << ")"
+      << " | Message: " << (pCallbackData->pMessage ? pCallbackData->pMessage : "no_message");
+
+  if (pCallbackData->queueLabelCount > 0) {
+    oss << " | QueueLabels: ";
     for (uint32_t i = 0; i < pCallbackData->queueLabelCount; i++) {
-      std::cerr << std::string("\t\t") << "labelName = <" << pCallbackData->pQueueLabels[i].pLabelName << ">\n";
+      if (i > 0) oss << ", ";
+      oss << pCallbackData->pQueueLabels[i].pLabelName;
     }
   }
-  if (0 < pCallbackData->cmdBufLabelCount) {
-    std::cerr << std::string("\t") << "CommandBuffer Labels:\n";
+
+  if (pCallbackData->cmdBufLabelCount > 0) {
+    oss << " | CmdBufLabels: ";
     for (uint32_t i = 0; i < pCallbackData->cmdBufLabelCount; i++) {
-      std::cerr << std::string("\t\t") << "labelName = <" << pCallbackData->pCmdBufLabels[i].pLabelName << ">\n";
+      if (i > 0) oss << ", ";
+      oss << pCallbackData->pCmdBufLabels[i].pLabelName;
     }
   }
-  if (0 < pCallbackData->objectCount) {
-    std::cerr << std::string("\t") << "Objects:\n";
+
+  if (pCallbackData->objectCount > 0) {
+    oss << " | Objects: ";
     for (uint32_t i = 0; i < pCallbackData->objectCount; i++) {
-      std::cerr << std::string("\t\t") << "Object " << i << "\n";
-      std::cerr << std::string("\t\t\t") << "objectType   = " << vk::to_string(pCallbackData->pObjects[i].objectType) <<
-          "\n";
-      std::cerr << std::string("\t\t\t") << "objectHandle = " << std::hex << pCallbackData->pObjects[i].objectHandle <<
-          std::dec << "\n";
+      if (i > 0) oss << "; ";
+      oss << "{" << vk::to_string(pCallbackData->pObjects[i].objectType)
+          << " handle=0x" << std::hex << pCallbackData->pObjects[i].objectHandle << std::dec;
       if (pCallbackData->pObjects[i].pObjectName) {
-        std::cerr << std::string("\t\t\t") << "objectName   = <" << pCallbackData->pObjects[i].pObjectName << ">\n";
+        oss << " name=" << pCallbackData->pObjects[i].pObjectName;
       }
+      oss << "}";
     }
   }
+
+  spdlog::log(level, oss.str());
+
   return vk::False;
 }
 
