@@ -52,6 +52,7 @@ public:
 private:
   GLFWwindow *m_window = nullptr;
   tracy::VkCtx *m_vkContext = nullptr;
+  vk::CommandBuffer m_tracyCmdBuffer;
 
   vk::detail::DynamicLoader m_loader;
   vk::Instance m_instance;

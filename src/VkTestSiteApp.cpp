@@ -123,7 +123,9 @@ void VkTestSiteApp::initVk() {
     m_instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"));
   const auto gct = reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(vkGetDeviceProcAddr(
     m_device, "vkGetCalibratedTimestampsEXT"));
-  m_vkContext = tracy::CreateVkContext(m_physicalDevice, m_device, qpreset, gpdctd, gct);
+  m_tracyCmdBuffer = m_device.allocateCommandBuffers(
+    vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
+  m_vkContext = tracy::CreateVkContext(m_physicalDevice, m_device, m_graphicsQueue, m_tracyCmdBuffer, gpdctd, gct);
 #endif
 
   ImGui_ImplGlfw_InitForVulkan(m_window, true);
@@ -226,12 +228,15 @@ void VkTestSiteApp::createLogicalDevice() {
 
   vk::PhysicalDeviceFeatures device_features{};
   vk::PhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
+  vk::PhysicalDeviceHostQueryResetFeatures hostQueryResetFeatures{};
+  hostQueryResetFeatures.setHostQueryReset(true);
   descriptor_indexing_features
       .setDescriptorBindingPartiallyBound(true)
       .setDescriptorBindingSampledImageUpdateAfterBind(true)
       .setShaderSampledImageArrayNonUniformIndexing(true)
       .setRuntimeDescriptorArray(true)
-      .setDescriptorBindingVariableDescriptorCount(true);
+      .setDescriptorBindingVariableDescriptorCount(true)
+      .setPNext(&hostQueryResetFeatures);
   device_features
       .setSamplerAnisotropy(true)
       .setSampleRateShading(true);
@@ -650,6 +655,10 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     m_renderFinished[m_currentFrame]);
   m_graphicsQueue.submit(submitInfo, m_inFlight[m_currentFrame]);
 
+  executeSingleTimeCommands(m_device, m_graphicsQueue, m_commandPool, [&](const vk::CommandBuffer cmd) {
+    m_vkContext->Collect(cmd);
+  });
+
   const auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain.swapchain, imageIndex);
   vk::Result presentResult;
   try {
@@ -701,6 +710,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
     // Model temp render
     if (m_modelLoaded) {
       auto modelCmd = m_model->cmdDraw(
+        *m_vkContext,
         m_framebuffers[imageIndex],
         m_renderPass,
         m_geometryPipeline,
@@ -722,14 +732,17 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       &inheritanceInfo);
     lightCmd.reset();
     lightCmd.begin(lightBeginInfo);
-    m_swapchain.cmdSetViewport(lightCmd);
-    m_swapchain.cmdSetScissor(lightCmd);
-    lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
-    m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
-    auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
-    lightCmd.pushConstants(m_lightingDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eFragment, 0,
-                           sizeof(lightPush), &lightPush);
-    lightCmd.draw(3, 1, 0, 0);
+    {
+      TracyVkZone(m_vkContext, lightCmd, "Light Pass");
+      m_swapchain.cmdSetViewport(lightCmd);
+      m_swapchain.cmdSetScissor(lightCmd);
+      lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
+      m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
+      auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
+      lightCmd.pushConstants(m_lightingDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eFragment, 0,
+                             sizeof(lightPush), &lightPush);
+      lightCmd.draw(3, 1, 0, 0);
+    }
     lightCmd.end();
     commandBuffer.executeCommands(lightCmd);
   } {
@@ -741,7 +754,10 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       &inheritanceInfo);
     imguiCmd.reset();
     imguiCmd.begin(imguiBeginInfo);
-    ImGui_ImplVulkan_RenderDrawData(draw_data, imguiCmd);
+    {
+      TracyVkZone(m_vkContext, imguiCmd, "Imgui");
+      ImGui_ImplVulkan_RenderDrawData(draw_data, imguiCmd);
+    }
     imguiCmd.end();
 
     commandBuffer.executeCommands(imguiCmd);

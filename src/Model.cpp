@@ -175,6 +175,7 @@ inline ModelPushConsts Model::calcPushConsts() const {
 }
 
 vk::CommandBuffer Model::cmdDraw(
+  tracy::VkCtx &tracyCtx,
   const vk::Framebuffer framebuffer,
   const vk::RenderPass renderPass,
   const vk::Pipeline pipeline,
@@ -195,17 +196,20 @@ vk::CommandBuffer Model::cmdDraw(
   cmdBuf.reset();
   cmdBuf.begin(beginInfo);
 
-  swapchain.cmdSetViewport(cmdBuf);
-  swapchain.cmdSetScissor(cmdBuf);
+  {
+    TracyVkZone(&tracyCtx, cmdBuf, "Geometry");
+    swapchain.cmdSetViewport(cmdBuf);
+    swapchain.cmdSetScissor(cmdBuf);
 
-  cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
-  cmdBuf.bindVertexBuffers(0, m_mesh->getVertexBuffer(), {0});
-  cmdBuf.bindIndexBuffer(m_mesh->getIndicesBuffer(), 0, vk::IndexType::eUint32);
-  descriptorSet.bind(cmdBuf, imageIndex, {});
-  cmdBuf.pushConstants(descriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eVertex,
-                       0, sizeof(push_consts), &push_consts);
+    cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
+    cmdBuf.bindVertexBuffers(0, m_mesh->getVertexBuffer(), {0});
+    cmdBuf.bindIndexBuffer(m_mesh->getIndicesBuffer(), 0, vk::IndexType::eUint32);
+    descriptorSet.bind(cmdBuf, imageIndex, {});
+    cmdBuf.pushConstants(descriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eVertex,
+                         0, sizeof(push_consts), &push_consts);
 
-  cmdBuf.drawIndexed(m_mesh->getIndicesCount(), 1, 0, 0, 0);
+    cmdBuf.drawIndexed(m_mesh->getIndicesCount(), 1, 0, 0, 0);
+  }
   cmdBuf.end();
 
   return cmdBuf;

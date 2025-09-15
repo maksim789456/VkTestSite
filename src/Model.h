@@ -19,6 +19,7 @@
 #include "TextureManager.h"
 #include "Vertex.h"
 #include "utils.cpp"
+#include <tracy/TracyVulkan.hpp>
 
 struct alignas(16) ModelPushConsts {
   glm::mat4 model;
@@ -40,6 +41,7 @@ public:
   void createCommandBuffers(vk::Device device, vk::CommandPool commandPool, uint32_t imagesCount);
 
   vk::CommandBuffer cmdDraw(
+    tracy::VkCtx &tracyCtx,
     vk::Framebuffer framebuffer,
     vk::RenderPass renderPass,
     vk::Pipeline pipeline,
