@@ -204,6 +204,7 @@ void VkTestSiteApp::createQueues() {
   const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   m_graphicsQueue = m_device.getQueue(indices.graphics, 0);
   m_presentQueue = m_device.getQueue(indices.present, 0);
+  m_transferQueue = m_device.getQueue(indices.transfer, 0);
 }
 
 void VkTestSiteApp::createLogicalDevice() {
@@ -211,7 +212,7 @@ void VkTestSiteApp::createLogicalDevice() {
   auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
 
   std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
-  std::set queue_families = {indices.graphics, indices.present};
+  std::set queue_families = {indices.graphics, indices.present, indices.transfer};
 
   float queuePriority = 1.0f;
   for (uint32_t queue_family: queue_families) {
@@ -380,7 +381,7 @@ void VkTestSiteApp::createDepthObjets() {
   );
 
   transitionImageLayout(
-    m_device, m_graphicsQueue, m_commandPool,
+    m_device, m_transferQueue, m_transferCommandPool,
     m_depth->getImage(),
     depthFormat,
     vk::ImageLayout::eUndefined,
@@ -508,6 +509,10 @@ void VkTestSiteApp::createCommandPool() {
 
   const auto poolInfo = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, indices.graphics);
   m_commandPool = m_device.createCommandPool(poolInfo);
+
+  const auto transferPoolInfo = vk::CommandPoolCreateInfo(
+    vk::CommandPoolCreateFlagBits::eResetCommandBuffer, indices.transfer);
+  m_transferCommandPool = m_device.createCommandPool(transferPoolInfo);
 }
 
 void VkTestSiteApp::createCommandBuffers() {
@@ -551,8 +556,8 @@ void VkTestSiteApp::mainLoop() {
       auto path = tinyfd_openFileDialog("Open model file", nullptr, 0, nullptr, nullptr, 0);
       if (path != nullptr) {
         auto pathStr = std::string(path);
-        m_model = std::make_unique<Model>(m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager,
-                                          pathStr);
+        m_model = std::make_unique<Model>(
+          m_device, m_transferQueue, m_transferCommandPool, m_allocator, *m_texManager, pathStr);
         m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
         m_modelLoaded = true;
       }
@@ -808,6 +813,7 @@ void VkTestSiteApp::cleanup() {
   m_imguiCommandBuffers.clear();
   m_lightingCommandBuffers.clear();
   m_device.destroyCommandPool(m_commandPool);
+  m_device.destroyCommandPool(m_transferCommandPool);
   vmaDestroyAllocator(m_allocator);
   m_device.destroy();
   m_instance.destroySurfaceKHR(m_surface.release());

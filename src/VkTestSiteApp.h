@@ -65,11 +65,13 @@ private:
   vk::Device m_device;
   vk::Queue m_graphicsQueue;
   vk::Queue m_presentQueue;
+  vk::Queue m_transferQueue;
   Swapchain m_swapchain;
   vk::RenderPass m_renderPass;
   vk::Pipeline m_geometryPipeline;
   vk::Pipeline m_lightingPipeline;
   vk::CommandPool m_commandPool;
+  vk::CommandPool m_transferCommandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_geometryDescriptorSet;
   DescriptorSet m_lightingDescriptorSet;
