@@ -11,8 +11,9 @@ public:
     const vk::Device device,
     const vk::RenderPass renderPass,
     const vk::PipelineLayout pipelineLayout,
-    const std::string &path
-  ): m_device(device), m_renderPass(renderPass), m_pipelineLayout(pipelineLayout) {
+    const std::string &path,
+    const std::string &name = "Pipeline"
+  ): m_device(device), m_renderPass(renderPass), m_pipelineLayout(pipelineLayout), m_name(name) {
     m_shaderModule = std::make_unique<ShaderModule>();
     m_shaderModule->load(m_device, path);
     m_shaderModule->reflect(m_device);
@@ -80,6 +81,7 @@ public:
   vk::Pipeline build();
 
 private:
+  std::string m_name;
   std::vector<vk::VertexInputBindingDescription> m_bindingDescriptions;
   std::vector<vk::VertexInputAttributeDescription> m_attributeDescriptions;
   std::optional<std::vector<vk::PipelineColorBlendAttachmentState> > m_colorBlendAttachments = std::nullopt;

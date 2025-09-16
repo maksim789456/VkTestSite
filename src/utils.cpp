@@ -261,7 +261,7 @@ template<typename T>
 static void setObjectName(
   const vk::Device device,
   const T &object,
-  const std::string &name
+  std::string name
 ) {
 #ifndef NDEBUG
   const vk::DebugUtilsObjectNameInfoEXT nameInfo{

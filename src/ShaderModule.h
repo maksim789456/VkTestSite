@@ -9,6 +9,8 @@
 
 #include <fstream>
 #include <iostream>
+#include <filesystem>
+#include "utils.cpp"
 
 class ShaderModule {
 public:

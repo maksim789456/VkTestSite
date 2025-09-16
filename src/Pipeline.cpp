@@ -52,5 +52,6 @@ vk::Pipeline PipelineBuilder::build() {
     std::cerr << "Failed to create pipeline!" << std::endl;
     abort();
   }
+  setObjectName(m_device, result.value, m_name);
   return result.value;
 }

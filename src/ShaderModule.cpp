@@ -5,6 +5,7 @@ void ShaderModule::load(
   const std::string &path
 ) {
   ZoneScoped;
+  auto filename = std::filesystem::path(path).filename();
   auto file = std::ifstream(path, std::ios::binary | std::ios::ate);
   if (file.fail() || !file.is_open()) {
     std::cerr << "Failed to open shader source file" << std::endl;
@@ -23,6 +24,7 @@ void ShaderModule::load(
   this->m_spv = spv;
   const auto info = vk::ShaderModuleCreateInfo({}, spv.size() * sizeof(uint32_t), spv.data());
   m_module = device.createShaderModuleUnique(info);
+  setObjectName(device, m_module.get(), std::format("Shader {}", filename.string()));
 }
 
 void ShaderModule::reflect(
