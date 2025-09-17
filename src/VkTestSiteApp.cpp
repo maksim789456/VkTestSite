@@ -560,6 +560,7 @@ void VkTestSiteApp::mainLoop() {
     const auto cameraPos = m_camera->getViewPos();
     ImGui::Text("Camera pos: %f %f %f", cameraPos.x, cameraPos.y, cameraPos.z);
     if (!m_modelLoaded && ImGui::Button("Load model")) {
+      ZoneScopedN("Model loading");
       auto path = tinyfd_openFileDialog("Open model file", nullptr, 0, nullptr, nullptr, 0);
       if (path != nullptr) {
         auto pathStr = std::string(path);

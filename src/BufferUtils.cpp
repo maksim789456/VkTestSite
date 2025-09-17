@@ -80,6 +80,7 @@ static void copyBuffer(
   const vk::Buffer dstBuffer,
   const vk::DeviceSize size
 ) {
+  ZoneScoped;
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
     const auto region = vk::BufferCopy({}, {}, size);
     cmd.copyBuffer(srcBuffer, dstBuffer, region);
@@ -95,6 +96,7 @@ static void copyBufferToImage(
   const uint32_t width,
   const uint32_t height
 ) {
+  ZoneScoped;
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
     constexpr auto subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
     const auto region = vk::BufferImageCopy(

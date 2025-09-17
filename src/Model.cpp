@@ -43,9 +43,10 @@ Model::Model(
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
   vma::Allocator allocator,
-  TextureManager& textureManager,
+  TextureManager &textureManager,
   const std::filesystem::path &modelPath
 ) {
+  ZoneScoped;
   std::cout << "Loading model from: " << modelPath.string() << std::endl;
   Assimp::Importer importer;
 
@@ -72,6 +73,7 @@ void Model::createMesh(
   vma::Allocator allocator,
   const aiScene *scene
 ) {
+  ZoneScoped;
   std::vector<Vertex> vertices = {};
   std::vector<uint32_t> indices = {};
 
@@ -90,7 +92,9 @@ void Model::processNode(
   const aiScene *scene,
   const glm::mat4 &parentTransform,
   std::vector<Vertex> &vertices,
-  std::vector<uint32_t> &indices) {
+  std::vector<uint32_t> &indices
+) {
+  ZoneScoped;
   auto transform = parentTransform * aiMatrix4x4ToGlm(node->mTransformation);
 
   for (unsigned int m = 0; m < node->mNumMeshes; ++m) {
@@ -141,10 +145,11 @@ void Model::processNode(
 }
 
 void Model::processMaterials(
-  TextureManager& textureManager,
+  TextureManager &textureManager,
   const aiScene *scene,
   const std::filesystem::path &modelParent
 ) {
+  ZoneScoped;
   const auto absoluteModelParent = std::filesystem::canonical(modelParent);
 
   for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx) {
@@ -162,6 +167,7 @@ void Model::createCommandBuffers(
   const vk::CommandPool commandPool,
   const uint32_t imagesCount
 ) {
+  ZoneScoped;
   const auto info = vk::CommandBufferAllocateInfo(
     commandPool, vk::CommandBufferLevel::eSecondary, imagesCount
   );
@@ -184,6 +190,7 @@ vk::CommandBuffer Model::cmdDraw(
   const uint32_t subpass,
   const uint32_t imageIndex
 ) {
+  ZoneScoped;
   const auto inheritanceInfo = vk::CommandBufferInheritanceInfo(renderPass, subpass, framebuffer);
   const auto beginInfo = vk::CommandBufferBeginInfo(
     vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
@@ -194,9 +201,7 @@ vk::CommandBuffer Model::cmdDraw(
   const auto push_consts = calcPushConsts();
 
   cmdBuf.reset();
-  cmdBuf.begin(beginInfo);
-
-  {
+  cmdBuf.begin(beginInfo); {
     TracyVkZone(&tracyCtx, cmdBuf, "Geometry");
     swapchain.cmdSetViewport(cmdBuf);
     swapchain.cmdSetScissor(cmdBuf);
