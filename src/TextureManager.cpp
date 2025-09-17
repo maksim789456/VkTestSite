@@ -17,6 +17,7 @@ uint32_t TextureManager::loadTextureFromFile(
   const std::filesystem::path &filename,
   const vk::Format format
 ) {
+  ZoneScoped;
   const auto texturePath = textureParent / filename;
 
   if (const auto it = m_cache.find(filename.string()); it != m_cache.end()) {

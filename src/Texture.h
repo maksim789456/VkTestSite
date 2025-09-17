@@ -73,6 +73,7 @@ inline Texture::Texture(
   const bool useSampler,
   const std::string &name
 ): width(width), height(height), mipLevels(mipLevels) {
+  ZoneScoped;
   std::tie(m_image, m_imageAlloc) = createImageUnique(
     allocator,
     width, height, mipLevels,
@@ -105,6 +106,7 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
   const std::filesystem::path &path,
   const vk::Format format
 ) {
+  ZoneScoped;
   int width, height, channels;
   stbi_uc *origPixels = stbi_load(
     path.string().c_str(),
