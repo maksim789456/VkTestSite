@@ -42,6 +42,7 @@ add_executable(VkTestSite src/main.cpp
         src/Pipeline.h
         src/Light.h
         src/TracyLogSink.h
+        src/StagingBuffer.h
 )
 
 find_package(glfw3 CONFIG REQUIRED)
