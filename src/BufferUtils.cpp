@@ -4,8 +4,6 @@
 #include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
 #include "utils.cpp"
 
-#include <iostream>
-#include <optional>
 #include <ranges>
 #include <vector>
 
