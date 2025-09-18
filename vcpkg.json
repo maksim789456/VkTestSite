@@ -30,6 +30,10 @@
     {
       "name": "fmt",
       "version": "11.2.0"
+    },
+    {
+      "name": "tracy",
+      "version": "0.12.1"
     }
   ]
 }
