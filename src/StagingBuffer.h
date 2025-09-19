@@ -55,7 +55,10 @@ public:
     if (!m_mapped) throw std::runtime_error("Failed to map staging memory");
 
     m_virtualBlock = vma::createVirtualBlockUnique(vma::VirtualBlockCreateInfo(bufferSize));
-    m_timeline = m_device.createSemaphoreUnique(vk::SemaphoreCreateInfo());
+
+    constexpr auto semaTypeInfo = vk::SemaphoreTypeCreateInfo(vk::SemaphoreType::eTimeline);
+    constexpr auto semaInfo = vk::SemaphoreCreateInfo({}, &semaTypeInfo);
+    m_timeline = m_device.createSemaphoreUnique(semaInfo);
   }
 
   ~StagingBuffer() {
@@ -64,12 +67,12 @@ public:
     m_device.waitIdle();
 
     for (const auto &alloc: m_pending) {
-      TracySecureFree(alloc.mapped);
+      //TracySecureFree(alloc.handle);
       m_virtualBlock->virtualFree(alloc.handle);
     }
     m_pending.clear();
     for (const auto &alloc: m_transferring) {
-      TracySecureFree(alloc.mapped);
+      //TracySecureFree(alloc.handle);
       m_virtualBlock->virtualFree(alloc.handle);
     }
     m_transferring.clear();
@@ -101,7 +104,7 @@ public:
     }
 
     const auto mappedPtr = static_cast<char *>(m_mapped) + offset;
-    TracySecureAllocN(mappedPtr, size, "Staging buffer allocations");
+    //TracySecureAllocN(virtualAlloc, size, "Staging buffer allocations");
 
     Allocation allocation;
     allocation.size = size;
@@ -183,7 +186,7 @@ public:
 
     for (int i = 0; i < m_transferring.size();) {
       if (m_transferring[i].timelineValue <= completed) {
-        TracyFree(m_transferring[i].mapped);
+        //TracyFree(m_transferring[i].handle);
         m_virtualBlock->virtualFree(m_transferring[i].handle);
         m_transferring.erase(m_transferring.begin() + i);
       } else {
