@@ -43,6 +43,7 @@ add_executable(VkTestSite src/main.cpp
         src/Light.h
         src/TracyLogSink.h
         src/StagingBuffer.h
+        src/TransferThread.h
 )
 
 find_package(glfw3 CONFIG REQUIRED)
@@ -58,6 +59,7 @@ find_package(tinyfiledialogs CONFIG REQUIRED)
 find_package(Stb REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
+find_package(unofficial-concurrentqueue CONFIG REQUIRED)
 target_include_directories(VkTestSite PRIVATE
         ${Stb_INCLUDE_DIR}
 )
@@ -74,6 +76,7 @@ target_link_libraries(VkTestSite PRIVATE
         tinyfiledialogs::tinyfiledialogs
         spdlog::spdlog
         fmt::fmt
+        unofficial::concurrentqueue::concurrentqueue
 )
 target_compile_definitions(VkTestSite PRIVATE
         VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1

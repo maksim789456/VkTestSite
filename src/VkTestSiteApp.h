@@ -38,6 +38,7 @@
 #include "Pipeline.h"
 #include "Light.h"
 #include "StagingBuffer.h"
+#include "TransferThread.h"
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
@@ -86,7 +87,9 @@ private:
   std::unique_ptr<LightManager> m_lightManager;
 
   vk::Queue m_transferQueue;
+  std::unique_ptr<TransferThread> m_transferThread;
   std::unique_ptr<StagingBuffer> m_stagingBuffer;
+
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms = {};
   std::vector<vk::CommandBuffer> m_commandBuffers;
