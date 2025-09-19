@@ -99,6 +99,7 @@ void VkTestSiteApp::initVk() {
   createSyncObjects();
   const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   m_stagingBuffer = std::make_unique<StagingBuffer>(m_device, m_allocator, 64 * 1024 * 1024); // 64 MB
+  m_transferThread = std::make_unique<TransferThread>(m_device, m_transferQueue, indices.transfer, *m_stagingBuffer);
   m_texManager = std::make_unique<TextureManager>(
     m_device, m_graphicsQueue, m_commandPool, m_allocator, m_geometryDescriptorSet, 1);
 
@@ -845,6 +846,7 @@ void VkTestSiteApp::cleanup() {
     m_model.reset();
   m_texManager.reset();
   m_lightManager.reset();
+  m_transferThread.reset();
   m_stagingBuffer.reset();
   m_imguiCommandBuffers.clear();
   m_lightingCommandBuffers.clear();

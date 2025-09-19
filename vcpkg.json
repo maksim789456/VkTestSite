@@ -20,6 +20,7 @@
     "tinyfiledialogs",
     "stb",
     "fmt",
+    "concurrentqueue",
     "spdlog",
   ],
   "overrides": [
