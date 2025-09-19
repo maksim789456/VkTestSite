@@ -237,14 +237,25 @@ void VkTestSiteApp::createLogicalDevice() {
   vk::PhysicalDeviceFeatures device_features{};
   vk::PhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
   vk::PhysicalDeviceHostQueryResetFeatures hostQueryResetFeatures{};
+  vk::PhysicalDeviceTimelineSemaphoreFeatures timeline_semaphore_features{};
+  vk::PhysicalDeviceVulkan13Features features13{};
+
   hostQueryResetFeatures.setHostQueryReset(true);
+  timeline_semaphore_features
+      .setTimelineSemaphore(true)
+      .setPNext(&hostQueryResetFeatures);
   descriptor_indexing_features
       .setDescriptorBindingPartiallyBound(true)
       .setDescriptorBindingSampledImageUpdateAfterBind(true)
       .setShaderSampledImageArrayNonUniformIndexing(true)
       .setRuntimeDescriptorArray(true)
       .setDescriptorBindingVariableDescriptorCount(true)
-      .setPNext(&hostQueryResetFeatures);
+      .setPNext(&timeline_semaphore_features);
+
+  features13
+      .setSynchronization2(true)
+      .setPNext(&descriptor_indexing_features);
+
   device_features
       .setSamplerAnisotropy(true)
       .setSampleRateShading(true);
@@ -256,7 +267,7 @@ void VkTestSiteApp::createLogicalDevice() {
     DEVICE_EXTENSIONS,
     &device_features
   );
-  device_create_info.setPNext(&descriptor_indexing_features);
+  device_create_info.setPNext(&features13);
 
   m_device = m_physicalDevice.createDevice(device_create_info);
   VULKAN_HPP_DEFAULT_DISPATCHER.init(m_device);
