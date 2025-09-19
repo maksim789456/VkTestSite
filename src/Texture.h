@@ -10,6 +10,8 @@
 
 #include "utils.cpp"
 #include "BufferUtils.cpp"
+#include "StagingBuffer.h"
+#include "TransferThread.h"
 #include <filesystem>
 #include <cmath>
 #include <algorithm>
@@ -40,8 +42,8 @@ public:
   static std::unique_ptr<Texture> createFromFile(
     vk::Device device,
     vma::Allocator allocator,
-    vk::Queue queue,
-    vk::CommandPool commandPool,
+    StagingBuffer &stagingBuffer,
+    TransferThread &transferThread,
     const std::filesystem::path &path,
     vk::Format format = vk::Format::eR8G8B8A8Unorm
   );
@@ -101,8 +103,8 @@ inline Texture::Texture(
 inline std::unique_ptr<Texture> Texture::createFromFile(
   const vk::Device device,
   const vma::Allocator allocator,
-  const vk::Queue queue,
-  const vk::CommandPool commandPool,
+  StagingBuffer &stagingBuffer,
+  TransferThread &transferThread,
   const std::filesystem::path &path,
   const vk::Format format
 ) {
@@ -150,29 +152,24 @@ inline std::unique_ptr<Texture> Texture::createFromFile(
     path.filename().string()
   );
 
-  transitionImageLayout(
-    device, queue, commandPool,
-    texture->m_image.get(),
-    format,
-    vk::ImageLayout::eUndefined,
-    vk::ImageLayout::eTransferDstOptimal,
-    mipLevels);
+  auto alloc = stagingBuffer.allocateBlocking(pixels.size());
+  {
+    ZoneScopedN("Copy texture data");
+    memcpy(alloc.mapped, pixels.data(), pixels.size());
+  }
 
-  auto [stagingBuffer, stagingBufferAlloc] = createBuffer(
-    allocator,
-    pixels.size(),
-    vk::BufferUsageFlagBits::eTransferSrc,
-    vma::MemoryUsage::eCpuToGpu, vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite
-  );
-
-  fillBuffer(allocator, stagingBufferAlloc, pixels.size(), pixels);
-
-  copyBufferToImage(
-    device, queue, commandPool,
-    stagingBuffer, texture->m_image.get(),
-    width, height
-  );
-  allocator.destroyBuffer(stagingBuffer, stagingBufferAlloc);
+  constexpr auto subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
+  const TextureUploadJob job{
+    .allocation = alloc,
+    .dstImage = texture->getImage(),
+    .subresourceRange = vk::ImageSubresourceRange(
+      vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1),
+    .region = vk::BufferImageCopy(
+      alloc.offset, 0, 0, subresource,
+      vk::Offset3D(0, 0, 0),
+      vk::Extent3D(width, height, 1)),
+  };
+  transferThread.pushJob(job);
 
   return texture;
 }
