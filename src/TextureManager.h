@@ -12,6 +12,8 @@ public:
     vk::Device device,
     vk::Queue graphicsQueue,
     vk::CommandPool commandPool,
+    StagingBuffer &stagingBuffer,
+    TransferThread &transferThread,
     vma::Allocator allocator,
     DescriptorSet &descriptorSet,
     uint32_t shaderBinding
@@ -38,6 +40,8 @@ private:
   vk::CommandPool m_commandPool = nullptr;
   vma::Allocator m_allocator = nullptr;
   DescriptorSet *m_descriptorSet = nullptr;
+  StagingBuffer *m_stagingBuffer = nullptr;
+  TransferThread *m_transferThread = nullptr;
 
   uint32_t m_shaderBinding = 0;
 

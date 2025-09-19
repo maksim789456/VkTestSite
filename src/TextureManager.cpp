@@ -4,10 +4,12 @@ TextureManager::TextureManager(
   const vk::Device device,
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
+  StagingBuffer &stagingBuffer,
+  TransferThread &transferThread,
   const vma::Allocator allocator,
   DescriptorSet &descriptorSet,
   const uint32_t shaderBinding
-): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool),
+): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_stagingBuffer(&stagingBuffer), m_transferThread(&transferThread),
    m_allocator(allocator), m_descriptorSet(&descriptorSet), m_shaderBinding(shaderBinding) {
   m_sampler = createSamplerUnique(device);
 }
@@ -41,13 +43,13 @@ uint32_t TextureManager::loadTextureFromFile(
   auto texture = Texture::createFromFile(
     m_device,
     m_allocator,
-    m_graphicsQueue,
-    m_commandPool,
+    *m_stagingBuffer,
+    *m_transferThread,
     texturePath,
     format
   );
 
-  generateMipmaps(
+  /*generateMipmaps(
     m_device,
     m_graphicsQueue,
     m_commandPool,
@@ -55,7 +57,7 @@ uint32_t TextureManager::loadTextureFromFile(
     texture->width,
     texture->height,
     texture->mipLevels
-  );
+  );*/
 
   m_textures[slot] = std::move(texture);
   m_cache[filename.string()] = slot;

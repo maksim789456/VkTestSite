@@ -101,7 +101,8 @@ void VkTestSiteApp::initVk() {
   m_stagingBuffer = std::make_unique<StagingBuffer>(m_device, m_allocator, 64 * 1024 * 1024); // 64 MB
   m_transferThread = std::make_unique<TransferThread>(m_device, m_transferQueue, indices.transfer, *m_stagingBuffer);
   m_texManager = std::make_unique<TextureManager>(
-    m_device, m_graphicsQueue, m_commandPool, m_allocator, m_geometryDescriptorSet, 1);
+    m_device, m_graphicsQueue, m_commandPool, *m_stagingBuffer, *m_transferThread, m_allocator, m_geometryDescriptorSet,
+    1);
 
   m_camera = std::make_unique<Camera>();
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
