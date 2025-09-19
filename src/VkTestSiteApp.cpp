@@ -206,7 +206,7 @@ void VkTestSiteApp::createQueues() {
   const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   m_graphicsQueue = m_device.getQueue(indices.graphics, 0);
   m_presentQueue = m_device.getQueue(indices.present, 0);
-  m_transferQueue = m_device.getQueue(indices.transfer, 0);
+  m_transferQueue = m_device.getQueue(indices.transfer, 1);
 }
 
 void VkTestSiteApp::createLogicalDevice() {
@@ -214,15 +214,23 @@ void VkTestSiteApp::createLogicalDevice() {
   auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
 
   std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
+  std::vector<std::vector<float>> queuePrioritiesStorage;
   std::set queue_families = {indices.graphics, indices.present, indices.transfer};
 
-  float queuePriority = 1.0f;
   for (uint32_t queue_family: queue_families) {
+    uint32_t count = 1;
+    if (queue_family == indices.graphics && indices.graphics == indices.transfer) {
+      count = 2;
+    }
+
+    queuePrioritiesStorage.emplace_back(count, 1.0f);
+    auto& priorities = queuePrioritiesStorage.back();
+
     vk::DeviceQueueCreateInfo queue_create_info{};
     queue_create_info
         .setQueueFamilyIndex(queue_family)
-        .setQueueCount(1)
-        .setPQueuePriorities(&queuePriority);
+        .setQueueCount(count)
+        .setPQueuePriorities(priorities.data());
     queue_create_infos.push_back(queue_create_info);
   }
 
