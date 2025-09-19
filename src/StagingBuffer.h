@@ -20,7 +20,7 @@
  * <code>StagingBuffer::allocateBlocking</code>
  * to reserve a contiguous region of the staging buffer
  * 2. Write a CPU-side data directly into the mapped pointer returned
- * in <code>StagingAllocation.mapped</code>
+ * in <code>StagingBuffer::Allocation.mapped</code>
  * 3. Record a Vulkan copy command (buffer -> buffer or buffer -> image)
  * 4. Call <code>StagingBuffer::trackAlloc</code> to mark the allocation
  * as "in-flight" and associate it with the next timeline value
@@ -29,7 +29,7 @@
  */
 class StagingBuffer {
 public:
-  struct StagingAllocation {
+  struct Allocation {
     vk::DeviceSize size = 0;
     vk::DeviceSize offset = 0;
     vma::VirtualAllocation handle = nullptr;
@@ -84,9 +84,9 @@ public:
    * Attempt to allocate space from the staging buffer without blocking
    * @param size Number of bytes to allocate
    * @param alignment Alignment in bytes. Defaults sets to 256
-   * @return Optional<StagingAllocation>. Returns a valid allocation if space was available immediately; returns std::nullopt if no space could be reserved at the moment
+   * @return Optional<Allocation>. Returns a valid allocation if space was available immediately; returns std::nullopt if no space could be reserved at the moment
    */
-  std::optional<StagingAllocation> tryAllocate(const vk::DeviceSize size, const vk::DeviceSize alignment = 256) {
+  std::optional<Allocation> tryAllocate(const vk::DeviceSize size, const vk::DeviceSize alignment = 256) {
     ZoneScoped;
     if (size > m_bufferSize)
       throw std::runtime_error("Try to allocate size > staging buffer size");
@@ -103,7 +103,7 @@ public:
     const auto mappedPtr = static_cast<char *>(m_mapped) + offset;
     TracySecureAllocN(mappedPtr, size, "Staging buffer allocations");
 
-    StagingAllocation allocation;
+    Allocation allocation;
     allocation.size = size;
     allocation.handle = virtualAlloc;
     allocation.offset = offset;
@@ -116,7 +116,7 @@ public:
    * @brief Attempt to allocate space from the staging buffer blocking until success
    * @param size Number of bytes to allocate
    * @param alignment Alignment in bytes. Defaults sets to 256
-   * @return StagingAllocation. Guaranteed to succeed eventually, unless the requested size exceeds the total staging buffer capacity
+   * @return Allocation. Guaranteed to succeed eventually, unless the requested size exceeds the total staging buffer capacity
    *
    * Behavior:
    *  - If space is available now, returns immediately.
@@ -125,7 +125,7 @@ public:
    *    vk::Device::waitSemaphores until the GPU has completed that work.
    *  - Once GPU has signaled, freed ranges are reclaimed and allocation is retried.
    */
-  StagingAllocation allocateBlocking(const vk::DeviceSize size, const vk::DeviceSize alignment = 256) {
+  Allocation allocateBlocking(const vk::DeviceSize size, const vk::DeviceSize alignment = 256) {
     ZoneScoped;
     while (true) {
       if (const auto alloc = tryAllocate(size, alignment)) {
@@ -157,12 +157,12 @@ public:
    * @remark Must be called after Queue submit with allocation semaphore value
    * @param alloc staging allocation
    */
-  void trackAlloc(StagingAllocation &alloc) {
+  void trackAlloc(Allocation &alloc) {
     ZoneScoped;
     std::lock_guard lock(m_mutex);
 
     const auto it = std::ranges::find_if(
-      m_pending, [&](const StagingAllocation &a) { return a.handle == alloc.handle; });
+      m_pending, [&](const Allocation &a) { return a.handle == alloc.handle; });
     if (it == m_pending.end()) {
       throw std::runtime_error("Tried to track allocation does not exist");
     }
@@ -209,8 +209,8 @@ private:
   void *m_mapped = nullptr;
 
   TracyLockableN(std::mutex, m_mutex, "Staging Buffer Mutex");
-  std::vector<StagingAllocation> m_pending;
-  std::vector<StagingAllocation> m_transferring;
+  std::vector<Allocation> m_pending;
+  std::vector<Allocation> m_transferring;
 
   vk::UniqueSemaphore m_timeline;
   uint64_t m_nextTimelineValue = 0;
