@@ -416,6 +416,39 @@ static void cmdTransitionImageLayout(
   commandBuffer.pipelineBarrier(srcStageMask, dstStageMask, {}, {}, {}, barrier);
 }
 
+static void cmdTransitionImageLayout2(
+  const vk::CommandBuffer commandBuffer,
+  const vk::Image &image,
+  const vk::ImageLayout oldLayout,
+  const vk::ImageLayout newLayout,
+  const vk::ImageSubresourceRange &subresource
+) {
+  auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
+    -> std::tuple<vk::AccessFlagBits2, vk::AccessFlagBits2, vk::PipelineStageFlagBits2, vk::PipelineStageFlagBits2> {
+        using AF2 = vk::AccessFlagBits2;
+        using PF2 = vk::PipelineStageFlagBits2;
+
+        if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
+          return {{}, AF2::eTransferWrite, PF2::eTopOfPipe, PF2::eTransfer};
+        }
+        if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+          return {AF2::eTransferWrite, AF2::eShaderRead, PF2::eTransfer, PF2::eFragmentShader};
+        }
+        throw std::runtime_error("Unsupported image layout transition!");
+      }();
+
+  const auto barrier = vk::ImageMemoryBarrier2(
+    srcStageMask, srcAccessMask,
+    dstStageMask, dstAccessMask,
+    oldLayout, newLayout,
+    VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+    image, subresource
+  );
+  auto dep = vk::DependencyInfo();
+  dep.setImageMemoryBarriers(barrier);
+  commandBuffer.pipelineBarrier2(dep);
+}
+
 static void transitionImageLayout(
   const vk::Device device,
   const vk::Queue graphicsQueue,
