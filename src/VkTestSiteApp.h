@@ -37,6 +37,7 @@
 #include "TextureManager.h"
 #include "Pipeline.h"
 #include "Light.h"
+#include "StagingBuffer.h"
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
@@ -66,13 +67,11 @@ private:
   vk::Device m_device;
   vk::Queue m_graphicsQueue;
   vk::Queue m_presentQueue;
-  vk::Queue m_transferQueue;
   Swapchain m_swapchain;
   vk::RenderPass m_renderPass;
   vk::Pipeline m_geometryPipeline;
   vk::Pipeline m_lightingPipeline;
   vk::CommandPool m_commandPool;
-  vk::CommandPool m_transferCommandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_geometryDescriptorSet;
   DescriptorSet m_lightingDescriptorSet;
@@ -86,6 +85,8 @@ private:
   std::unique_ptr<TextureManager> m_texManager;
   std::unique_ptr<LightManager> m_lightManager;
 
+  vk::Queue m_transferQueue;
+  std::unique_ptr<StagingBuffer> m_stagingBuffer;
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms = {};
   std::vector<vk::CommandBuffer> m_commandBuffers;

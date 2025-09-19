@@ -97,6 +97,8 @@ void VkTestSiteApp::initVk() {
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
+  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
+  m_stagingBuffer = std::make_unique<StagingBuffer>(m_device, m_allocator, 64 * 1024 * 1024); // 64 MB
   m_texManager = std::make_unique<TextureManager>(
     m_device, m_graphicsQueue, m_commandPool, m_allocator, m_geometryDescriptorSet, 1);
 
@@ -129,7 +131,6 @@ void VkTestSiteApp::initVk() {
 #endif
 
   ImGui_ImplGlfw_InitForVulkan(m_window, true);
-  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   ImGui_ImplVulkan_InitInfo vkInitInfo = {};
   vkInitInfo.ApiVersion = VK_API_VERSION_1_3;
   vkInitInfo.Instance = m_instance;
@@ -407,7 +408,7 @@ void VkTestSiteApp::createDepthObjets() {
   );
 
   transitionImageLayout(
-    m_device, m_transferQueue, m_transferCommandPool,
+    m_device, m_graphicsQueue, m_commandPool,
     m_depth->getImage(),
     depthFormat,
     vk::ImageLayout::eUndefined,
@@ -535,10 +536,6 @@ void VkTestSiteApp::createCommandPool() {
 
   const auto poolInfo = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, indices.graphics);
   m_commandPool = m_device.createCommandPool(poolInfo);
-
-  const auto transferPoolInfo = vk::CommandPoolCreateInfo(
-    vk::CommandPoolCreateFlagBits::eResetCommandBuffer, indices.transfer);
-  m_transferCommandPool = m_device.createCommandPool(transferPoolInfo);
 }
 
 void VkTestSiteApp::createCommandBuffers() {
@@ -584,7 +581,7 @@ void VkTestSiteApp::mainLoop() {
       if (path != nullptr) {
         auto pathStr = std::string(path);
         m_model = std::make_unique<Model>(
-          m_device, m_transferQueue, m_transferCommandPool, m_allocator, *m_texManager, pathStr);
+          m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, pathStr);
         m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
         m_modelLoaded = true;
       }
@@ -848,10 +845,10 @@ void VkTestSiteApp::cleanup() {
     m_model.reset();
   m_texManager.reset();
   m_lightManager.reset();
+  m_stagingBuffer.reset();
   m_imguiCommandBuffers.clear();
   m_lightingCommandBuffers.clear();
   m_device.destroyCommandPool(m_commandPool);
-  m_device.destroyCommandPool(m_transferCommandPool);
   vmaDestroyAllocator(m_allocator);
   m_device.destroy();
   m_instance.destroySurfaceKHR(m_surface.release());
