@@ -130,6 +130,8 @@ void VkTestSiteApp::initVk() {
   m_tracyCmdBuffer = m_device.allocateCommandBuffers(
     vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
   m_vkContext = tracy::CreateVkContext(m_physicalDevice, m_device, m_graphicsQueue, m_tracyCmdBuffer, gpdctd, gct);
+  const std::string contextName = "Graphics Queue";
+  m_vkContext->Name(contextName.data(), contextName.size());
 #endif
 
   ImGui_ImplGlfw_InitForVulkan(m_window, true);
@@ -752,8 +754,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
     lightCmd.reset();
-    lightCmd.begin(lightBeginInfo);
-    {
+    lightCmd.begin(lightBeginInfo); {
       TracyVkZone(m_vkContext, lightCmd, "Light Pass");
       m_swapchain.cmdSetViewport(lightCmd);
       m_swapchain.cmdSetScissor(lightCmd);
@@ -774,8 +775,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
     imguiCmd.reset();
-    imguiCmd.begin(imguiBeginInfo);
-    {
+    imguiCmd.begin(imguiBeginInfo); {
       TracyVkZone(m_vkContext, imguiCmd, "Imgui");
       ImGui_ImplVulkan_RenderDrawData(draw_data, imguiCmd);
     }
