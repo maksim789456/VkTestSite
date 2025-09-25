@@ -78,9 +78,8 @@ private:
   void threadLoop() {
     tracy::SetThreadName("VK Transfer Thread");
     while (!m_stop.load()) {
-      ZoneScoped;
-
       if (TextureUploadJob firstJob{}; m_queue.wait_dequeue_timed(firstJob, m_maxBatchWait)) {
+        ZoneScoped;
         std::deque<TextureUploadJob> batch;
         batch.push_back(firstJob);
 
@@ -103,7 +102,7 @@ private:
     m_cmdBuff->begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
     for (auto &job: batch) {
-      ZoneScoped;
+      ZoneScopedN("Record cmd's for job");
       cmdTransitionImageLayout2(
         m_cmdBuff.get(),
         job.dstImage,
@@ -127,19 +126,19 @@ private:
 
     m_cmdBuff->end();
 
-    for (auto &job : batch) {
+    for (auto &job: batch) {
       m_stagingBuffer.trackAlloc(job.allocation);
+    } {
+      ZoneScopedN("Queue Submit");
+      const auto cbSubmitInfo = vk::CommandBufferSubmitInfo(m_cmdBuff.get());
+      const auto sigInfo = m_stagingBuffer.makeSignalInfo();
+      const auto submit = vk::SubmitInfo2({}, {}, cbSubmitInfo, sigInfo);
+
+      m_transferQueue.submit2(submit, *m_submitFence);
+    } {
+      ZoneScopedN("Wait Queue");
+      auto _ = m_device.waitForFences(*m_submitFence, VK_TRUE, UINT64_MAX);
     }
-
-    const auto cbSubmitInfo = vk::CommandBufferSubmitInfo(m_cmdBuff.get());
-    const auto sigInfo = m_stagingBuffer.makeSignalInfo();
-    const auto submit = vk::SubmitInfo2({}, {}, cbSubmitInfo, sigInfo);
-
-    m_transferQueue.submit2(submit, *m_submitFence);
-
-    auto _ = m_device.waitForFences(*m_submitFence, VK_TRUE, UINT64_MAX);
-    //const vk::SemaphoreWaitInfo waitInfo = m_stagingBuffer.makeWaitInfo();
-    //auto _ = m_device.waitSemaphores(waitInfo, UINT64_MAX);
 
     m_stagingBuffer.pollReclaimed();
   }
