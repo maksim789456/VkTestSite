@@ -44,6 +44,7 @@ add_executable(VkTestSite src/main.cpp
         src/TracyLogSink.h
         src/StagingBuffer.h
         src/TransferThread.h
+        src/TextureWorkersPool.h
 )
 
 find_package(glfw3 CONFIG REQUIRED)
