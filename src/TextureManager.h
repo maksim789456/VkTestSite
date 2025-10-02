@@ -2,6 +2,7 @@
 #define TEXTUREMANAGER_H
 
 #include "DescriptorSet.h"
+#include "TextureWorkersPool.h"
 #include "Swapchain.h"
 #include "Texture.h"
 #include "utils.cpp"
@@ -12,9 +13,7 @@ public:
     vk::Device device,
     vk::Queue graphicsQueue,
     vk::CommandPool commandPool,
-    StagingBuffer &stagingBuffer,
-    TransferThread &transferThread,
-    vma::Allocator allocator,
+    TextureWorkerPool &workerPool,
     DescriptorSet &descriptorSet,
     uint32_t shaderBinding
   );
@@ -27,6 +26,8 @@ public:
     vk::Format format = vk::Format::eR8G8B8A8Unorm
   );
 
+  void checkTextureLoading();
+
   void updateDS(DescriptorSet& descriptorSet);
 
   std::optional<Texture *> getTexture(uint32_t slot);
@@ -38,11 +39,8 @@ private:
   vk::Device m_device = nullptr;
   vk::Queue m_graphicsQueue = nullptr;
   vk::CommandPool m_commandPool = nullptr;
-  vma::Allocator m_allocator = nullptr;
   DescriptorSet *m_descriptorSet = nullptr;
-  StagingBuffer *m_stagingBuffer = nullptr;
-  TransferThread *m_transferThread = nullptr;
-
+  TextureWorkerPool *m_workerPool = nullptr;
   uint32_t m_shaderBinding = 0;
 
   std::unordered_map<std::string, uint32_t> m_cache = {};
