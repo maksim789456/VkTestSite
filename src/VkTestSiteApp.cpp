@@ -98,11 +98,11 @@ void VkTestSiteApp::initVk() {
   createCommandBuffers();
   createSyncObjects();
   const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
-  m_stagingBuffer = std::make_unique<StagingBuffer>(m_device, m_allocator, 64 * 1024 * 1024); // 64 MB
+  m_stagingBuffer = std::make_unique<StagingBuffer>(m_device, m_allocator, 128 * 1024 * 1024); // 64 MB
   m_transferThread = std::make_unique<TransferThread>(m_device, m_transferQueue, indices.transfer, *m_stagingBuffer);
+  m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_device, m_allocator, *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
-    m_device, m_graphicsQueue, m_commandPool, *m_stagingBuffer, *m_transferThread, m_allocator, m_geometryDescriptorSet,
-    1);
+    m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
 
   m_camera = std::make_unique<Camera>();
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -186,12 +186,12 @@ void VkTestSiteApp::createInstance() {
 
   const auto enabled_extensions = gatherExtensions(required_extensions
 #ifndef NDEBUG
-    ,vk::enumerateInstanceExtensionProperties()
+                                                   , vk::enumerateInstanceExtensionProperties()
 #endif
   );
   const auto enabled_layers = gatherLayers(required_layers
 #ifndef NDEBUG
-  , vk::enumerateInstanceLayerProperties()
+                                           , vk::enumerateInstanceLayerProperties()
 #endif
   );
 
@@ -219,7 +219,7 @@ void VkTestSiteApp::createLogicalDevice() {
   auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
 
   std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
-  std::vector<std::vector<float>> queuePrioritiesStorage;
+  std::vector<std::vector<float> > queuePrioritiesStorage;
   std::set queue_families = {indices.graphics, indices.present, indices.transfer};
 
   for (uint32_t queue_family: queue_families) {
@@ -229,7 +229,7 @@ void VkTestSiteApp::createLogicalDevice() {
     }
 
     queuePrioritiesStorage.emplace_back(count, 1.0f);
-    auto& priorities = queuePrioritiesStorage.back();
+    auto &priorities = queuePrioritiesStorage.back();
 
     vk::DeviceQueueCreateInfo queue_create_info{};
     queue_create_info
@@ -565,6 +565,7 @@ void VkTestSiteApp::mainLoop() {
     const float deltaTime = currentTime - m_lastTime;
     m_lastTime = currentTime;
     glfwPollEvents();
+    m_texManager->checkTextureLoading();
     if (glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0) {
       ImGui_ImplGlfw_Sleep(10);
       continue;
@@ -846,6 +847,7 @@ void VkTestSiteApp::cleanup() {
   if (m_modelLoaded)
     m_model.reset();
   m_texManager.reset();
+  m_textureWorkerPool.reset();
   m_lightManager.reset();
   m_transferThread.reset();
   m_stagingBuffer.reset();

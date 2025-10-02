@@ -38,6 +38,7 @@
 #include "Pipeline.h"
 #include "Light.h"
 #include "StagingBuffer.h"
+#include "TextureWorkersPool.h"
 #include "TransferThread.h"
 
 struct alignas(16) UniformBufferObject {
@@ -89,6 +90,7 @@ private:
   vk::Queue m_transferQueue;
   std::unique_ptr<TransferThread> m_transferThread;
   std::unique_ptr<StagingBuffer> m_stagingBuffer;
+  std::unique_ptr<TextureWorkerPool> m_textureWorkerPool;
 
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms = {};

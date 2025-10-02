@@ -39,14 +39,16 @@ public:
     }
   }
 
-  static std::unique_ptr<Texture> createFromFile(
-    vk::Device device,
-    vma::Allocator allocator,
-    StagingBuffer &stagingBuffer,
-    TransferThread &transferThread,
-    const std::filesystem::path &path,
-    vk::Format format = vk::Format::eR8G8B8A8Unorm
-  );
+  void createImguiView() {
+    ZoneScoped;
+    if (m_useSampler) {
+      auto imguiTextureDs = ImGui_ImplVulkan_AddTexture(
+        m_sampler.get(), m_imageView.get(),
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+      m_imguiDS = vk::UniqueDescriptorSet(imguiTextureDs);
+    }
+  }
 
   vk::Image getImage() { return m_image.get(); };
   vk::ImageView getImageView() { return m_imageView.get(); };
@@ -91,87 +93,7 @@ inline Texture::Texture(
   if (useSampler) {
     m_sampler = createSamplerUnique(device);
     setObjectName(device, m_sampler.get(), std::format("{} sampler", name));
-
-    auto imguiTextureDs = ImGui_ImplVulkan_AddTexture(
-      m_sampler.get(), m_imageView.get(),
-      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    m_imguiDS = vk::UniqueDescriptorSet(imguiTextureDs);
   }
-}
-
-inline std::unique_ptr<Texture> Texture::createFromFile(
-  const vk::Device device,
-  const vma::Allocator allocator,
-  StagingBuffer &stagingBuffer,
-  TransferThread &transferThread,
-  const std::filesystem::path &path,
-  const vk::Format format
-) {
-  ZoneScoped;
-  int width, height, channels;
-  stbi_uc *origPixels = stbi_load(
-    path.string().c_str(),
-    &width,
-    &height,
-    &channels,
-    0
-  );
-  if (!origPixels) {
-    throw std::runtime_error("Failed to load texture image: " + path.string());
-  }
-
-  std::vector<uint8_t> pixels(width * height * 4);
-  const vk::DeviceSize originalSize = width * height * channels;
-  auto mipLevels = static_cast<uint32_t>(
-    std::floor(std::log2(std::max(width, height))) + 1
-  );
-
-  if (channels == 4) {
-    memcpy(pixels.data(), origPixels, originalSize);
-  } else if (channels == 3) {
-    for (int i = 0; i < width * height; ++i) {
-      pixels[i * 4 + 0] = origPixels[i * 3 + 0];
-      pixels[i * 4 + 1] = origPixels[i * 3 + 1];
-      pixels[i * 4 + 2] = origPixels[i * 3 + 2];
-      pixels[i * 4 + 3] = 255;
-    }
-  }
-  stbi_image_free(origPixels);
-
-  auto texture = std::make_unique<Texture>(
-    device, allocator,
-    width, height, mipLevels,
-    format,
-    vk::SampleCountFlagBits::e1,
-    vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eSampled
-    | vk::ImageUsageFlagBits::eTransferSrc
-    | vk::ImageUsageFlagBits::eTransferDst,
-    true,
-    path.filename().string()
-  );
-
-  auto alloc = stagingBuffer.allocateBlocking(pixels.size());
-  {
-    ZoneScopedN("Copy texture data");
-    memcpy(alloc.mapped, pixels.data(), pixels.size());
-  }
-
-  constexpr auto subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
-  const TextureUploadJob job{
-    .allocation = alloc,
-    .dstImage = texture->getImage(),
-    .subresourceRange = vk::ImageSubresourceRange(
-      vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1),
-    .region = vk::BufferImageCopy(
-      alloc.offset, 0, 0, subresource,
-      vk::Offset3D(0, 0, 0),
-      vk::Extent3D(width, height, 1)),
-  };
-  transferThread.pushJob(job);
-
-  return texture;
 }
 
 #endif
