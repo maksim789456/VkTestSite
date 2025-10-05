@@ -15,7 +15,7 @@
 #include <filesystem>
 
 struct TextureLoadJob {
-  uint32_t texIndex;
+  uint32_t texIndex = -1;
   std::filesystem::path filepath;
 };
 
@@ -24,6 +24,20 @@ struct TextureLoadDone {
   std::unique_ptr<Texture> texture;
 };
 
+/**
+ * @brief Thread pool for async loading of textures and place upload jobs
+ *
+ * Handles generic and KTX/KTX2 textures formats.
+ *
+ * Loading lifecycle:
+ * 1. Fill <code>TextureLoadJob</code> and pass it into
+ * <code>TextureWorkerPool::pushJob</code>
+ * 2. Next available thread from pool dequeue job, loading by stb_image or
+ * ktx library (depending on the extension), get allocation from staging buffer,
+ * copy into staging buffer and place upload job into transfer thread
+ * 3. After texture loading completed <code>TextureLoadDone</code> placed at
+ * done queue and ready texture can get by call <code>TextureWorkerPool::tryDequeueDone</code>
+ */
 class TextureWorkerPool {
 public:
   TextureWorkerPool(
@@ -52,11 +66,20 @@ public:
 
   TextureWorkerPool &operator=(const TextureWorkerPool &) = delete;
 
+  /**
+   * Enqueue a texture loading job
+   * @param job texture loading job
+   */
   void pushJob(const TextureLoadJob &job) {
     ZoneScoped;
     m_queue.enqueue(job);
   }
 
+  /**
+   * Try to dequeue a finished texture load job
+   * @param done Out param for finished job
+   * @return result of dequeue
+   */
   bool tryDequeueDone(TextureLoadDone &done) {
     return m_doneQueue.try_dequeue(done);
   }
