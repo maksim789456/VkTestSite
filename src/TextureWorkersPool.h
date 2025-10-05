@@ -6,6 +6,9 @@
 #include "concurrentqueue/concurrentqueue.h"
 #include <stb_image.h>
 
+#include <ktx.h>
+#include <ktxvulkan.h>
+
 #include "StagingBuffer.h"
 #include "TransferThread.h"
 #include "Texture.h"
@@ -98,8 +101,7 @@ private:
   std::unique_ptr<Texture> loadGenericTexture(const TextureLoadJob &job) {
     ZoneScoped;
     int width, height, channels;
-    stbi_uc *origPixels;
-    {
+    stbi_uc *origPixels; {
       ZoneScopedN("Texture Loading");
       origPixels = stbi_load(
         job.filepath.string().c_str(),
@@ -134,7 +136,7 @@ private:
     auto alloc = m_stagingBuffer.allocateBlocking(targetSize); {
       ZoneScopedN("Staging texture data copy");
       //memcpy(alloc.mapped, pixels.data(), pixels.size());
-      auto* mappedBytes = static_cast<std::uint8_t*>(alloc.mapped);
+      auto *mappedBytes = static_cast<std::uint8_t *>(alloc.mapped);
 
       if (channels == 4) {
         memcpy(alloc.mapped, origPixels, originalSize);
@@ -146,9 +148,7 @@ private:
           mappedBytes[i * 4 + 3] = 255;
         }
       }
-    }
-
-    {
+    } {
       ZoneScopedN("Free stbi ptr");
       stbi_image_free(origPixels);
     }
@@ -170,7 +170,74 @@ private:
   }
 
   std::unique_ptr<Texture> loadKtxTexture(const TextureLoadJob &job) {
-    return nullptr;
+    ZoneScoped;
+    ktxTexture2 *kTexture; {
+      ZoneScopedN("Load KTX2 Texture");
+      auto result = ktxTexture2_CreateFromNamedFile(
+        job.filepath.string().c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &kTexture);
+
+      if (result != KTX_SUCCESS) {
+        throw std::runtime_error("Failed to load KTX: " + job.filepath.string());
+      }
+    }
+    if (ktxTexture2_NeedsTranscoding(kTexture)) {
+      ZoneScopedN("Transcoding");
+      auto result = ktxTexture2_TranscodeBasis(
+        kTexture,
+        KTX_TTF_BC7_RGBA,
+        0);
+      if (result != KTX_SUCCESS) {
+        ktxTexture_Destroy(ktxTexture(kTexture));
+        throw std::runtime_error("Failed to transcode KTX2 texture");
+      }
+    }
+
+    auto width = kTexture->baseWidth;
+    auto height = kTexture->baseHeight;
+    auto mipLevels = kTexture->numLevels;
+    auto texture = std::make_unique<Texture>(
+      m_device, m_allocator,
+      width, height, mipLevels,
+      static_cast<vk::Format>(kTexture->vkFormat),
+      vk::SampleCountFlagBits::e1,
+      vk::ImageAspectFlagBits::eColor,
+      vk::ImageUsageFlagBits::eSampled
+      | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst,
+      true,
+      job.filepath.string()
+    );
+
+    ktx_size_t offset;
+    auto result = ktxTexture_GetImageOffset(
+      ktxTexture(kTexture), 0, 0, 0, &offset
+    );
+    if (result != KTX_SUCCESS) {
+      ktxTexture_Destroy(ktxTexture(kTexture));
+      throw std::runtime_error("Failed to get KTX2 image offset");
+    }
+
+    size_t size = ktxTexture_GetImageSize(ktxTexture(kTexture), 0);
+    auto alloc = m_stagingBuffer.allocateBlocking(size); {
+      ZoneScopedN("Staging texture data copy");
+      memcpy(alloc.mapped, kTexture->pData + offset, size);
+    }
+
+    constexpr auto subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
+    const TextureUploadJob copyJob{
+      .allocation = alloc,
+      .dstImage = texture->getImage(),
+      .subresourceRange = vk::ImageSubresourceRange(
+        vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1),
+      .region = vk::BufferImageCopy(
+        alloc.offset, 0, 0, subresource,
+        vk::Offset3D(0, 0, 0),
+        vk::Extent3D(width, height, 1)),
+    };
+    m_transferThread.pushJob(copyJob);
+
+    ktxTexture_Destroy(ktxTexture(kTexture));
+
+    return texture;
   }
 };
 
