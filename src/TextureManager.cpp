@@ -21,7 +21,7 @@ uint32_t TextureManager::loadTextureFromFile(
   const auto texturePath = textureParent / filename;
 
   if (const auto it = m_cache.find(filename.string()); it != m_cache.end()) {
-    std::cout << std::format("Reuse texture {} from {}", filename.string(), it->second) << "\n";
+    spdlog::info(std::format("Reuse texture {} from {}", filename.string(), it->second));
     return it->second;
   }
 
@@ -31,7 +31,7 @@ uint32_t TextureManager::loadTextureFromFile(
       break;
     }
   }
-  std::cout << std::format("Push texture loading job: file {} at slot {}", filename.string(), slot) << "\n";
+  spdlog::info(std::format("Push texture loading job: file {} at slot {}", filename.string(), slot));
 
   if (slot >= MAX_TEXTURE_PER_DESCRIPTOR) {
     throw std::runtime_error(

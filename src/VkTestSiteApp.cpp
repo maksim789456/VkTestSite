@@ -596,6 +596,17 @@ void VkTestSiteApp::mainLoop() {
       m_modelLoaded = false;
     }
 
+    if (m_modelLoaded && ImGui::Button("Dump VMA stats")) {
+      char* statsString = nullptr;
+      vmaBuildStatsString(m_allocator, &statsString, true);
+      {
+        std::ofstream outStats{ "VmaStats.json" };
+        outStats << statsString;
+        spdlog::info("VMA stats json saved at VmaStats.json file");
+      }
+      vmaFreeStatsString(m_allocator, statsString);
+    }
+
     ImGui::Separator();
     ImGui::Text("Select G-Buffer Debug Output");
     ImGui::RadioButton("None", &m_debugView, 0);
