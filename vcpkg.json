@@ -22,6 +22,12 @@
     "fmt",
     "concurrentqueue",
     "spdlog",
+    {
+      "name": "ktx",
+      "features": [
+        "vulkan"
+      ]
+    }
   ],
   "overrides": [
     {
