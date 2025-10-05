@@ -41,6 +41,10 @@
     {
       "name": "tracy",
       "version": "0.12.1"
+    },
+    {
+      "name": "assimp",
+      "version": "6.0.2"
     }
   ]
 }
