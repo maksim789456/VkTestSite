@@ -15,7 +15,7 @@
 #include <filesystem>
 
 struct TextureLoadJob {
-  uint32_t texIndex = -1;
+  uint32_t texIndex = UINT32_MAX;
   std::filesystem::path filepath;
 };
 
@@ -50,12 +50,14 @@ public:
       m_stagingBuffer(stagingBuffer), m_transferThread(transferThread) {
     ZoneScoped;
     for (int i = 0; i < threadCount; ++i) {
-      m_threads.emplace_back([this, i]() { threadLoop(i); });
+      m_threads.emplace_back([this, i] { threadLoop(i); });
     }
   }
 
   ~TextureWorkerPool() {
     m_stop = true;
+    for (size_t i = 0; i < m_threads.size(); ++i)
+      m_queue.enqueue(TextureLoadJob{});
     for (auto &tread: m_threads) {
       if (tread.joinable())
         tread.join();
@@ -97,9 +99,12 @@ private:
 
   void threadLoop(const uint32_t threadIdx) {
     tracy::SetThreadNameWithHint(std::format("Texture Worker {}", threadIdx).c_str(), UINT8_MAX);
-    while (!m_stop) {
+    while (true) {
       TextureLoadJob job{};
-      m_queue.wait_dequeue(job); {
+      m_queue.wait_dequeue(job);
+      if (m_stop.load()) {
+        break;
+      } {
         ZoneScoped;
         if (!job.filepath.has_extension())
           throw std::invalid_argument("Job filepath must be contains file extension");
