@@ -11,41 +11,13 @@ set(CMAKE_CXX_STANDARD 23)
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
-add_executable(VkTestSite src/main.cpp
-        src/VkTestSiteApp.cpp
-        src/VkTestSiteApp.h
-        src/utils.cpp
-        src/QueueFamilyIndices.cpp
-        src/Swapchain.cpp
-        src/Swapchain.h
-        src/ShaderModule.cpp
-        src/ShaderModule.h
-        src/Vertex.h
-        src/DescriptorSet.cpp
-        src/DescriptorSet.h
-        src/DescriptorPool.h
-        src/ImGUIStyle.h
-        src/Ubo.h
-        src/Ubo.tpp
-        src/VmaUsage.cpp
-        src/Model.cpp
-        src/Model.h
-        src/Mesh.h
-        src/Mesh.tpp
-        src/BufferUtils.cpp
-        src/Camera.h
-        src/Texture.h
-        src/texture.cpp
-        src/TextureManager.cpp
-        src/TextureManager.h
-        src/Pipeline.cpp
-        src/Pipeline.h
-        src/Light.h
-        src/TracyLogSink.h
-        src/StagingBuffer.h
-        src/TransferThread.h
-        src/TextureWorkersPool.h
+file(GLOB_RECURSE SRC CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/src/*.cpp"
+        "${CMAKE_SOURCE_DIR}/src/*.h"
 )
+
+add_executable(VkTestSite ${SRC})
+target_include_directories(VkTestSite PRIVATE "${CMAKE_SOURCE_DIR}/src")
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(VulkanHeaders CONFIG)
