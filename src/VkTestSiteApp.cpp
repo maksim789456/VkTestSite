@@ -13,7 +13,7 @@ const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
 };
 
-const std::vector<const char *> LAYERS = {
+const std::vector LAYERS = {
 #ifndef NDEBUG
   "VK_LAYER_KHRONOS_validation"
 #endif
@@ -122,7 +122,6 @@ void VkTestSiteApp::initVk() {
   glfwSetCursorPosCallback(m_window, mouseCallback);
 
 #ifndef NDEBUG
-  const auto qpreset = reinterpret_cast<PFN_vkResetQueryPoolEXT>(vkGetDeviceProcAddr(m_device, "vkResetQueryPoolEXT"));
   const auto gpdctd = reinterpret_cast<PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT>(vkGetInstanceProcAddr(
     m_instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"));
   const auto gct = reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(vkGetDeviceProcAddr(
@@ -597,10 +596,9 @@ void VkTestSiteApp::mainLoop() {
     }
 
     if (m_modelLoaded && ImGui::Button("Dump VMA stats")) {
-      char* statsString = nullptr;
-      vmaBuildStatsString(m_allocator, &statsString, true);
-      {
-        std::ofstream outStats{ "VmaStats.json" };
+      char *statsString = nullptr;
+      vmaBuildStatsString(m_allocator, &statsString, true); {
+        std::ofstream outStats{"VmaStats.json"};
         outStats << statsString;
         spdlog::info("VMA stats json saved at VmaStats.json file");
       }
@@ -619,7 +617,7 @@ void VkTestSiteApp::mainLoop() {
     ImGui::End();
 
     if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
-      static int selected = -1; {
+      static unsigned int selected = -1; {
         ImGui::BeginChild("Slots", ImVec2(ImGui::GetContentRegionAvail().x * 0.2f, 260), ImGuiChildFlags_None,
                           ImGuiWindowFlags_HorizontalScrollbar);
         for (const auto &id: m_texManager->m_textures | std::views::keys) {
@@ -635,13 +633,15 @@ void VkTestSiteApp::mainLoop() {
       if (selected != -1) {
         if (auto tex = m_texManager->getTexture(selected); tex.has_value()) {
           float scale = 1.0f;
-          if (tex.value()->width > tex.value()->height) {
-            scale = 256.0f / tex.value()->width;
+          const auto width = static_cast<float>(tex.value()->width);
+          const auto height = static_cast<float>(tex.value()->height);
+          if (width > height) {
+            scale = 256.0f / width;
           } else {
-            scale = 256.0f / tex.value()->height;
+            scale = 256.0f / height;
           }
 
-          ImVec2 previewSize(tex.value()->width * scale, tex.value()->height * scale);
+          ImVec2 previewSize(width * scale, height * scale);
           ImGui::Image(tex.value()->getImGuiID(), previewSize);
         }
       } else {
@@ -671,10 +671,10 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     const auto acquireResult = m_device.acquireNextImageKHR(
       m_swapchain.swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
     imageIndex = acquireResult.value;
-  } catch (vk::OutOfDateKHRError) {
+  } catch (vk::OutOfDateKHRError &) {
     recreateSwapchain();
     return;
-  } catch (vk::SystemError) {
+  } catch (vk::SystemError &) {
     throw std::runtime_error("Failed to acquire swapchain image!");
   }
 
@@ -698,9 +698,9 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   vk::Result presentResult;
   try {
     presentResult = m_presentQueue.presentKHR(presentInfo);
-  } catch (vk::OutOfDateKHRError) {
+  } catch (vk::OutOfDateKHRError &) {
     presentResult = vk::Result::eErrorOutOfDateKHR;
-  } catch (vk::SystemError) {
+  } catch (vk::SystemError &) {
     throw std::runtime_error("Failed to present swapchain image!");
   }
 

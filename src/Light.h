@@ -26,7 +26,7 @@ class LightManager {
 public:
   LightManager() = default;
 
-  LightManager(const vma::Allocator allocator, const uint32_t imageCount) : m_allocator(allocator) {
+  LightManager(const vma::Allocator allocator, const size_t imageCount) : m_allocator(allocator) {
     constexpr auto bufferSize = sizeof(LightData) * MAX_LIGHTS;
     m_ssboBuffers.resize(imageCount);
     m_ssboAllocations.resize(imageCount);
