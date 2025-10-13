@@ -1,6 +1,8 @@
 #include "Pipeline.h"
 
-vk::Pipeline PipelineBuilder::build() {
+vk::Pipeline PipelineBuilder::buildGraphics() {
+  if (m_shaderModule->isCompute())
+    throw std::runtime_error("Try to build graphics pipeline, but shader detected as compute!");
   std::vector shaderStages = {
     m_shaderModule->vertexPipelineInfo, m_shaderModule->fragmentPipelineInfo
   };
@@ -49,7 +51,27 @@ vk::Pipeline PipelineBuilder::build() {
 
   auto result = m_device.createGraphicsPipeline(nullptr, pipelineInfo);
   if (result.result != vk::Result::eSuccess) {
-    std::cerr << "Failed to create pipeline!" << std::endl;
+    std::cerr << "Failed to create graphics pipeline!" << std::endl;
+    abort();
+  }
+  setObjectName(m_device, result.value, m_name);
+  return result.value;
+}
+
+vk::Pipeline PipelineBuilder::buildCompute() {
+  if (!m_shaderModule->isCompute())
+    throw std::runtime_error("Try to build compute pipeline, but shader detected as graphics!");
+
+  auto pipelineInfo = vk::ComputePipelineCreateInfo({});
+  pipelineInfo
+      .setStage(m_shaderModule->computePipelineInfo)
+      .setLayout(m_pipelineLayout)
+      .setBasePipelineHandle(VK_NULL_HANDLE)
+      .setBasePipelineIndex(-1);
+
+  auto result = m_device.createComputePipeline(nullptr, pipelineInfo);
+  if (result.result != vk::Result::eSuccess) {
+    std::cerr << "Failed to create compute pipeline!" << std::endl;
     abort();
   }
   setObjectName(m_device, result.value, m_name);
