@@ -78,7 +78,8 @@ public:
     return colorAttachment;
   }
 
-  vk::Pipeline build();
+  vk::Pipeline buildGraphics();
+  vk::Pipeline buildCompute();
 
 private:
   std::string m_name;
