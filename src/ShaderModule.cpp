@@ -43,6 +43,13 @@ void ShaderModule::reflect(
       m_spvReflectModule->GetEntryPointName(i)
     );
 
+    if (m_isCompute && ep->shader_stage & SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT) {
+      computePipelineInfo = vk::PipelineShaderStageCreateInfo(
+        {}, vk::ShaderStageFlagBits::eCompute, m_module.get(), ep->name);
+      m_isCompute = true;
+      return;
+    }
+
     if (ep->shader_stage & SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) {
       vertexPipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eVertex, m_module.get(), ep->name);
