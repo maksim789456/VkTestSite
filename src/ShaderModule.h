@@ -16,12 +16,15 @@ class ShaderModule {
 public:
   vk::PipelineShaderStageCreateInfo vertexPipelineInfo;
   vk::PipelineShaderStageCreateInfo fragmentPipelineInfo;
+  vk::PipelineShaderStageCreateInfo computePipelineInfo;
 
   ShaderModule() = default;
   void load(const vk::Device &device, const std::string &path);
   void reflect(const vk::Device &device);
+  [[nodiscard]] bool isCompute() const {return m_isCompute;}
 
 private:
+  bool m_isCompute = false;
   std::vector<uint32_t> m_spv;
   vk::UniqueShaderModule m_module;
   std::unique_ptr<spv_reflect::ShaderModule> m_spvReflectModule;
