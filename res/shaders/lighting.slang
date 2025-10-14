@@ -67,4 +67,17 @@ public struct Light
 
       return 1.0 / (constant + linear * distance + exp * (distance * distance));
    }
+
+   public float computeLightRadius(float threshold)
+   {
+      float t = threshold / color.w;
+      float constant = direction.w;
+      float linear = info.z;
+      float exp = info.w;
+
+      float disc = linear * linear - 4.0*exp*(constant - 1.0/t);
+      if (disc < 0.0)
+        return 0.0;
+      return (-linear + sqrt(disc)) / (2.0 * exp);
+   }
 }
