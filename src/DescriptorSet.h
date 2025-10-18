@@ -29,7 +29,8 @@ public:
   void bind(
     const vk::CommandBuffer &commandBuffer,
     uint32_t currentFrameIdx,
-    const std::vector<uint32_t> &dynamicOffsets
+    const std::vector<uint32_t> &dynamicOffsets,
+    const vk::PipelineBindPoint bindPoint = vk::PipelineBindPoint::eGraphics
   ) const;
 
   void updateTexture(
