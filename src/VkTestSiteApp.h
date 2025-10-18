@@ -116,9 +116,11 @@ private:
 
   vk::DeviceSize m_clusterCount = 0;
   std::pair<vma::UniqueBuffer, vma::UniqueAllocation> m_clustersCount;
+  std::pair<vma::UniqueBuffer, vma::UniqueAllocation> m_clustersCountStaging;
   vk::DeviceSize m_clustersCountBufferSize = 0;
   std::pair<vma::UniqueBuffer, vma::UniqueAllocation> m_clustersIndices;
   vk::DeviceSize m_clustersIndicesBufferSize = 0;
+
   uint32_t m_currentFrame = 0;
   int32_t m_debugView = 0;
   float m_lastTime = 0.0f;

@@ -368,6 +368,10 @@ void VkTestSiteApp::createColorObjets() {
     m_allocator, m_clustersCountBufferSize,
     vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eTransferSrc,
     vma::MemoryUsage::eAutoPreferDevice);
+  m_clustersCountStaging = createBufferUnique(
+    m_allocator, m_clustersCountBufferSize,
+     vk::BufferUsageFlagBits::eTransferDst,
+    vma::MemoryUsage::eGpuToCpu);
   m_clustersIndices = createBufferUnique(
     m_allocator, m_clustersIndicesBufferSize,
     vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
@@ -555,6 +559,9 @@ void VkTestSiteApp::createCommandBuffers() {
   const auto commandBufInfo = vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary,
                                                             m_swapchain.imageViews.size());
   m_commandBuffers = m_device.allocateCommandBuffers(commandBufInfo);
+  for (int i = 0; i < m_commandBuffers.size(); ++i) {
+    setObjectName(m_device, m_commandBuffers[i], std::format("Primary Command Buffer {}", i));
+  }
 }
 
 void VkTestSiteApp::createSyncObjects() {
@@ -614,15 +621,16 @@ void VkTestSiteApp::mainLoop() {
       vmaFreeStatsString(m_allocator, statsString);
     }
 
+    static int zSlice = 0;
+    ImGui::SliderInt("Z Slice", &zSlice, 0, ZSLICES - 1);
+
     ImGui::Separator();
     ImGui::Text("Select G-Buffer Debug Output");
     ImGui::RadioButton("None", &m_debugView, 0);
     ImGui::RadioButton("Depth", &m_debugView, 1);
     ImGui::RadioButton("Albedo", &m_debugView, 2);
     ImGui::RadioButton("Normal", &m_debugView, 3);
-    ImGui::RadioButton("Normal (TBN)", &m_debugView, 4);
-    ImGui::RadioButton("Tangent (TBN)", &m_debugView, 5);
-    ImGui::RadioButton("BiTangent (TBN)", &m_debugView, 6);
+    ImGui::RadioButton("Clusters", &m_debugView, 4);
     ImGui::End();
 
     if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
@@ -659,6 +667,34 @@ void VkTestSiteApp::mainLoop() {
       ImGui::EndChild();
       ImGui::End();
     }
+
+    uint32_t* clusterCounts = static_cast<uint32_t *>(m_allocator.mapMemory(m_clustersCountStaging.second.get()));
+    float sliceW = m_swapchain.extent.width  / float(XSLICES);
+    float sliceH = m_swapchain.extent.height / float(YSLICES);
+    auto drawList = ImGui::GetForegroundDrawList();
+
+    for (uint32_t y = 0; y < YSLICES; ++y)
+    {
+      for (uint32_t x = 0; x < XSLICES; ++x)
+      {
+        uint32_t clusterIdx = x + y * XSLICES + zSlice * XSLICES * YSLICES;
+        uint32_t count = clusterCounts[clusterIdx];
+        if (count == 0) continue;
+
+        ImVec2 pos(
+            x * sliceW + sliceW * 0.5f,
+            y * sliceH + sliceH * 0.5f
+        );
+
+        ImU32 color = IM_COL32(255, 255, 0, 255);
+        if (count > 16) color = IM_COL32(255, 128, 0, 255);
+        if (count > 32) color = IM_COL32(255, 0, 0, 255);
+
+        drawList->AddText(pos, color, std::to_string(count).c_str());
+      }
+    }
+
+    m_allocator.unmapMemory(m_clustersCountStaging.second.get());
 
     m_lightManager->renderImGui();
     ImGui::Render();
@@ -797,6 +833,8 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eDepthStencilAttachmentOptimal,
       vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1)
     );
+    vk::BufferCopy copyRegion = {0, 0, m_clustersCountBufferSize};
+    commandBuffer.copyBuffer(m_clustersCount.first.get(), m_clustersCountStaging.first.get(), 1, &copyRegion);
   }
   commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
     // Model temp render
@@ -864,6 +902,8 @@ void VkTestSiteApp::cleanupSwapchain() {
   m_cameraMultiple.clear();
   m_clustersCount.first.reset();
   m_clustersCount.second.reset();
+  m_clustersCountStaging.first.reset();
+  m_clustersCountStaging.second.reset();
   m_clustersIndices.first.reset();
   m_clustersIndices.second.reset();
   m_geometryDescriptorSet.destroy(m_device);
