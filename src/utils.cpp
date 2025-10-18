@@ -434,6 +434,13 @@ static void cmdTransitionImageLayout2(
         if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
           return {AF2::eTransferWrite, AF2::eShaderRead, PF2::eTransfer, PF2::eFragmentShader};
         }
+        if (oldLayout == vk::ImageLayout::eDepthStencilReadOnlyOptimal
+            && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+          return {AF2::eDepthStencilAttachmentWrite, AF2::eShaderRead, PF2::eLateFragmentTests, PF2::eComputeShader};
+        }
+        if (oldLayout == vk::ImageLayout::eShaderReadOnlyOptimal && newLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal) {
+          return {AF2::eShaderRead, AF2::eDepthStencilAttachmentWrite, PF2::eComputeShader, PF2::eEarlyFragmentTests};
+        }
         throw std::runtime_error("Unsupported image layout transition!");
       }();
 
