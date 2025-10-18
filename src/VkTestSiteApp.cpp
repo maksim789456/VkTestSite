@@ -342,6 +342,21 @@ void VkTestSiteApp::createPipeline() {
         "Cluster Compute Pipeline"
       )
       .buildCompute();
+  m_cfrPipeline = PipelineBuilder(
+        m_device,
+        m_renderPass,
+        m_cfrDescriptorSet.getPipelineLayout(),
+        "../res/shaders/clustered_forward/forward.ep.slang.spv",
+        "Clustered Forward Pass Pipeline"
+      )
+      .withBindingDescriptions({Vertex::GetBindingDescription()})
+      .withAttributeDescriptions({Vertex::GetAttributeDescriptions()})
+      .withColorBlendAttachments({
+        PipelineBuilder::makeDefaultColorAttachmentState(),
+      })
+      .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
+      .withSubpass(0)
+      .buildGraphics();
 }
 
 void VkTestSiteApp::createColorObjets() {
