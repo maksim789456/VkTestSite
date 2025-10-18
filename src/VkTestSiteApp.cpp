@@ -104,7 +104,7 @@ void VkTestSiteApp::initVk() {
   m_transferThread = std::make_unique<TransferThread>(m_device, m_transferQueue, indices.transfer, *m_stagingBuffer);
   m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_device, m_allocator, *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
-    m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
+    m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_cfrDescriptorSet, 2);
 
   m_camera = std::make_unique<Camera>(m_swapchain.extent);
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -146,7 +146,7 @@ void VkTestSiteApp::initVk() {
   vkInitInfo.RenderPass = m_renderPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
   vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-  vkInitInfo.Subpass = 1;
+  vkInitInfo.Subpass = 0;
   vkInitInfo.DescriptorPoolSize = 100;
   vkInitInfo.CheckVkResultFn = [](const VkResult err) {
     if (err != VK_SUCCESS) std::cerr << "Imgui Vk Error: " << err << std::endl;
@@ -337,7 +337,7 @@ void VkTestSiteApp::createPipeline() {
   m_clusterComputePipeline = PipelineBuilder(
         m_device,
         m_renderPass,
-        m_lightingDescriptorSet.getPipelineLayout(),
+        m_clusterComputeDescriptorSet.getPipelineLayout(),
         "../res/shaders/clustered_forward/clusters.cmp.slang.spv",
         "Cluster Compute Pipeline"
       )
@@ -738,20 +738,18 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   auto colorClearValue = m_modelLoaded
                            ? vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f))
                            : vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
-  auto albedoClearValue = vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
-  auto normalClearValue = vk::ClearValue(vk::ClearColorValue(0.5f, 0.5f, 1.0f, 1.0f));
   auto depthClearValue = vk::ClearValue(vk::ClearDepthStencilValue(0.0f, 0));
-  auto clearValues = {depthClearValue, albedoClearValue, normalClearValue, colorClearValue};
+  auto clearValues = {depthClearValue, colorClearValue};
   const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, clearValues);
 
   commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
-    // Model temp render
+    // Depth pre-pass
     if (m_modelLoaded) {
       auto modelCmd = m_model->cmdDraw(
         *m_vkContext,
         m_framebuffers[imageIndex],
         m_renderPass,
-        m_geometryPipeline,
+        m_preDepthPipeline,
         m_swapchain,
         m_geometryDescriptorSet,
         0,
@@ -820,7 +818,7 @@ void VkTestSiteApp::recreateSwapchain() {
   createColorObjets();
   createDepthObjets();
   createDescriptorSet();
-  m_texManager->updateDS(m_geometryDescriptorSet);
+  m_texManager->updateDS(m_cfrDescriptorSet);
   createPipeline();
   createFramebuffers();
   createCommandBuffers();
