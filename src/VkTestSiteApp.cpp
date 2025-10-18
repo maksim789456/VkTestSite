@@ -774,37 +774,57 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       commandBuffer.executeCommands(modelCmd);
     }
   }
-  commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers); {
-    //Light subpass
-    auto lightCmd = m_lightingCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
-    auto lightBeginInfo = vk::CommandBufferBeginInfo(
-      vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
-      &inheritanceInfo);
-    lightCmd.reset();
-    lightCmd.begin(lightBeginInfo); {
-      TracyVkZone(m_vkContext, lightCmd, "Light Pass");
-      m_swapchain.cmdSetViewport(lightCmd);
-      m_swapchain.cmdSetScissor(lightCmd);
-      lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
-      m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
-      auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
-      lightCmd.pushConstants(m_lightingDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eFragment, 0,
-                             sizeof(lightPush), &lightPush);
-      lightCmd.draw(3, 1, 0, 0);
+  commandBuffer.endRenderPass(); {
+    cmdTransitionImageLayout2( // Depth buffer - depth pre-pass -> cluster compute read
+      commandBuffer, m_depth->getImage(),
+      vk::ImageLayout::eDepthStencilReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1)
+    );
+    commandBuffer.fillBuffer(m_clustersCount.first.get(), 0, VK_WHOLE_SIZE, 0);
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_clusterComputePipeline);
+    m_clusterComputeDescriptorSet.bind(commandBuffer, imageIndex, {}, vk::PipelineBindPoint::eCompute);
+    auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
+    commandBuffer.pushConstants(m_clusterComputeDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0,
+                                sizeof(lightPush), &lightPush);
+
+    const uint32_t numLights = m_lightManager->getCount();
+    const uint32_t workgroupSize = 64;
+    const uint32_t numGroups = (numLights + workgroupSize - 1) / workgroupSize;
+    commandBuffer.dispatch(numGroups, 1, 1);
+
+    cmdTransitionImageLayout2( // Depth buffer - cluster compute read -> CFR/ImGui usage
+      commandBuffer, m_depth->getImage(),
+      vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1)
+    );
+  }
+  commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
+    // Model temp render
+    if (m_modelLoaded) {
+      auto modelCmd = m_model->cmdDraw(
+        *m_vkContext,
+        m_framebuffers[imageIndex],
+        m_renderPass,
+        m_cfrPipeline,
+        m_swapchain,
+        m_cfrDescriptorSet,
+        0,
+        imageIndex,
+        1
+      );
+
+      commandBuffer.executeCommands(modelCmd);
     }
-    lightCmd.end();
-    commandBuffer.executeCommands(lightCmd);
   } {
     // ImGUI Secondary Cmd record -> exec
     auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 0, m_framebuffers[imageIndex]);
     auto imguiBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
     imguiCmd.reset();
     imguiCmd.begin(imguiBeginInfo); {
-      TracyVkZone(m_vkContext, imguiCmd, "Imgui");
+      //TracyVkZone(m_vkContext, imguiCmd, "Imgui");
       ImGui_ImplVulkan_RenderDrawData(draw_data, imguiCmd);
     }
     imguiCmd.end();
