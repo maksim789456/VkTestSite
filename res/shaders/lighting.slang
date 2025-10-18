@@ -70,6 +70,9 @@ public struct Light
 
    public float computeLightRadius(float threshold)
    {
+      if (position.w == LIGHT_DIRECTIONAL)
+        return 0.0;
+
       float t = threshold / color.w;
       float constant = direction.w;
       float linear = info.z;
