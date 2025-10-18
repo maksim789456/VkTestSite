@@ -52,6 +52,7 @@ public:
 
   vk::Image getImage() { return m_image.get(); };
   vk::ImageView getImageView() { return m_imageView.get(); };
+  vk::Sampler getSampler() { return m_sampler.get(); };
   ImTextureID getImGuiID() { return reinterpret_cast<ImTextureID>(static_cast<VkDescriptorSet>(m_imguiDS.get())); };
   const uint32_t width, height, mipLevels;
 
