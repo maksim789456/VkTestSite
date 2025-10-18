@@ -89,7 +89,8 @@ private:
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_geometryDescriptorSet;
-  DescriptorSet m_lightingDescriptorSet;
+  DescriptorSet m_clusterComputeDescriptorSet;
+  DescriptorSet m_cfrDescriptorSet;
   std::unique_ptr<Texture> m_depth;
   std::unique_ptr<Camera> m_camera;
 

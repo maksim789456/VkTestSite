@@ -425,9 +425,23 @@ void VkTestSiteApp::createDescriptorSet() {
     .bufferInfos = uniform_infos
   };
 
+  std::vector<vk::DescriptorBufferInfo> uniform_infos2;
+  for (const auto &ub: m_cameraMultiple) {
+    uniform_infos2.emplace_back(ub.getBufferInfo());
+  }
+  const auto ubo2Descriptor = DescriptorLayout{
+    .type = vk::DescriptorType::eUniformBuffer,
+    .stage = vk::ShaderStageFlagBits::eCompute,
+    .bindingFlags = {},
+    .shaderBinding = 0,
+    .count = 1,
+    .imageInfos = {},
+    .bufferInfos = uniform_infos2
+  };
+
   const auto lightsDescriptor = DescriptorLayout{
     .type = vk::DescriptorType::eStorageBuffer,
-    .stage = vk::ShaderStageFlagBits::eFragment,
+    .stage = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eCompute,
     .bindingFlags = {},
     .shaderBinding = 1,
     .count = 1,
@@ -435,64 +449,81 @@ void VkTestSiteApp::createDescriptorSet() {
     .bufferInfos = m_lightManager->getBufferInfos()
   };
 
+  const auto clusterCountDescriptor = DescriptorLayout{
+    .type = vk::DescriptorType::eStorageBuffer,
+    .stage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eCompute,
+    .bindingFlags = {},
+    .shaderBinding = 3,
+    .count = 1,
+    .imageInfos = {},
+    .bufferInfos = {
+      vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
+      vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
+      vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
+    }
+  };
+  const auto clusterIndicesDescriptor = DescriptorLayout{
+    .type = vk::DescriptorType::eStorageBuffer,
+    .stage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eCompute,
+    .bindingFlags = {},
+    .shaderBinding = 4,
+    .count = 1,
+    .imageInfos = {},
+    .bufferInfos = {
+      vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
+      vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
+      vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
+    }
+  };
+
   m_geometryDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
-      uboDescriptor,
-      DescriptorLayout{
-        .type = vk::DescriptorType::eCombinedImageSampler,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound |
-                        vk::DescriptorBindingFlagBits::eUpdateAfterBind,
-        .shaderBinding = 1,
-        .count = MAX_TEXTURE_PER_DESCRIPTOR,
-        .imageInfos = {},
-        .bufferInfos = {}
-      }
+      uboDescriptor
     }, {
       vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
     });
-
-  m_lightingDescriptorSet = DescriptorSet(
+  m_clusterComputeDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
+      ubo2Descriptor,
+      lightsDescriptor,
+      DescriptorLayout{
+        .type = vk::DescriptorType::eCombinedImageSampler,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
+        .shaderBinding = 2,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_depth->getSampler(), m_depth->getImageView(),
+                                  vk::ImageLayout::eShaderReadOnlyOptimal)
+        },
+        .bufferInfos = {}
+      },
+      clusterCountDescriptor,
+      clusterIndicesDescriptor,
+    }, {
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(LightPushConsts))
+    });
+  m_cfrDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
       uboDescriptor,
       lightsDescriptor,
       DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
+        .type = vk::DescriptorType::eCombinedImageSampler,
         .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
+        .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound |
+                        vk::DescriptorBindingFlagBits::eUpdateAfterBind,
         .shaderBinding = 2,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
+        .count = MAX_TEXTURE_PER_DESCRIPTOR,
+        .imageInfos = {},
         .bufferInfos = {}
       },
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 3,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 4,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
+      clusterCountDescriptor,
+      clusterIndicesDescriptor
     }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eFragment, 0, sizeof(LightPushConsts)) // Lights count
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
     });
 }
 
@@ -798,16 +829,22 @@ void VkTestSiteApp::recreateSwapchain() {
 void VkTestSiteApp::cleanupSwapchain() {
   m_uniforms.clear();
   m_cameraMultiple.clear();
+  m_clustersCount.first.reset();
+  m_clustersCount.second.reset();
+  m_clustersIndices.first.reset();
+  m_clustersIndices.second.reset();
   m_geometryDescriptorSet.destroy(m_device);
-  m_lightingDescriptorSet.destroy(m_device);
+  m_clusterComputeDescriptorSet.destroy(m_device);
+  m_cfrDescriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
   m_depth.reset();
   for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
   }
-  m_device.destroyPipeline(m_geometryPipeline);
-  m_device.destroyPipeline(m_lightingPipeline);
+  m_device.destroyPipeline(m_preDepthPipeline);
+  m_device.destroyPipeline(m_clusterComputePipeline);
+  m_device.destroyPipeline(m_cfrPipeline);
   m_device.destroyRenderPass(m_renderPass);
   m_swapchain.destroy(m_device);
 }
