@@ -50,7 +50,14 @@ struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
   glm::mat4 viewProj;
   glm::mat4 invViewProj;
+  glm::vec4 projInfo;
   uint32_t displayDebugTarget;
+};
+
+struct alignas(16) CameraData {
+  glm::mat4 view;
+  glm::mat4 viewProj;
+  glm::vec4 projInfo;
 };
 
 class VkTestSiteApp {
@@ -97,6 +104,7 @@ private:
 
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms = {};
+  std::vector<UniformBuffer<CameraData>> m_cameraMultiple = {};
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_lightingCommandBuffers;

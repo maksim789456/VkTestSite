@@ -409,6 +409,8 @@ void VkTestSiteApp::createUniformBuffers() {
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
     m_uniforms.emplace_back(m_allocator,
                             vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+    m_cameraMultiple.emplace_back(m_allocator,
+                                  vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
   }
 }
 
@@ -681,13 +683,22 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
 }
 
 void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
+  auto projInfo = glm::vec4(m_swapchain.extent.width, m_swapchain.extent.height, m_camera->getZNear(),
+                            m_camera->getZFar());
   auto ubo = UniformBufferObject{
     glm::vec4(m_camera->getViewPos(), 1.0f),
     m_camera->getViewProj(),
     m_camera->getInvViewProj(),
+    projInfo,
     static_cast<uint32_t>(m_debugView)
   };
+  auto cameraData = CameraData{
+    m_camera->getView(),
+    m_camera->getViewProj(),
+    projInfo
+  };
   m_uniforms[imageIndex].map(ubo);
+  m_cameraMultiple[imageIndex].map(cameraData);
   m_lightManager->map(imageIndex);
 }
 
@@ -791,6 +802,7 @@ void VkTestSiteApp::recreateSwapchain() {
 
 void VkTestSiteApp::cleanupSwapchain() {
   m_uniforms.clear();
+  m_cameraMultiple.clear();
   m_geometryDescriptorSet.destroy(m_device);
   m_lightingDescriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
