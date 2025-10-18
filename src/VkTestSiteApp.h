@@ -78,8 +78,6 @@ private:
   DescriptorSet m_geometryDescriptorSet;
   DescriptorSet m_lightingDescriptorSet;
   std::unique_ptr<Texture> m_depth;
-  std::unique_ptr<Texture> m_albedo;
-  std::unique_ptr<Texture> m_normal;
   std::unique_ptr<Camera> m_camera;
 
   std::unique_ptr<Model> m_model;

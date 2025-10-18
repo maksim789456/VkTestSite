@@ -350,24 +350,6 @@ void VkTestSiteApp::createPipeline() {
 }
 
 void VkTestSiteApp::createColorObjets() {
-  m_albedo = std::make_unique<Texture>(
-    m_device, m_allocator,
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
-    vk::Format::eR8G8B8A8Unorm,
-    vk::SampleCountFlagBits::e1,
-    vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Albedo G-Buffer"
-  );
-  m_normal = std::make_unique<Texture>(
-    m_device, m_allocator,
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
-    vk::Format::eR16G16B16A16Sfloat,
-    vk::SampleCountFlagBits::e1,
-    vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Normal G-Buffer"
-  );
 }
 
 void VkTestSiteApp::createDepthObjets() {
@@ -379,8 +361,9 @@ void VkTestSiteApp::createDepthObjets() {
     depthFormat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eDepth,
-    vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Depth attachment"
+    vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment |
+    vk::ImageUsageFlagBits::eSampled,
+    true, "Depth attachment"
   );
 
   transitionImageLayout(
@@ -398,8 +381,6 @@ void VkTestSiteApp::createFramebuffers() {
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
     std::vector attachments = {
       m_depth->getImageView(),
-      m_albedo->getImageView(),
-      m_normal->getImageView(),
       m_swapchain.imageViews[i]
     };
 
@@ -803,8 +784,6 @@ void VkTestSiteApp::cleanupSwapchain() {
   m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
   m_depth.reset();
-  m_albedo.reset();
-  m_normal.reset();
   for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
   }
