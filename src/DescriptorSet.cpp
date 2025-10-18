@@ -97,10 +97,11 @@ void DescriptorSet::create(const vk::Device &device, const vk::DescriptorPool &d
 void DescriptorSet::bind(
   const vk::CommandBuffer &commandBuffer,
   const uint32_t currentFrameIdx,
-  const std::vector<uint32_t> &dynamicOffsets
+  const std::vector<uint32_t> &dynamicOffsets,
+  const vk::PipelineBindPoint bindPoint
 ) const {
   commandBuffer.bindDescriptorSets(
-    vk::PipelineBindPoint::eGraphics,
+    bindPoint,
     m_pipelineLayout,
     0,
     m_descriptorSets[currentFrameIdx],
