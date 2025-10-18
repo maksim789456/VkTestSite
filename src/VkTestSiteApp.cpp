@@ -319,34 +319,29 @@ void VkTestSiteApp::createRenderPass() {
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
-  m_geometryPipeline = PipelineBuilder(
+  m_preDepthPipeline = PipelineBuilder(
         m_device,
         m_renderPass,
         m_geometryDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/geometry.ep.slang.spv",
-        "Geometry Pass Pipeline"
+        "../res/shaders/clustered_forward/pre_depth.ep.slang.spv",
+        "Depth Pre-Pass Pipeline"
       )
       .withBindingDescriptions({Vertex::GetBindingDescription()})
       .withAttributeDescriptions({Vertex::GetAttributeDescriptions()})
       .withColorBlendAttachments({
         PipelineBuilder::makeDefaultColorAttachmentState(),
-        PipelineBuilder::makeDefaultColorAttachmentState(),
       })
       .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
       .withSubpass(0)
-      .build();
-
-  m_lightingPipeline = PipelineBuilder(
+      .buildGraphics();
+  m_clusterComputePipeline = PipelineBuilder(
         m_device,
         m_renderPass,
         m_lightingDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/light.ep.slang.spv",
-        "Lighting Pass Pipeline"
+        "../res/shaders/clustered_forward/clusters.cmp.slang.spv",
+        "Cluster Compute Pipeline"
       )
-      .depthStencil(false, false, vk::CompareOp::eAlways)
-      .withCullMode(vk::CullModeFlagBits::eNone)
-      .withSubpass(1)
-      .build();
+      .buildCompute();
 }
 
 void VkTestSiteApp::createColorObjets() {

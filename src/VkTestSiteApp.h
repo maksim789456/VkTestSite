@@ -83,8 +83,9 @@ private:
   vk::Queue m_presentQueue;
   Swapchain m_swapchain;
   vk::RenderPass m_renderPass;
-  vk::Pipeline m_geometryPipeline;
-  vk::Pipeline m_lightingPipeline;
+  vk::Pipeline m_preDepthPipeline;
+  vk::Pipeline m_clusterComputePipeline;
+  vk::Pipeline m_cfrPipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_geometryDescriptorSet;
