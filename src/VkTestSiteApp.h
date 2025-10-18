@@ -59,7 +59,7 @@ private:
 
   vk::detail::DynamicLoader m_loader;
   vk::Instance m_instance;
-  VmaAllocator m_allocator = nullptr;
+  vma::Allocator m_allocator = nullptr;
 #ifndef NDEBUG
   vk::DebugUtilsMessengerEXT m_debugMessenger;
 #endif

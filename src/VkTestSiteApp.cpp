@@ -73,11 +73,13 @@ void VkTestSiteApp::initVk() {
   allocatorInfo.physicalDevice = m_physicalDevice;
   allocatorInfo.device = m_device;
   allocatorInfo.instance = m_instance;
-  auto allocCreateResult = vmaCreateAllocator(&allocatorInfo, &m_allocator);
+  VmaAllocator vmaAllocator;
+  auto allocCreateResult = vmaCreateAllocator(&allocatorInfo, &vmaAllocator);
   if (allocCreateResult != VK_SUCCESS) {
     std::cerr << "vmaCreateAllocator failed with error code: " << allocCreateResult << std::endl;
     throw std::runtime_error("Failed to create VMA allocator");
   }
+  m_allocator = vma::Allocator(vmaAllocator);
 
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
   createRenderPass();
