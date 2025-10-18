@@ -284,19 +284,9 @@ void VkTestSiteApp::createRenderPass() {
   const auto attachments = {
     vk::AttachmentDescription( // Depth
       {}, vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e1,
-      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
       vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilReadOnlyOptimal),
-    vk::AttachmentDescription( // Albedo
-      {}, vk::Format::eR8G8B8A8Unorm, vk::SampleCountFlagBits::e1,
-      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-      vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
-    vk::AttachmentDescription( // Normal
-      {}, vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
-      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-      vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
     vk::AttachmentDescription( // Final color (swapchain)
       {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
@@ -304,43 +294,24 @@ void VkTestSiteApp::createRenderPass() {
       vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR)
   };
 
-  auto colorRefs = {
-    vk::AttachmentReference{1, vk::ImageLayout::eColorAttachmentOptimal}, //Albedo
-    vk::AttachmentReference{2, vk::ImageLayout::eColorAttachmentOptimal} // Normal
-  };
   constexpr auto depthRef = vk::AttachmentReference{0, vk::ImageLayout::eDepthStencilAttachmentOptimal};
+  const vk::AttachmentReference colorRef{1, vk::ImageLayout::eColorAttachmentOptimal};
+  const auto color = {colorRef};
   auto subpass0 = vk::SubpassDescription(
     {}, vk::PipelineBindPoint::eGraphics,
-    {}, colorRefs, {}, &depthRef
-  );
-
-  auto inputRefs = {
-    vk::AttachmentReference{0, vk::ImageLayout::eShaderReadOnlyOptimal}, //Depth
-    vk::AttachmentReference{1, vk::ImageLayout::eShaderReadOnlyOptimal}, //Albedo
-    vk::AttachmentReference{2, vk::ImageLayout::eShaderReadOnlyOptimal} // Normal
-  };
-  constexpr auto colorRef = vk::AttachmentReference{3, vk::ImageLayout::eColorAttachmentOptimal};
-  auto subpass1 = vk::SubpassDescription(
-    {}, vk::PipelineBindPoint::eGraphics,
-    inputRefs, colorRef
+    {}, color, {}, &depthRef
   );
 
   auto dependencies = {
     vk::SubpassDependency(
       vk::SubpassExternal, 0,
-      vk::PipelineStageFlagBits::eBottomOfPipe,
       vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-      vk::AccessFlagBits::eMemoryRead,
+      vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
+      {},
       vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite),
-    vk::SubpassDependency(
-      0, 1,
-      vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-      vk::PipelineStageFlagBits::eFragmentShader,
-      vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-      vk::AccessFlagBits::eInputAttachmentRead),
   };
 
-  std::vector subpasses = {subpass0, subpass1};
+  std::vector subpasses = {subpass0};
   const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpasses, dependencies);
 
   m_renderPass = m_device.createRenderPass(renderPassInfo);
