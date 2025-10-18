@@ -41,6 +41,11 @@
 #include "TextureWorkersPool.h"
 #include "TransferThread.h"
 
+#define XSLICES 16
+#define YSLICES 9
+#define ZSLICES 24
+#define MAX_LIGHTS_PER_CLUSTER 64
+
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
   glm::mat4 viewProj;
@@ -99,6 +104,11 @@ private:
   std::vector<vk::Semaphore> m_imageAvailable;
   std::vector<vk::Semaphore> m_renderFinished;
 
+  vk::DeviceSize m_clusterCount = 0;
+  std::pair<vma::UniqueBuffer, vma::UniqueAllocation> m_clustersCount;
+  vk::DeviceSize m_clustersCountBufferSize = 0;
+  std::pair<vma::UniqueBuffer, vma::UniqueAllocation> m_clustersIndices;
+  vk::DeviceSize m_clustersIndicesBufferSize = 0;
   uint32_t m_currentFrame = 0;
   int32_t m_debugView = 0;
   float m_lastTime = 0.0f;

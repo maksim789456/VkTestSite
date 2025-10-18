@@ -350,6 +350,18 @@ void VkTestSiteApp::createPipeline() {
 }
 
 void VkTestSiteApp::createColorObjets() {
+  m_clusterCount = XSLICES * YSLICES * ZSLICES;
+  m_clustersCountBufferSize = m_clusterCount * sizeof(uint32_t);
+  m_clustersIndicesBufferSize = m_clusterCount * MAX_LIGHTS_PER_CLUSTER * sizeof(uint32_t);
+
+  m_clustersCount = createBufferUnique(
+    m_allocator, m_clustersCountBufferSize,
+    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eTransferSrc,
+    vma::MemoryUsage::eAutoPreferDevice);
+  m_clustersIndices = createBufferUnique(
+    m_allocator, m_clustersIndicesBufferSize,
+    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    vma::MemoryUsage::eAutoPreferDevice);
 }
 
 void VkTestSiteApp::createDepthObjets() {
