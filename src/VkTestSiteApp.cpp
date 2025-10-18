@@ -1,7 +1,7 @@
 #include "VkTestSiteApp.h"
 
-#define WINDOW_WIDTH 1024
-#define WINDOW_HEIGHT 768
+#define WINDOW_WIDTH 1280
+#define WINDOW_HEIGHT 720
 #define MAX_FRAME_IN_FLIGHT 2 //0..2 -> 3 frames
 #define MAX_MATERIAL_PER_DESCRIPTOR 64
 
@@ -104,7 +104,7 @@ void VkTestSiteApp::initVk() {
   m_texManager = std::make_unique<TextureManager>(
     m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
 
-  m_camera = std::make_unique<Camera>();
+  m_camera = std::make_unique<Camera>(m_swapchain.extent);
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
     const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
     if (ImGui::GetIO().WantCaptureKeyboard)

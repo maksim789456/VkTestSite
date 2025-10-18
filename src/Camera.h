@@ -9,6 +9,10 @@
 
 class Camera {
 public:
+  explicit Camera(const vk::Extent2D viewportSize) {
+    aspectRatio = static_cast<float>(viewportSize.width) / static_cast<float>(viewportSize.height);
+  }
+
   static glm::mat4 perspectiveRZ(float fovy, float aspect, float zNear, float zFar) {
     float f = 1.0f / tan(fovy * 0.5f);
 
@@ -27,7 +31,7 @@ public:
     position += offset;
 
     const auto translation = glm::translate(glm::mat4(1.0f), position);
-    const auto view = glm::inverse(translation * rotationMatrix);
+    view = glm::inverse(translation * rotationMatrix);
     auto proj = perspectiveRZ(fov, aspectRatio, zNear, zFar);
     viewProj = proj * view;
   }
@@ -82,9 +86,13 @@ public:
     rotation = glm::normalize(yaw_rotation * rotation * pitch_rotation);
   }
 
+  [[nodiscard]] glm::mat4 getView() const { return view; }
   [[nodiscard]] glm::mat4 getViewProj() const { return viewProj; }
   [[nodiscard]] glm::mat4 getInvViewProj() const { return glm::inverse(viewProj); }
   [[nodiscard]] glm::vec3 getViewPos() const { return position; }
+
+  [[nodiscard]] float getZNear() const { return zNear; }
+  [[nodiscard]] float getZFar() const { return zFar; }
 
   float aspectRatio = 1.33f;
 
@@ -100,6 +108,7 @@ private:
   bool first_move = false;
   double last_x = 0, last_y = 0;
 
+  glm::mat4 view = glm::mat4(1.0f);
   glm::mat4 viewProj = glm::mat4(1.0f);
 };
 
