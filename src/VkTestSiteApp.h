@@ -109,7 +109,7 @@ private:
   std::vector<UniformBuffer<CameraData>> m_cameraMultiple = {};
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
-  std::vector<vk::UniqueCommandBuffer> m_lightingCommandBuffers;
+  std::vector<vk::UniqueCommandBuffer> m_computeCommandBuffers;
   std::vector<vk::Fence> m_inFlight;
   std::vector<vk::Semaphore> m_imageAvailable;
   std::vector<vk::Semaphore> m_renderFinished;

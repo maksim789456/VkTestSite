@@ -92,10 +92,10 @@ void VkTestSiteApp::initVk() {
   createDepthObjets();
   createDescriptorSet();
   createPipeline();
-  const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
+  const auto computeCmdsInfo = vk::CommandBufferAllocateInfo(
     m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
   );
-  m_lightingCommandBuffers = m_device.allocateCommandBuffersUnique(lightCmdsInfo);
+  m_computeCommandBuffers = m_device.allocateCommandBuffersUnique(computeCmdsInfo);
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
@@ -884,7 +884,7 @@ void VkTestSiteApp::cleanup() {
   m_transferThread.reset();
   m_stagingBuffer.reset();
   m_imguiCommandBuffers.clear();
-  m_lightingCommandBuffers.clear();
+  m_computeCommandBuffers.clear();
   m_device.destroyCommandPool(m_commandPool);
   vmaDestroyAllocator(m_allocator);
   m_device.destroy();
