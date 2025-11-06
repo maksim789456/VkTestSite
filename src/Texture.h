@@ -43,7 +43,7 @@ public:
     ZoneScoped;
     if (m_useSampler) {
       auto imguiTextureDs = ImGui_ImplVulkan_AddTexture(
-        m_sampler.get(), m_imageView.get(),
+        m_sampler.get(), getImageView(),
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
       m_imguiDS = vk::UniqueDescriptorSet(imguiTextureDs);
@@ -51,7 +51,7 @@ public:
   }
 
   vk::Image getImage() { return m_image.get(); };
-  vk::ImageView getImageView() { return m_imageView.get(); };
+  vk::ImageView getImageView(const uint32_t mipLevel = 0) { return m_imageViews.at(mipLevel).get(); };
   vk::Sampler getSampler() { return m_sampler.get(); };
   ImTextureID getImGuiID() { return reinterpret_cast<ImTextureID>(static_cast<VkDescriptorSet>(m_imguiDS.get())); };
   const uint32_t width, height, mipLevels;
@@ -59,7 +59,7 @@ public:
 private:
   vma::UniqueImage m_image;
   vma::UniqueAllocation m_imageAlloc;
-  vk::UniqueImageView m_imageView;
+  std::vector<vk::UniqueImageView> m_imageViews;
   vk::UniqueDescriptorSet m_imguiDS;
 
   bool m_useSampler = false;
@@ -89,8 +89,11 @@ inline Texture::Texture(
   auto info = allocator.getAllocationInfo(m_imageAlloc.get());
   setObjectName(device, info.deviceMemory, std::format("{} memory", name));
 
-  m_imageView = createImageViewUnique(device, m_image.get(), format, aspects, mipLevels);
-  setObjectName(device, m_imageView.get(), std::format("{} view", name));
+  for (uint32_t mip = 0; mip < mipLevels; ++mip) {
+    m_imageViews.emplace_back(createImageViewUnique(device, m_image.get(), format, aspects, mip));
+    setObjectName(device, getImageView(mip), std::format("{} view (mip = {})", name, mip));
+  }
+
   if (useSampler) {
     m_sampler = createSamplerUnique(device);
     setObjectName(device, m_sampler.get(), std::format("{} sampler", name));
