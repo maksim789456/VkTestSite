@@ -45,6 +45,7 @@
 #define YSLICES 9
 #define ZSLICES 24
 #define MAX_LIGHTS_PER_CLUSTER 64
+#define WORKGROUP_SIZE 64
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
@@ -57,7 +58,12 @@ struct alignas(16) UniformBufferObject {
 struct alignas(16) CameraData {
   glm::mat4 view;
   glm::mat4 viewProj;
+  glm::mat4 invViewProj;
   glm::vec4 projInfo;
+};
+
+struct alignas(16) HiZDownsampleConsts {
+  glm::ivec4 srcDstWH; // x: srcW, y: srcH, z: dstW, w: dstH
 };
 
 class VkTestSiteApp {
@@ -84,14 +90,17 @@ private:
   Swapchain m_swapchain;
   vk::RenderPass m_renderPass;
   vk::Pipeline m_preDepthPipeline;
+  vk::Pipeline m_hiZDownsampleComputePipeline;
   vk::Pipeline m_clusterComputePipeline;
   vk::Pipeline m_cfrPipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_geometryDescriptorSet;
   DescriptorSet m_clusterComputeDescriptorSet;
+  DescriptorSet m_hiZDownsampleDescriptorSet;
   DescriptorSet m_cfrDescriptorSet;
   std::unique_ptr<Texture> m_depth;
+  std::unique_ptr<Texture> m_hiZ;
   std::unique_ptr<Camera> m_camera;
 
   std::unique_ptr<Model> m_model;
@@ -145,6 +154,7 @@ private:
   void render(ImDrawData* draw_data, float deltaTime);
   void updateUniformBuffer(uint32_t imageIndex);
   void recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
+  void buildHiZ(const vk::CommandBuffer& commandBuffer, const uint32_t imageIndex) const;
   void recreateSwapchain();
   void cleanupSwapchain();
   void cleanup();
