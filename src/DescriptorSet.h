@@ -2,6 +2,7 @@
 #define DESCRIPTORSET_H
 
 #include <vulkan/vulkan.hpp>
+#include "utils.cpp"
 
 struct DescriptorLayout {
   vk::DescriptorType type;
@@ -16,14 +17,16 @@ struct DescriptorLayout {
 
 class DescriptorSet {
 public:
-  DescriptorSet();
+  DescriptorSet() = default;
 
   DescriptorSet(
     const vk::Device &device,
     const vk::DescriptorPool &descriptorPool,
     uint32_t descriptorSetCount,
     const std::vector<DescriptorLayout> &layouts,
-    const std::vector<vk::PushConstantRange> &push_consts
+    const std::vector<vk::PushConstantRange> &push_consts,
+    const std::string &name = "Descriptor Set",
+    vk::DescriptorSetLayoutCreateFlags dslFlags = {}
   );
 
   void bind(
@@ -37,7 +40,8 @@ public:
     const vk::Device &device,
     uint32_t shaderBinding,
     uint32_t textureIndex,
-    const vk::DescriptorImageInfo &imageInfo
+    const vk::DescriptorImageInfo &imageInfo,
+    const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler
   ) const;
 
   [[nodiscard]] const vk::PipelineLayout &getPipelineLayout() const;
@@ -48,20 +52,25 @@ private:
   uint32_t m_descriptorSetCount = 0;
   std::vector<DescriptorLayout> m_descriptorLayouts;
   //std::vector<vk::DescriptorSetLayoutBinding> m_layoutsBindings;
+  bool m_isPushDescriptor = false;
 
   vk::PipelineLayout m_pipelineLayout;
   vk::DescriptorSetLayout m_descriptorSetLayout;
   std::vector<vk::DescriptorSet> m_descriptorSets;
+  std::vector<vk::WriteDescriptorSet> m_descriptorSetWrites;
 
   void setup_layout(
     const vk::Device &device,
     const std::vector<DescriptorLayout> &layouts,
-    const std::vector<vk::PushConstantRange> &push_consts
+    const std::vector<vk::PushConstantRange> &push_consts,
+    const std::string &name,
+    vk::DescriptorSetLayoutCreateFlags dslFlags = {}
   );
 
   void create(
     const vk::Device &device,
-    const vk::DescriptorPool &descriptorPool
+    const vk::DescriptorPool &descriptorPool,
+    const std::string &name
   );
 };
 
