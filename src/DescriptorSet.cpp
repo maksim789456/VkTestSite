@@ -1,17 +1,18 @@
 #include "DescriptorSet.h"
 
-DescriptorSet::DescriptorSet() = default;
-
 DescriptorSet::DescriptorSet(
   const vk::Device &device,
   const vk::DescriptorPool &descriptorPool,
   const uint32_t descriptorSetCount,
   const std::vector<DescriptorLayout> &layouts,
-  const std::vector<vk::PushConstantRange> &push_consts
+  const std::vector<vk::PushConstantRange> &push_consts,
+  const std::string &name,
+  vk::DescriptorSetLayoutCreateFlags dslFlags
 ) {
   m_descriptorSetCount = descriptorSetCount;
-  setup_layout(device, layouts, push_consts);
-  create(device, descriptorPool);
+  m_isPushDescriptor = static_cast<bool>(dslFlags & vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor);
+  setup_layout(device, layouts, push_consts, name, dslFlags);
+  create(device, descriptorPool, name);
 }
 
 /**
@@ -19,11 +20,14 @@ DescriptorSet::DescriptorSet(
  * @param device refence to logical device
  * @param layouts DS layouts
  * @param push_consts Push constants info
+ * @param dslFlags DS layout create flags
  */
 void DescriptorSet::setup_layout(
   const vk::Device &device,
   const std::vector<DescriptorLayout> &layouts,
-  const std::vector<vk::PushConstantRange> &push_consts
+  const std::vector<vk::PushConstantRange> &push_consts,
+  const std::string &name,
+  vk::DescriptorSetLayoutCreateFlags dslFlags
 ) {
   m_descriptorLayouts = layouts;
 
@@ -38,18 +42,20 @@ void DescriptorSet::setup_layout(
     );
   }
 
-  const auto dslFlags =
+  dslFlags =
       layoutBindingsAllFlags & vk::DescriptorBindingFlagBits::eUpdateAfterBind
-        ? vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool
-        : vk::DescriptorSetLayoutCreateFlags{};
+        ? dslFlags | vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool
+        : dslFlags;
 
   auto dslInfo = vk::DescriptorSetLayoutCreateInfo(dslFlags, layoutBindings);
   const auto flagsInfo = vk::DescriptorSetLayoutBindingFlagsCreateInfo(layoutBindingsFlags);
   dslInfo.pNext = &flagsInfo;
   m_descriptorSetLayout = device.createDescriptorSetLayout(dslInfo);
+  setObjectName(device, m_descriptorSetLayout, std::format("{} layout", name));
 
   const auto plInfo = vk::PipelineLayoutCreateInfo({}, m_descriptorSetLayout, push_consts);
   m_pipelineLayout = device.createPipelineLayout(plInfo);
+  setObjectName(device, m_pipelineLayout, std::format("{} pipeline layout", name));
 }
 
 /**
@@ -58,38 +64,50 @@ void DescriptorSet::setup_layout(
  * @param device refence to logical device
  * @param descriptorPool refence to descriptor pool, pool must contain an enough items
  */
-void DescriptorSet::create(const vk::Device &device, const vk::DescriptorPool &descriptorPool) {
-  const auto setLayouts = std::vector(m_descriptorSetCount, m_descriptorSetLayout);
-  const auto info = vk::DescriptorSetAllocateInfo(descriptorPool, setLayouts);
-  m_descriptorSets = device.allocateDescriptorSets(info);
+void DescriptorSet::create(
+  const vk::Device &device,
+  const vk::DescriptorPool &descriptorPool,
+  const std::string &name
+) {
+  if (!m_isPushDescriptor) {
+    const auto setLayouts = std::vector(m_descriptorSetCount, m_descriptorSetLayout);
+    const auto info = vk::DescriptorSetAllocateInfo(descriptorPool, setLayouts);
+    m_descriptorSets = device.allocateDescriptorSets(info);
 
-  auto descriptorWrites = std::vector<vk::WriteDescriptorSet>();
+    for (int i = 0; i < m_descriptorSetCount; ++i) {
+      setObjectName(device, m_descriptorSets[i], std::format("{} {}", name, i));
+    }
+  }
+
   for (uint32_t i = 0; i < m_descriptorSetCount; i++) {
-    descriptorWrites.clear();
-    const auto &descriptorSet = m_descriptorSets[i];
+    m_descriptorSetWrites.clear();
+    const auto &descriptorSet = !m_isPushDescriptor ? m_descriptorSets[i] : nullptr;
     for (const auto &layout: m_descriptorLayouts) {
       if (layout.type == vk::DescriptorType::eUniformBuffer ||
           layout.type == vk::DescriptorType::eStorageBuffer) {
         auto writeInfo = vk::WriteDescriptorSet(
           descriptorSet, layout.shaderBinding, {}, layout.count, layout.type,
           {}, &layout.bufferInfos.at(i));
-        descriptorWrites.push_back(writeInfo);
+        m_descriptorSetWrites.push_back(writeInfo);
       } else if (layout.type == vk::DescriptorType::eCombinedImageSampler ||
-                 layout.type == vk::DescriptorType::eInputAttachment) {
+                 layout.type == vk::DescriptorType::eInputAttachment || layout.type ==
+                 vk::DescriptorType::eStorageImage) {
         try {
           for (int y = 0; y < layout.count; y++) {
             auto writeInfo = vk::WriteDescriptorSet(
               descriptorSet, layout.shaderBinding, {}, layout.count, layout.type,
               &layout.imageInfos.at(y));
-            descriptorWrites.push_back(writeInfo);
+            m_descriptorSetWrites.push_back(writeInfo);
           }
         } catch (std::out_of_range &_) {
         }
       }
     }
 
-    for (const auto &descriptorWrite: descriptorWrites) {
-      device.updateDescriptorSets(descriptorWrite, {});
+    if (!m_isPushDescriptor) {
+      for (const auto &descriptorWrite: m_descriptorSetWrites) {
+        device.updateDescriptorSets(descriptorWrite, {});
+      }
     }
   }
 }
@@ -100,27 +118,37 @@ void DescriptorSet::bind(
   const std::vector<uint32_t> &dynamicOffsets,
   const vk::PipelineBindPoint bindPoint
 ) const {
-  commandBuffer.bindDescriptorSets(
-    bindPoint,
-    m_pipelineLayout,
-    0,
-    m_descriptorSets[currentFrameIdx],
-    dynamicOffsets
-  );
+  if (m_isPushDescriptor) {
+    commandBuffer.pushDescriptorSetKHR(
+      bindPoint,
+      m_pipelineLayout,
+      0,
+      m_descriptorSetWrites
+    );
+  } else {
+    commandBuffer.bindDescriptorSets(
+      bindPoint,
+      m_pipelineLayout,
+      0,
+      m_descriptorSets[currentFrameIdx],
+      dynamicOffsets
+    );
+  }
 }
 
 void DescriptorSet::updateTexture(
   const vk::Device &device,
   const uint32_t shaderBinding,
   const uint32_t textureIndex,
-  const vk::DescriptorImageInfo &imageInfo
+  const vk::DescriptorImageInfo &imageInfo,
+  const vk::DescriptorType type
 ) const {
   for (auto &descriptorSet: m_descriptorSets) {
     const auto write = vk::WriteDescriptorSet(
       descriptorSet,
       shaderBinding,
       textureIndex,
-      1, vk::DescriptorType::eCombinedImageSampler,
+      1, type,
       &imageInfo);
 
     device.updateDescriptorSets(write, {});
