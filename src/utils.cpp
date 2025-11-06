@@ -355,9 +355,9 @@ static vk::UniqueImageView createImageViewUnique(
   const vk::Image image,
   const vk::Format format,
   const vk::ImageAspectFlags aspect,
-  const uint32_t mipLevels
+  const uint32_t mipLevel
 ) {
-  const auto subresource = vk::ImageSubresourceRange(aspect, 0, mipLevels, 0, 1);
+  const auto subresource = vk::ImageSubresourceRange(aspect, mipLevel, 1, 0, 1);
   const auto info = vk::ImageViewCreateInfo({}, image, vk::ImageViewType::e2D, format, {}, subresource);
   return device.createImageViewUnique(info);
 }
@@ -393,6 +393,9 @@ static void cmdTransitionImageLayout(
             {}, AF::eDepthStencilAttachmentRead | AF::eDepthStencilAttachmentWrite,
             PF::eTopOfPipe, PF::eEarlyFragmentTests
           };
+        }
+        if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eGeneral) {
+          return {{}, AF::eShaderWrite, PF::eTopOfPipe, PF::eComputeShader};
         }
         throw std::runtime_error("Unsupported image layout transition!");
       }();
@@ -438,8 +441,19 @@ static void cmdTransitionImageLayout2(
             && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
           return {AF2::eDepthStencilAttachmentWrite, AF2::eShaderRead, PF2::eLateFragmentTests, PF2::eComputeShader};
         }
-        if (oldLayout == vk::ImageLayout::eShaderReadOnlyOptimal && newLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal) {
+        if (oldLayout == vk::ImageLayout::eShaderReadOnlyOptimal && newLayout ==
+            vk::ImageLayout::eDepthStencilAttachmentOptimal) {
           return {AF2::eShaderRead, AF2::eDepthStencilAttachmentWrite, PF2::eComputeShader, PF2::eEarlyFragmentTests};
+        }
+        if (oldLayout == vk::ImageLayout::eDepthStencilReadOnlyOptimal && newLayout ==
+            vk::ImageLayout::eTransferSrcOptimal) {
+          return {AF2::eDepthStencilAttachmentRead, AF2::eTransferRead, PF2::eLateFragmentTests, PF2::eTransfer};
+        }
+        if (oldLayout == vk::ImageLayout::eGeneral && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+          return {AF2::eShaderWrite, AF2::eShaderRead, PF2::eComputeShader, PF2::eComputeShader};
+        }
+        if (oldLayout == vk::ImageLayout::eShaderReadOnlyOptimal && newLayout == vk::ImageLayout::eGeneral) {
+          return {AF2::eShaderRead, AF2::eShaderWrite, PF2::eComputeShader, PF2::eComputeShader};
         }
         throw std::runtime_error("Unsupported image layout transition!");
       }();
@@ -464,10 +478,11 @@ static void transitionImageLayout(
   const vk::Format format,
   const vk::ImageLayout oldLayout,
   const vk::ImageLayout newLayout,
-  const uint32_t mipLevels
+  const uint32_t mipLevels,
+  const uint32_t baseMipLevel = 0
 ) {
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
-    cmdTransitionImageLayout(cmd, image, oldLayout, newLayout, mipLevels, format);
+    cmdTransitionImageLayout(cmd, image, oldLayout, newLayout, mipLevels, format, baseMipLevel);
   });
 }
 
