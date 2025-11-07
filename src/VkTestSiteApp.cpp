@@ -729,6 +729,10 @@ void VkTestSiteApp::mainLoop() {
       ImGui::End();
     }
 
+    if (m_modelLoaded) {
+      m_model->drawUI();
+    }
+
     uint32_t *clusterCounts = static_cast<uint32_t *>(m_allocator.mapMemory(m_clustersCountStaging.second.get()));
     float sliceW = m_swapchain.extent.width / float(XSLICES);
     float sliceH = m_swapchain.extent.height / float(YSLICES);
