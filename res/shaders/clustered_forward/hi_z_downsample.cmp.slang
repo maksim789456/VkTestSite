@@ -1,5 +1,5 @@
 [[vk::binding(0, 0)]] Texture2D<float> srcTex;
-[[vk::binding(1, 0)]] RWTexture2D<float> dstTex;
+[[vk::binding(1, 0)]] RWTexture2D<float2> dstTex;
 
 [numthreads(8, 8, 1)]
 [shader("compute")]
@@ -25,6 +25,8 @@ void cmpMain(uint3 dispatchThreadID : SV_DispatchThreadID,
     float v2 = srcTex.Load(int3(min(srcBase + uint2(0,1), srcSize - 1), 0));
     float v3 = srcTex.Load(int3(min(srcBase + uint2(1,1), srcSize - 1), 0));
 
-    float outV = max(max(v0, v1), max(v2, v3));
-    dstTex[dstCoord] = outV;
+    // Rev-Z: max is near and min is far
+    float maxDepth = max(max(v0, v1), max(v2, v3));
+    float minDepth = min(min(v0, v1), min(v2, v3));
+    dstTex[dstCoord] = float2(maxDepth, minDepth);
 }

@@ -415,7 +415,7 @@ void VkTestSiteApp::createDepthObjets() {
   m_hiZ = std::make_unique<Texture>(
     m_device, m_allocator,
     m_swapchain.extent.width, m_swapchain.extent.height, hiZMipLevels,
-    vk::Format::eR32Sfloat,
+    vk::Format::eR16G16Sfloat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
     vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage
@@ -426,7 +426,7 @@ void VkTestSiteApp::createDepthObjets() {
   transitionImageLayout(
     m_device, m_graphicsQueue, m_commandPool,
     m_hiZ->getImage(),
-    vk::Format::eR32Sfloat,
+    vk::Format::eR16G16Sfloat,
     vk::ImageLayout::eUndefined,
     vk::ImageLayout::eGeneral, hiZMipLevels
   );
