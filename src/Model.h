@@ -1,6 +1,7 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <filesystem>
 #include <map>
 #include <string>
@@ -9,7 +10,6 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <glm/ext/matrix_float4x4.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/transform.hpp>
 
 #include "DescriptorSet.h"
@@ -18,12 +18,29 @@
 #include "Texture.h"
 #include "TextureManager.h"
 #include "Vertex.h"
+#include "Transform.h"
 #include "utils.cpp"
 #include <tracy/TracyVulkan.hpp>
 
 struct alignas(16) ModelPushConsts {
   glm::mat4 model;
 };
+
+struct Submesh {
+  std::unique_ptr<Mesh<Vertex, uint32_t> > mesh;
+  bool enabled = true;
+  uint32_t materialIndex;
+  glm::mat4 transform = glm::mat4(1.0f);
+  std::string name;
+};
+
+struct Material {
+  uint32_t albedoTexIdx = 99;
+  uint32_t normalTexIdx = 99;
+  glm::vec4 diffuseColor = glm::vec4(1.0f);
+};
+
+
 
 class Model {
 public:
@@ -34,7 +51,7 @@ public:
     vk::Queue graphicsQueue,
     vk::CommandPool commandPool,
     vma::Allocator allocator,
-    TextureManager& textureManager,
+    TextureManager &textureManager,
     const std::filesystem::path &modelPath
   );
 
@@ -51,38 +68,40 @@ public:
     uint32_t imageIndex
   );
 
+  void drawUI();
+
   ~Model() = default;
 
 private:
-  void createMesh(
-    vk::Device device,
-    vk::Queue graphicsQueue,
-    vk::CommandPool commandPool,
-    vma::Allocator allocator,
-    const aiScene *scene
-  );
-
   void processNode(
     const aiNode *node,
     const aiScene *scene,
-    const glm::mat4 &parentTransform,
-    std::vector<Vertex> &vertices,
-    std::vector<uint32_t> &indices
+    const glm::mat4 &parentTransform
   );
 
   void processMaterials(
-    TextureManager& textureManager,
+    TextureManager &textureManager,
     const aiScene *scene,
     const std::filesystem::path &modelParent
   );
 
-  [[nodiscard]] ModelPushConsts calcPushConsts() const;
+  std::unique_ptr<Mesh<Vertex, uint32_t>> createMesh(
+    const aiMesh *mesh,
+    const aiScene *scene,
+    const glm::mat4 &transform
+  );
+
+  [[nodiscard]] ModelPushConsts calcPushConsts(const glm::mat4 &transform) const;
 
   std::string m_name;
-  std::unique_ptr<Mesh<Vertex, uint32_t> > m_mesh;
-  glm::vec3 m_position = {};
+  Transform m_transform;
+  std::vector<Submesh> m_submeshes;
+  std::vector<Material> m_materials;
   std::vector<vk::UniqueCommandBuffer> m_commandBuffers;
-  std::unordered_map<uint32_t, uint32_t> m_albedoMapping = {};
-  std::unordered_map<uint32_t, uint32_t> m_normalMapping = {};
+
+  vk::Device m_device = nullptr;
+  vk::Queue m_graphicsQueue = nullptr;
+  vk::CommandPool m_commandPool = nullptr;
+  vma::Allocator m_allocator = nullptr;
 };
 #endif //MODEL_H
