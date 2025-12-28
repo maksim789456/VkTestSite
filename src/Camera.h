@@ -32,8 +32,10 @@ public:
 
     const auto translation = glm::translate(glm::mat4(1.0f), position);
     view = glm::inverse(translation * rotationMatrix);
-    auto proj = perspectiveRZ(fov, aspectRatio, zNear, zFar);
+    proj = perspectiveRZ(fov, aspectRatio, zNear, zFar);
     viewProj = proj * view;
+
+    updateFrustum();
   }
 
   void keyboardCallback(int key, int action, int mods) {
@@ -86,15 +88,26 @@ public:
     rotation = glm::normalize(yaw_rotation * rotation * pitch_rotation);
   }
 
+  void updateFrustum() {
+    auto halfAngleY = glm::tan(fov * 0.5f);
+    auto halfAngleX = halfAngleY * aspectRatio;
+
+    frustumCorners = glm::vec4(halfAngleX, -halfAngleY, halfAngleX * zFar, -halfAngleY * zFar);
+    invFrustumCorners = glm::vec4(1.f / halfAngleX, -1.f / halfAngleY, 1.f / (halfAngleX * zFar), -1.f / (halfAngleY * zFar));
+  }
+
   [[nodiscard]] glm::mat4 getView() const { return view; }
+  [[nodiscard]] glm::mat4 getProj() const { return proj; }
   [[nodiscard]] glm::mat4 getViewProj() const { return viewProj; }
   [[nodiscard]] glm::mat4 getInvViewProj() const { return glm::inverse(viewProj); }
   [[nodiscard]] glm::vec3 getViewPos() const { return position; }
+  [[nodiscard]] glm::vec4 getFrustumCorners() const { return frustumCorners; }
+  [[nodiscard]] glm::vec4 getInvFrustumCorners() const { return invFrustumCorners; }
 
   [[nodiscard]] float getZNear() const { return zNear; }
   [[nodiscard]] float getZFar() const { return zFar; }
 
-  float aspectRatio = 1.33f;
+  float aspectRatio = 1.77f;
 
 private:
   float fov = glm::radians(45.0f);
@@ -109,7 +122,11 @@ private:
   double last_x = 0, last_y = 0;
 
   glm::mat4 view = glm::mat4(1.0f);
+  glm::mat4 proj = glm::mat4(1.0f);
   glm::mat4 viewProj = glm::mat4(1.0f);
+
+  glm::vec4 frustumCorners;
+  glm::vec4 invFrustumCorners;
 };
 
 #endif //CAMERA_H
