@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.27)
 
 include(CMake/Vcpkg.cmake)
-set(VCPKG_TARGET_TRIPLET x64-windows)
+set(VCPKG_TARGET_TRIPLET x64-linux)
 set(VCPKG_OVERLAY_PORTS "${CMAKE_SOURCE_DIR}/vcpkg-overlays/ports")
 
 project(VkTestSite)
