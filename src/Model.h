@@ -17,6 +17,7 @@
 #include "Swapchain.h"
 #include "Texture.h"
 #include "TextureManager.h"
+#include "Light.h"
 #include "Vertex.h"
 #include "Transform.h"
 #include "utils.cpp"
@@ -41,7 +42,6 @@ struct Material {
 };
 
 
-
 class Model {
 public:
   Model() = default;
@@ -52,6 +52,7 @@ public:
     vk::CommandPool commandPool,
     vma::Allocator allocator,
     TextureManager &textureManager,
+    LightManager &lightManager,
     const std::filesystem::path &modelPath
   );
 
@@ -75,6 +76,7 @@ public:
 
 private:
   void processNode(
+    LightManager &lightManager,
     const aiNode *node,
     const aiScene *scene,
     const glm::mat4 &parentTransform
@@ -86,7 +88,12 @@ private:
     const std::filesystem::path &modelParent
   );
 
-  std::unique_ptr<Mesh<Vertex, uint32_t>> createMesh(
+  void processLight(
+    LightManager &lightManager,
+    const aiScene *scene
+  );
+
+  std::unique_ptr<Mesh<Vertex, uint32_t> > createMesh(
     const aiMesh *mesh,
     const aiScene *scene,
     const glm::mat4 &transform

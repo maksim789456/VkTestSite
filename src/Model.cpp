@@ -44,6 +44,7 @@ Model::Model(
   const vk::CommandPool commandPool,
   vma::Allocator allocator,
   TextureManager &textureManager,
+  LightManager &lightManager,
   const std::filesystem::path &modelPath
 ): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_allocator(allocator) {
   ZoneScoped;
@@ -62,31 +63,51 @@ Model::Model(
 
   const auto modelParent = modelPath.parent_path();
   processMaterials(textureManager, scene, modelParent);
-  processNode(scene->mRootNode, scene, glm::mat4(1.0f));
+  processLight(lightManager, scene);
+  processNode(lightManager, scene->mRootNode, scene, glm::mat4(1.0f));
   m_name = std::string(scene->mRootNode->mName.C_Str());
 }
 
 void Model::processNode(
+  LightManager &lightManager,
   const aiNode *node,
   const aiScene *scene,
   const glm::mat4 &parentTransform
 ) {
   ZoneScoped;
-  auto transform = parentTransform * aiMatrix4x4ToGlm(node->mTransformation);
+  auto nodeTransform = aiMatrix4x4ToGlm(node->mTransformation);
+  auto globalTransform = parentTransform * nodeTransform;
+
+  std::string nodeName(node->mName.C_Str());
+  const auto lightNames = lightManager.getNames();
+  const auto lights = lightManager.getLights();
+  for (uint32_t i = 0; i < lightNames.size(); ++i) {
+    if (lightNames[i] == nodeName) {
+      LightData light = lights[i];
+
+      const auto position = glm::vec3(globalTransform[3]);
+      light.position.x = position.x;
+      light.position.y = position.y;
+      light.position.z = position.z;
+
+      lightManager.editLight(i, light);
+      break;
+    }
+  }
 
   for (unsigned int m = 0; m < node->mNumMeshes; ++m) {
     aiMesh *mesh = scene->mMeshes[node->mMeshes[m]];
-    auto gpuMesh = createMesh(mesh, scene, transform);
+    auto gpuMesh = createMesh(mesh, scene, globalTransform);
     m_submeshes.push_back({
       .mesh = std::move(gpuMesh),
       .materialIndex = mesh->mMaterialIndex,
-      .transform = transform,
+      .transform = globalTransform,
       .name = mesh->mName.C_Str()
     });
   }
 
   for (unsigned int i = 0; i < node->mNumChildren; ++i)
-    processNode(node->mChildren[i], scene, transform);
+    processNode(lightManager, node->mChildren[i], scene, globalTransform);
 }
 
 void Model::processMaterials(
@@ -112,6 +133,56 @@ void Model::processMaterials(
     }
 
     m_materials[matIdx] = mat;
+  }
+}
+
+void Model::processLight(LightManager &lightManager, const aiScene *scene) {
+  for (int i = 0; i < scene->mNumLights; ++i) {
+    const aiLight *sceneLight = scene->mLights[i];
+    LightData light{};
+    float type = 0.0f;
+    switch (sceneLight->mType) {
+      case aiLightSource_DIRECTIONAL:
+        type = static_cast<float>(LightType::DIRECTIONAL);
+        break;
+      case aiLightSource_POINT:
+        type = static_cast<float>(LightType::POINT);
+        break;
+      case aiLightSource_SPOT:
+        type = static_cast<float>(LightType::SPOT);
+        break;
+      default:
+        type = static_cast<float>(LightType::POINT);
+        break;
+    }
+    light.position = glm::vec4(sceneLight->mPosition.x, sceneLight->mPosition.y, sceneLight->mPosition.z, type);
+    float intensity =
+        sceneLight->mColorDiffuse.r > sceneLight->mColorDiffuse.b
+          ? sceneLight->mColorDiffuse.r > sceneLight->mColorDiffuse.g
+              ? sceneLight->mColorDiffuse.r
+              : sceneLight->mColorDiffuse.g
+          : sceneLight->mColorDiffuse.b;
+
+    light.color = glm::vec4(
+      sceneLight->mColorDiffuse.r / intensity,
+      sceneLight->mColorDiffuse.g / intensity,
+      sceneLight->mColorDiffuse.b / intensity,
+      intensity / (sceneLight->mType != aiLightSource_DIRECTIONAL ? 1000.f : 100.f) //TODO: Temp fix for Candela/Lux units
+    );
+
+    light.direction = glm::vec4(sceneLight->mDirection.x, sceneLight->mDirection.y, sceneLight->mDirection.z,
+                                sceneLight->mAttenuationConstant);
+
+    // Cone angles converted from radians → cosine
+    float innerCos = std::cos(sceneLight->mAngleInnerCone * 0.5f);
+    float outerCos = std::cos(sceneLight->mAngleOuterCone * 0.5f);
+    light.info = glm::vec4(
+      innerCos,
+      outerCos,
+      sceneLight->mAttenuationLinear,
+      sceneLight->mAttenuationQuadratic
+    );
+    lightManager.addLight(light, sceneLight->mName.C_Str());
   }
 }
 
@@ -245,8 +316,19 @@ void Model::drawUI() {
         auto &sub = m_submeshes[i];
         std::string label = sub.name.empty() ? "Submesh " + std::to_string(i) : sub.name;
 
-        if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_None)) {
           ImGui::Checkbox("Enabled", &sub.enabled);
+          auto subTransform = Transform{};
+          subTransform.fromMat4(sub.transform);
+          ImGui::DragFloat3("Position", &subTransform.position.x, 0.05f);
+
+          glm::vec3 euler = glm::degrees(glm::eulerAngles(subTransform.rotation));
+          if (ImGui::DragFloat3("Rotation", &euler.x, 0.5f)) {
+            subTransform.rotation = glm::quat(glm::radians(euler));
+          }
+
+          ImGui::DragFloat3("Scale", &subTransform.scale.x, 0.05f, 0.001f, 100.0f);
+          //sub.transform = subTransform.toMat4();
           ImGui::TreePop();
         }
       }

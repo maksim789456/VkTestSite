@@ -58,6 +58,19 @@ public:
   }
 
   [[nodiscard]] uint32_t getCount() const { return m_lights.size(); }
+  [[nodiscard]] std::vector<LightData> getLights() const { return m_lights; }
+  [[nodiscard]] std::vector<std::string> getNames() const { return m_lightsNames; }
+
+  void addLight(const LightData &light, const std::string &name = "Light") {
+    m_lights.emplace_back(light);
+    m_lightsNames.emplace_back(name);
+  }
+
+  void editLight(const uint32_t idx, const LightData &light) {
+    if (idx < m_lights.size()) {
+      m_lights[idx] = light;
+    }
+  }
 
   void map(const uint32_t imageIndex) {
     std::ranges::copy(m_lights, m_ssboMappings[imageIndex]);
@@ -67,11 +80,11 @@ public:
     if (ImGui::Begin("Lighting")) {
       if (ImGui::Button("Add light") && m_lights.size() < MAX_LIGHTS) {
         LightData light{};
-        light.position = glm::vec4(0.0f, 0.0f, 0.0f, LightType::DIRECTIONAL);
+        light.position = glm::vec4(0.0f, 0.0f, 0.0f, LightType::POINT);
         light.color = glm::vec4(1.0f);
         light.direction = glm::vec4(0.0f, -1.0f, 0.0f, 1.0f);
         light.info = glm::vec4(0.0f, 0.0f, 0.35f, 0.44f);
-        m_lights.push_back(light);
+        addLight(light, std::format("Light {}", m_lights.size()));
       }
       ImGui::Separator();
 
@@ -79,6 +92,7 @@ public:
         LightData &light = m_lights[i];
         ImGui::PushID(static_cast<int>(i));
 
+        ImGui::Text(m_lightsNames[i].c_str());
         int type = static_cast<int>(light.position.w);
         ImGui::Text("Type: ");
         ImGui::SameLine();
@@ -116,6 +130,7 @@ public:
 
         if (ImGui::Button("Remove")) {
           m_lights.erase(m_lights.begin() + i);
+          m_lightsNames.erase(m_lightsNames.begin() + i);
           --i;
         }
 
@@ -129,6 +144,7 @@ public:
 private:
   vma::Allocator m_allocator;
   std::vector<LightData> m_lights = {};
+  std::vector<std::string> m_lightsNames = {};
   bool m_uiOpen = true;
 
   std::vector<vma::UniqueBuffer> m_ssboBuffers = {};
