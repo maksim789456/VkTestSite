@@ -13,7 +13,7 @@ struct UBO {
   float4x4 viewProj;
   float4x4 invViewProj;
   float4 projInfo; // width, height, zNear, zFar
-  uint32_t displayDebugTarget;
+  int4 debugInfo; //debug target, xSlice, ySlice, tmpLightCount
 }
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
 

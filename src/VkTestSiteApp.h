@@ -44,7 +44,7 @@
 #define XSLICES 16
 #define YSLICES 9
 #define ZSLICES 24
-#define MAX_LIGHTS_PER_CLUSTER 64
+#define MAX_LIGHTS_PER_CLUSTER 32
 #define WORKGROUP_SIZE 64
 
 struct alignas(16) UniformBufferObject {
@@ -52,14 +52,16 @@ struct alignas(16) UniformBufferObject {
   glm::mat4 viewProj;
   glm::mat4 invViewProj;
   glm::vec4 projInfo;
-  uint32_t displayDebugTarget;
+  glm::ivec4 debugInfo; //debug target, xSlice, ySlice, tmpLightCount
 };
 
 struct alignas(16) CameraData {
   glm::mat4 view;
   glm::mat4 viewProj;
   glm::mat4 invViewProj;
+  glm::mat4 invProj;
   glm::vec4 projInfo;
+  glm::vec4 frustumCorners;
 };
 
 struct alignas(16) HiZDownsampleConsts {
@@ -93,14 +95,18 @@ private:
   vk::Pipeline m_hiZDownsampleComputePipeline;
   vk::Pipeline m_clusterComputePipeline;
   vk::Pipeline m_cfrPipeline;
+  vk::Pipeline m_cfrDebugPipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_geometryDescriptorSet;
   DescriptorSet m_clusterComputeDescriptorSet;
   DescriptorSet m_hiZDownsampleDescriptorSet;
   DescriptorSet m_cfrDescriptorSet;
+  DescriptorSet m_cfrDebugDescriptorSet;
   std::unique_ptr<Texture> m_depth;
   std::unique_ptr<Texture> m_hiZ;
+  std::unique_ptr<Texture> m_clusterDebug;
+  vk::UniqueImageView m_hiZAllView;
   std::unique_ptr<Camera> m_camera;
 
   std::unique_ptr<Model> m_model;
@@ -118,6 +124,7 @@ private:
   std::vector<UniformBuffer<CameraData>> m_cameraMultiple = {};
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
+  std::vector<vk::UniqueCommandBuffer> m_cfrDebugCB;
   std::vector<vk::UniqueCommandBuffer> m_computeCommandBuffers;
   std::vector<vk::Fence> m_inFlight;
   std::vector<vk::Semaphore> m_imageAvailable;
@@ -133,6 +140,10 @@ private:
   uint32_t m_currentFrame = 0;
   int32_t m_debugView = 0;
   float m_lastTime = 0.0f;
+
+  bool m_showClusterSliceDebug = false;
+  int32_t m_xSlice = 0;
+  int32_t m_ySlice = 0;
 
   void initWindow();
   void initVk();

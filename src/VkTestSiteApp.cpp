@@ -97,6 +97,11 @@ void VkTestSiteApp::initVk() {
     m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
   );
   m_computeCommandBuffers = m_device.allocateCommandBuffersUnique(computeCmdsInfo);
+
+  const auto cfrDebugCmdsInfo = vk::CommandBufferAllocateInfo(
+    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
+  );
+  m_cfrDebugCB = m_device.allocateCommandBuffersUnique(cfrDebugCmdsInfo);
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
@@ -366,12 +371,26 @@ void VkTestSiteApp::createPipeline() {
       .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
       .withSubpass(0)
       .buildGraphics();
+  m_cfrDebugPipeline = PipelineBuilder(
+        m_device,
+        m_renderPass,
+        m_cfrDebugDescriptorSet.getPipelineLayout(),
+        "../res/shaders/clustered_forward/cfr_debug.ep.slang.spv",
+        "CFR Debug Pipeline"
+      )
+      .withColorBlendAttachments({
+        PipelineBuilder::makeDefaultColorAttachmentState(),
+      })
+      .depthStencil(false, false, vk::CompareOp::eAlways)
+      .withCullMode(vk::CullModeFlagBits::eNone)
+      .withSubpass(0)
+      .buildGraphics();
 }
 
 void VkTestSiteApp::createColorObjets() {
   m_clusterCount = XSLICES * YSLICES * ZSLICES;
   m_clustersCountBufferSize = m_clusterCount * sizeof(uint32_t);
-  m_clustersIndicesBufferSize = m_clusterCount * MAX_LIGHTS_PER_CLUSTER * sizeof(uint32_t);
+  m_clustersIndicesBufferSize = ((MAX_LIGHTS_PER_CLUSTER + 1) * m_clusterCount) * sizeof(uint32_t);
 
   m_clustersCount = createBufferUnique(
     m_allocator, m_clustersCountBufferSize,
@@ -423,12 +442,33 @@ void VkTestSiteApp::createDepthObjets() {
     true, "Hi-Z buffer attachment"
   );
 
+  m_hiZAllView = createImageViewUnique(m_device, m_hiZ->getImage(),
+    vk::Format::eR16G16Sfloat, vk::ImageAspectFlagBits::eColor, 0, hiZMipLevels);
+
   transitionImageLayout(
     m_device, m_graphicsQueue, m_commandPool,
     m_hiZ->getImage(),
     vk::Format::eR16G16Sfloat,
     vk::ImageLayout::eUndefined,
     vk::ImageLayout::eGeneral, hiZMipLevels
+  );
+
+  m_clusterDebug = std::make_unique<Texture>(
+    m_device, m_allocator,
+    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    vk::Format::eR16G16B16A16Sfloat,
+    vk::SampleCountFlagBits::e1,
+    vk::ImageAspectFlagBits::eColor,
+    vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage,
+    true, "Cluster compute debug out"
+  );
+
+  transitionImageLayout(
+    m_device, m_graphicsQueue, m_commandPool,
+    m_clusterDebug->getImage(),
+    vk::Format::eR16G16B16A16Sfloat,
+    vk::ImageLayout::eUndefined,
+    vk::ImageLayout::eGeneral, 1
   );
 }
 
@@ -510,6 +550,7 @@ void VkTestSiteApp::createDescriptorSet() {
       vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
       vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
       vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
+      vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
     }
   };
   const auto clusterIndicesDescriptor = DescriptorLayout{
@@ -523,6 +564,7 @@ void VkTestSiteApp::createDescriptorSet() {
       vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
       vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
       vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
+      vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
     }
   };
 
@@ -533,28 +575,6 @@ void VkTestSiteApp::createDescriptorSet() {
     }, {
       vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
     }, "Geometry DS");
-  m_clusterComputeDescriptorSet = DescriptorSet(
-    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
-    {
-      ubo2Descriptor,
-      lightsDescriptor,
-      DescriptorLayout{
-        .type = vk::DescriptorType::eCombinedImageSampler,
-        .stage = vk::ShaderStageFlagBits::eCompute,
-        .bindingFlags = {},
-        .shaderBinding = 2,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo(m_depth->getSampler(), m_depth->getImageView(),
-                                  vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-      clusterCountDescriptor,
-      clusterIndicesDescriptor,
-    }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(LightPushConsts))
-    }, "Cluster Compute DS");
   m_hiZDownsampleDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
@@ -585,6 +605,41 @@ void VkTestSiteApp::createDescriptorSet() {
     }, {
       vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(HiZDownsampleConsts))
     }, "HiZ Downsample DS", vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor);
+  m_clusterComputeDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
+      ubo2Descriptor,
+      lightsDescriptor,
+      DescriptorLayout{
+        .type = vk::DescriptorType::eCombinedImageSampler,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
+        .shaderBinding = 2,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_hiZ->getSampler(), m_hiZAllView.get(),
+                                  vk::ImageLayout::eShaderReadOnlyOptimal)
+        },
+        .bufferInfos = {}
+      },
+      //clustersDescriptor
+      //clusterCountDescriptor,
+      clusterIndicesDescriptor,
+      DescriptorLayout{
+        .type = vk::DescriptorType::eStorageImage,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
+        .shaderBinding = 5,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_clusterDebug->getSampler(), m_clusterDebug->getImageView(),
+                                  vk::ImageLayout::eGeneral)
+        },
+        .bufferInfos = {}
+      },
+    }, {
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(LightPushConsts))
+    }, "Cluster Compute DS");
   m_cfrDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
@@ -600,11 +655,16 @@ void VkTestSiteApp::createDescriptorSet() {
         .imageInfos = {},
         .bufferInfos = {}
       },
-      clusterCountDescriptor,
+      //clusterCountDescriptor,
       clusterIndicesDescriptor
     }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts)),
     }, "CFR DS");
+  m_cfrDebugDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
+      uboDescriptor
+    }, {}, "CFR Debug DS");
 }
 
 void VkTestSiteApp::createCommandPool() {
@@ -662,7 +722,7 @@ void VkTestSiteApp::mainLoop() {
       if (path != nullptr) {
         auto pathStr = std::string(path);
         m_model = std::make_unique<Model>(
-          m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, pathStr);
+          m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, *m_lightManager, pathStr);
         m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
         m_modelLoaded = true;
       }
@@ -682,8 +742,11 @@ void VkTestSiteApp::mainLoop() {
       vmaFreeStatsString(m_allocator, statsString);
     }
 
-    static int zSlice = 0;
-    ImGui::SliderInt("Z Slice", &zSlice, 0, ZSLICES - 1);
+    ImGui::Checkbox("Enable Slice Debug", &m_showClusterSliceDebug);
+    if (m_showClusterSliceDebug) {
+      ImGui::SliderInt("X Slice", &m_xSlice, 0, XSLICES - 1);
+      ImGui::SliderInt("Y Slice", &m_ySlice, 0, YSLICES - 1);
+    }
 
     ImGui::Separator();
     ImGui::Text("Select G-Buffer Debug Output");
@@ -692,6 +755,7 @@ void VkTestSiteApp::mainLoop() {
     ImGui::RadioButton("Albedo", &m_debugView, 2);
     ImGui::RadioButton("Normal", &m_debugView, 3);
     ImGui::RadioButton("Clusters", &m_debugView, 4);
+    ImGui::RadioButton("Clusters Z", &m_debugView, 5);
     ImGui::End();
 
     if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
@@ -732,32 +796,6 @@ void VkTestSiteApp::mainLoop() {
     if (m_modelLoaded) {
       m_model->drawUI();
     }
-
-    uint32_t *clusterCounts = static_cast<uint32_t *>(m_allocator.mapMemory(m_clustersCountStaging.second.get()));
-    float sliceW = m_swapchain.extent.width / float(XSLICES);
-    float sliceH = m_swapchain.extent.height / float(YSLICES);
-    auto drawList = ImGui::GetForegroundDrawList();
-
-    for (uint32_t y = 0; y < YSLICES; ++y) {
-      for (uint32_t x = 0; x < XSLICES; ++x) {
-        uint32_t clusterIdx = x + y * XSLICES + zSlice * XSLICES * YSLICES;
-        uint32_t count = clusterCounts[clusterIdx];
-        if (count == 0) continue;
-
-        ImVec2 pos(
-          x * sliceW + sliceW * 0.5f,
-          y * sliceH + sliceH * 0.5f
-        );
-
-        ImU32 color = IM_COL32(255, 255, 0, 255);
-        if (count > 16) color = IM_COL32(255, 128, 0, 255);
-        if (count > 32) color = IM_COL32(255, 0, 0, 255);
-
-        drawList->AddText(pos, color, std::to_string(count).c_str());
-      }
-    }
-
-    m_allocator.unmapMemory(m_clustersCountStaging.second.get());
 
     m_lightManager->renderImGui();
     ImGui::Render();
@@ -830,13 +868,20 @@ void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
     m_camera->getViewProj(),
     m_camera->getInvViewProj(),
     projInfo,
-    static_cast<uint32_t>(m_debugView)
+    glm::ivec4(
+      m_debugView,
+      m_showClusterSliceDebug ? m_xSlice : -1,
+      m_showClusterSliceDebug ? m_ySlice : -1,
+      m_lightManager->getCount()
+      )
   };
   auto cameraData = CameraData{
     m_camera->getView(),
     m_camera->getViewProj(),
     m_camera->getInvViewProj(),
-    projInfo
+    glm::inverse(m_camera->getProj()),
+    projInfo,
+    m_camera->getFrustumCorners()
   };
   m_uniforms[imageIndex].map(ubo);
   m_cameraMultiple[imageIndex].map(cameraData);
@@ -881,6 +926,11 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1)
     );
     buildHiZ(commandBuffer, imageIndex);
+    cmdTransitionImageLayout2( // Hi-Z (all) -> Clusters compute shader read
+      commandBuffer, m_hiZ->getImage(),
+      vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, m_hiZ->mipLevels, 0, 1)
+    );
   } {
     commandBuffer.fillBuffer(m_clustersCount.first.get(), 0, VK_WHOLE_SIZE, 0);
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_clusterComputePipeline);
@@ -889,8 +939,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
     commandBuffer.pushConstants(m_clusterComputeDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0,
                                 sizeof(lightPush), &lightPush);
 
-    const uint32_t numGroups = (m_clusterCount + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE;
-    commandBuffer.dispatch(numGroups, 1, 1);
+    commandBuffer.dispatch(4, 3, 24);
 
     cmdTransitionImageLayout2( // Depth buffer - cluster compute read -> CFR/ImGui usage
       commandBuffer, m_depth->getImage(),
@@ -902,7 +951,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   }
   commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
     // Model temp render
-    if (m_modelLoaded) {
+    if (m_modelLoaded && !m_showClusterSliceDebug) {
       auto modelCmd = m_model->cmdDraw(
         *m_vkContext,
         m_framebuffers[imageIndex],
@@ -917,7 +966,27 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
 
       commandBuffer.executeCommands(modelCmd);
     }
-  } {
+  }
+  if (m_showClusterSliceDebug) {
+    // CFR Draw logic
+    auto cfrDebugCB = m_cfrDebugCB[imageIndex].get();
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 0, m_framebuffers[imageIndex]);
+    auto cfrDebugBeginInfo = vk::CommandBufferBeginInfo(
+      vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
+      &inheritanceInfo);
+    cfrDebugCB.reset();
+    cfrDebugCB.begin(cfrDebugBeginInfo); {
+      m_swapchain.cmdSetViewport(cfrDebugCB);
+      m_swapchain.cmdSetScissor(cfrDebugCB);
+      cfrDebugCB.bindPipeline(vk::PipelineBindPoint::eGraphics, m_cfrDebugPipeline);
+      m_cfrDebugDescriptorSet.bind(cfrDebugCB, imageIndex, {});
+      cfrDebugCB.draw(3, 1, 0, 0);
+    }
+    cfrDebugCB.end();
+
+    commandBuffer.executeCommands(cfrDebugCB);
+  }
+  {
     // ImGUI Secondary Cmd record -> exec
     auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
     auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 0, m_framebuffers[imageIndex]);
@@ -1024,6 +1093,7 @@ void VkTestSiteApp::cleanupSwapchain() {
   m_hiZDownsampleDescriptorSet.destroy(m_device);
   m_clusterComputeDescriptorSet.destroy(m_device);
   m_cfrDescriptorSet.destroy(m_device);
+  m_cfrDebugDescriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
   m_depth.reset();
@@ -1034,6 +1104,7 @@ void VkTestSiteApp::cleanupSwapchain() {
   m_device.destroyPipeline(m_hiZDownsampleComputePipeline);
   m_device.destroyPipeline(m_clusterComputePipeline);
   m_device.destroyPipeline(m_cfrPipeline);
+  m_device.destroyPipeline(m_cfrDebugPipeline);
   m_device.destroyRenderPass(m_renderPass);
   m_swapchain.destroy(m_device);
 }
