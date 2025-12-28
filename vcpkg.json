@@ -27,7 +27,8 @@
       "features": [
         "vulkan"
       ]
-    }
+    },
+    "openxr-loader"
   ],
   "overrides": [
     {
