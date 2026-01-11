@@ -7,6 +7,7 @@ set(VCPKG_OVERLAY_PORTS "${CMAKE_SOURCE_DIR}/vcpkg-overlays/ports")
 project(VkTestSite)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
@@ -18,6 +19,8 @@ file(GLOB_RECURSE SRC CONFIGURE_DEPENDS
 
 add_executable(VkTestSite ${SRC})
 target_include_directories(VkTestSite PRIVATE "${CMAKE_SOURCE_DIR}/src")
+
+include_directories(lib/OpenXR-Hpp/include)
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(VulkanHeaders CONFIG)
