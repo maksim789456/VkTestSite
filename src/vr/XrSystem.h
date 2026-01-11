@@ -3,8 +3,8 @@
 #ifndef VKTESTSITE_XRSYSTEM_H
 #define VKTESTSITE_XRSYSTEM_H
 
-#include <vulkan/vulkan.hpp>
 #include <openxr/openxr.hpp>
+#include <vulkan/vulkan.hpp>
 
 namespace vr {
   class XrSystem {

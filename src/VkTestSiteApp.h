@@ -41,6 +41,8 @@
 #include "TextureWorkersPool.h"
 #include "TransferThread.h"
 
+#include <vr/XrSystem.h>
+
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
   glm::mat4 viewProj;
@@ -91,6 +93,8 @@ private:
   std::unique_ptr<TransferThread> m_transferThread;
   std::unique_ptr<StagingBuffer> m_stagingBuffer;
   std::unique_ptr<TextureWorkerPool> m_textureWorkerPool;
+
+  std::unique_ptr<vr::XrSystem> m_xrSystem;
 
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms = {};

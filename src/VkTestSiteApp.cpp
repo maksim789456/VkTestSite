@@ -106,6 +106,8 @@ void VkTestSiteApp::initVk() {
   m_texManager = std::make_unique<TextureManager>(
     m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
 
+  m_xrSystem = std::make_unique<vr::XrSystem>(m_instance, m_physicalDevice, m_device);
+
   m_camera = std::make_unique<Camera>(m_swapchain.extent);
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
     const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
@@ -815,6 +817,7 @@ void VkTestSiteApp::recreateSwapchain() {
 
   m_device.waitIdle();
   cleanupSwapchain();
+  m_xrSystem.release();
 
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
   createRenderPass();
