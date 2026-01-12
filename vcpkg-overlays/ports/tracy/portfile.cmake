@@ -2,13 +2,12 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO wolfpld/tracy
     REF "v${VERSION}"
-    SHA512 991ac48a00943b349b1bed9110fa7886d1378bf4e0f488b214aca244db988a9c39bfb8b4df6e60cea604fbb5d43120d6be68a0fcfbf41300547a4726a62a98d3
+    SHA512 18c0c589a1d97d0760958c8ab00ba2135bc602fd359d48445b5d8ed76e5b08742d818bb8f835b599149030f455e553a92db86fb7bae049b47820e4401cf9f935
     HEAD_REF master
     PATCHES
         build-tools.patch
-        unvendoring.patch
+        deps.patch
         downgrade-capstone-5.patch
-        disable-git.patch
 )
 
 vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
@@ -36,12 +35,22 @@ vcpkg_cmake_configure(
     OPTIONS
         -DDOWNLOAD_CAPSTONE=OFF
         -DLEGACY=ON
+        -DCMAKE_FIND_PACKAGE_TARGETS_GLOBAL=ON
+        -DCPM_USE_LOCAL_PACKAGES=ON
+        -DCPM_LOCAL_PACKAGES_ONLY=ON
+        -DCPM_DONT_UPDATE_MODULE_PATH=ON
+        -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+        -DFETCHCONTENT_TRY_FIND_PACKAGE_MODE=ALWAYS
         ${FEATURE_OPTIONS}
     OPTIONS_RELEASE
         ${TOOLS_OPTIONS}
     MAYBE_UNUSED_VARIABLES
         DOWNLOAD_CAPSTONE
         LEGACY
+        CPM_DONT_UPDATE_MODULE_PATH
+        CPM_LOCAL_PACKAGES_ONLY
+        CPM_USE_LOCAL_PACKAGES
+        FETCHCONTENT_TRY_FIND_PACKAGE_MODE
 )
 vcpkg_cmake_install()
 vcpkg_copy_pdbs()

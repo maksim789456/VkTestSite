@@ -1,0 +1,79 @@
+diff --git a/cmake/server.cmake b/cmake/server.cmake
+index a76d1c13..d8c1a26f 100644
+--- a/cmake/server.cmake
++++ b/cmake/server.cmake
+@@ -29,7 +29,7 @@ list(TRANSFORM TRACY_SERVER_SOURCES PREPEND "${TRACY_SERVER_DIR}/")
+ 
+ add_library(TracyServer STATIC EXCLUDE_FROM_ALL ${TRACY_COMMON_SOURCES} ${TRACY_SERVER_SOURCES})
+ target_include_directories(TracyServer PUBLIC ${TRACY_COMMON_DIR} ${TRACY_SERVER_DIR})
+-target_link_libraries(TracyServer PUBLIC TracyCapstone libzstd PPQSort::PPQSort)
++target_link_libraries(TracyServer PUBLIC TracyCapstone zstd::libzstd PPQSort::PPQSort)
+ if(NO_STATISTICS)
+     target_compile_definitions(TracyServer PUBLIC TRACY_NO_STATISTICS)
+ endif()
+diff --git a/cmake/vendor.cmake b/cmake/vendor.cmake
+index 736b13c3..ad554a96 100644
+--- a/cmake/vendor.cmake
++++ b/cmake/vendor.cmake
+@@ -137,6 +137,7 @@ target_include_directories(TracyGetOpt PUBLIC ${GETOPT_DIR})
+ CPMAddPackage(
+     NAME ImGui
+     GITHUB_REPOSITORY ocornut/imgui
++    FORCE TRUE
+     GIT_TAG v1.92.5-docking
+     DOWNLOAD_ONLY TRUE
+     PATCHES
+@@ -156,6 +157,8 @@ set(IMGUI_SOURCES
+ 
+ list(TRANSFORM IMGUI_SOURCES PREPEND "${ImGui_SOURCE_DIR}/")
+ 
++set(ImGui_SOURCE_DIR "${ImGui_SOURCE_DIR}" PARENT_SCOPE)
++
+ add_library(TracyImGui STATIC EXCLUDE_FROM_ALL ${IMGUI_SOURCES})
+ target_include_directories(TracyImGui PUBLIC ${ImGui_SOURCE_DIR})
+ target_link_libraries(TracyImGui PUBLIC TracyFreetype)
+@@ -204,7 +207,7 @@ CPMAddPackage(
+ # json
+ 
+ CPMAddPackage(
+-    NAME json
++    NAME nlohmann_json
+     GITHUB_REPOSITORY nlohmann/json
+     GIT_TAG v3.12.0
+     EXCLUDE_FROM_ALL TRUE
+@@ -239,7 +242,7 @@ if(NOT EMSCRIPTEN)
+     # tidy
+ 
+     CPMAddPackage(
+-        NAME tidy
++        NAME unofficial-tidy-html5
+         GITHUB_REPOSITORY htacg/tidy-html5
+         GIT_TAG 5.8.0
+         PATCHES
+diff --git a/profiler/CMakeLists.txt b/profiler/CMakeLists.txt
+index 4bda8a5f..1729e142 100644
+--- a/profiler/CMakeLists.txt
++++ b/profiler/CMakeLists.txt
+@@ -244,7 +244,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
+     TracyImGui
+     Threads::Threads
+     nlohmann_json::nlohmann_json
+-    md4c
++    md4c::md4c
+ )
+ target_include_directories(${PROJECT_NAME} PRIVATE
+     ${tidy_SOURCE_DIR}/include
+@@ -256,10 +256,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
+ if(NOT EMSCRIPTEN)
+     target_link_libraries(${PROJECT_NAME} PRIVATE
+         TracyLibcurl
+-        base64
+-        tidy-static
++        aklomp::base64
++        unofficial::tidy-html5::tidy
+         TracyPugixml
+-        usearch
++        usearch::usearch
+     )
+ endif()
+ 

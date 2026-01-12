@@ -1,15 +1,23 @@
 {
   "name": "tracy",
-  "version": "0.12.1",
+  "version": "0.13.1",
   "description": "A real time, nanosecond resolution, remote telemetry, hybrid frame and sampling profiler for games and other applications.",
   "homepage": "https://github.com/wolfpld/tracy",
   "license": "BSD-3-Clause",
   "supports": "!(windows & (arm | uwp))",
   "dependencies": [
+    "aklomp-base64",
+    "curl",
+    "md4c",
+    "nativefiledialog-extended",
+    "nlohmann-json",
     {
       "name": "pthreads",
       "platform": "!windows"
     },
+    "pugixml",
+    "tidy-html5",
+    "usearch",
     {
       "name": "vcpkg-cmake",
       "host": true
@@ -71,7 +79,6 @@
         },
         "freetype",
         "glfw3",
-        "nativefiledialog-extended",
         "ppqsort"
       ]
     },
