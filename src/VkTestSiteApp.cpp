@@ -691,7 +691,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   m_graphicsQueue.submit(submitInfo, m_inFlight[m_currentFrame]);
 
   executeSingleTimeCommands(m_device, m_graphicsQueue, m_commandPool, [&](const vk::CommandBuffer cmd) {
-    m_vkContext->Collect(cmd);
+    //m_vkContext->Collect(cmd);
   });
 
   const auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain.swapchain, imageIndex);

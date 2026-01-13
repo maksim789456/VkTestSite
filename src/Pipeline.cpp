@@ -31,7 +31,7 @@ vk::Pipeline PipelineBuilder::build() {
   colorAttachments = m_colorBlendAttachments.has_value() ? m_colorBlendAttachments.value() : colorAttachments;
   auto colorBlend = vk::PipelineColorBlendStateCreateInfo({}, false, vk::LogicOp::eCopy, colorAttachments);
 
-  auto pipelineInfo = vk::GraphicsPipelineCreateInfo({});
+  auto pipelineInfo = vk::GraphicsPipelineCreateInfo();
   pipelineInfo.setStages(shaderStages)
       .setPVertexInputState(&vertexInputInfo)
       .setPInputAssemblyState(&inputAssembly)
