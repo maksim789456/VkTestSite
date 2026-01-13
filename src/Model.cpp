@@ -47,7 +47,7 @@ Model::Model(
   const std::filesystem::path &modelPath
 ) {
   ZoneScoped;
-  std::cout << "Loading model from: " << modelPath.string() << std::endl;
+  spdlog::info(std::format("Loading model from: {}", modelPath.string()));
   Assimp::Importer importer;
 
   const aiScene *scene = importer.ReadFile(
@@ -80,7 +80,7 @@ void Model::createMesh(
   auto modelMat = glm::translate(glm::mat4(1), m_position);
   processNode(scene->mRootNode, scene, modelMat, vertices, indices);
 
-  std::cout << "Convert success: Vertices: " << vertices.size() << "; Indices: " << indices.size() << std::endl;
+  spdlog::info(std::format("Convert success - Vertices: {}; Indices: {}", vertices.size(), indices.size()));
 
   m_mesh = std::make_unique<Mesh<Vertex, uint32_t> >(
     allocator, device, graphicsQueue, commandPool, vertices, indices
@@ -99,7 +99,7 @@ void Model::processNode(
 
   for (unsigned int m = 0; m < node->mNumMeshes; ++m) {
     aiMesh *mesh = scene->mMeshes[node->mMeshes[m]];
-    std::cout << "Node: " << node->mName.C_Str() << "; Vertices count: " << mesh->mNumVertices << std::endl;
+    spdlog::info(std::format("Node: {}; Vertices count: {}", node->mName.C_Str(), mesh->mNumVertices));
     auto texCords = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0] : nullptr;
     auto meshMaterial = scene->mMaterials[mesh->mMaterialIndex];
     auto albedoIdx = m_albedoMapping.find(mesh->mMaterialIndex);
