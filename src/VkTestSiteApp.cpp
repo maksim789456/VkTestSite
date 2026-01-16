@@ -773,7 +773,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       &inheritanceInfo);
     lightCmd.reset();
     lightCmd.begin(lightBeginInfo); {
-      TracyVkZone(m_vkContext, lightCmd, "Light Pass");
+      //TracyVkZone(m_vkContext, lightCmd, "Light Pass");
       m_swapchain.cmdSetViewport(lightCmd);
       m_swapchain.cmdSetScissor(lightCmd);
       lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
@@ -794,7 +794,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       &inheritanceInfo);
     imguiCmd.reset();
     imguiCmd.begin(imguiBeginInfo); {
-      TracyVkZone(m_vkContext, imguiCmd, "Imgui");
+      //TracyVkZone(m_vkContext, imguiCmd, "Imgui");
       ImGui_ImplVulkan_RenderDrawData(draw_data, imguiCmd);
     }
     imguiCmd.end();
