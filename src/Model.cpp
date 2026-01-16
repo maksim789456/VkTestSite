@@ -265,7 +265,6 @@ vk::CommandBuffer Model::cmdDraw(
   );
 
   const auto cmdBuf = m_commandBuffers[imageIndex].get();
-  const auto push_consts = calcPushConsts();
 
   cmdBuf.reset();
   cmdBuf.begin(beginInfo);

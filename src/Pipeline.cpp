@@ -62,7 +62,7 @@ vk::Pipeline PipelineBuilder::buildCompute() {
   if (!m_shaderModule->isCompute())
     throw std::runtime_error("Try to build compute pipeline, but shader detected as graphics!");
 
-  auto pipelineInfo = vk::ComputePipelineCreateInfo({});
+  auto pipelineInfo = vk::ComputePipelineCreateInfo();
   pipelineInfo
       .setStage(m_shaderModule->computePipelineInfo)
       .setLayout(m_pipelineLayout)

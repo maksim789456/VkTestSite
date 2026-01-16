@@ -363,7 +363,7 @@ void VkTestSiteApp::createPipeline() {
       })
       .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
       .withSubpass(0)
-      .build();
+      .buildGraphics();
 
   m_lightingPipeline = PipelineBuilder(
         m_device,
@@ -375,7 +375,7 @@ void VkTestSiteApp::createPipeline() {
       .depthStencil(false, false, vk::CompareOp::eAlways)
       .withCullMode(vk::CullModeFlagBits::eNone)
       .withSubpass(1)
-      .build();
+      .buildGraphics();
 }
 
 void VkTestSiteApp::createColorObjets() {
@@ -587,7 +587,7 @@ void VkTestSiteApp::mainLoop() {
       if (path != nullptr) {
         auto pathStr = std::string(path);
         m_model = std::make_unique<Model>(
-          m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, pathStr);
+          m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, *m_lightManager, pathStr);
         m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
         m_modelLoaded = true;
       }
@@ -651,6 +651,10 @@ void VkTestSiteApp::mainLoop() {
       }
       ImGui::EndChild();
       ImGui::End();
+    }
+
+    if (m_modelLoaded) {
+      m_model->drawUI();
     }
 
     m_lightManager->renderImGui();
