@@ -67,4 +67,64 @@ public struct Light
 
       return 1.0 / (constant + linear * distance + exp * (distance * distance));
    }
+
+   public float computeLightRadius(float threshold)
+   {
+      if (position.w == LIGHT_DIRECTIONAL)
+        return 0.0;
+
+      float t = threshold / color.w;
+      float constant = direction.w;
+      float linear = info.z;
+      float exp = info.w;
+
+      float disc = linear * linear - 4.0*exp*(constant - 1.0/t);
+      if (disc < 0.0)
+        return 0.0;
+      return (-linear + sqrt(disc)) / (2.0 * exp);
+   }
+
+   public float computeLightRadius_LS(float threshold)
+   {
+       float intensity = color.w;
+       float c = direction.w; // constant attenuation (we use direction.w as constant as per user's layout)
+       float linear = info.z;
+       float expAtt = info.w;
+
+       // avoid division by zero or negative threshold
+       if (threshold <= 0.0) return 1e6;
+
+       // target: const + linear*r + exp*r^2 = intensity / threshold
+       float rhs = intensity / threshold;
+       float C = c - rhs;
+       float A = expAtt;
+       float B = linear;
+
+       // Solve A*r^2 + B*r + C = 0
+       if (abs(A) > 1e-6) {
+           float disc = B * B - 4.0 * A * C;
+           if (disc < 0.0) {
+               // no real root -> assume big radius
+               return 1e6;
+           }
+           float sqrtD = sqrt(disc);
+           float r1 = (-B + sqrtD) / (2.0 * A);
+           float r2 = (-B - sqrtD) / (2.0 * A);
+           // choose the positive root
+           float r = max(r1, r2);
+           if (r > 0.0) return r;
+           // fallback if both negative
+           return 0.0;
+       } else {
+           // linear equation: B*r + C = 0 => r = -C/B
+           if (abs(B) > 1e-6) {
+               float r = -C / B;
+               return max(r, 0.0);
+           } else {
+               // constant attenuation only -> either always above threshold or never
+               if (C <= 0.0) return 1e6;
+               return 0.0;
+           }
+       }
+   }
 }
