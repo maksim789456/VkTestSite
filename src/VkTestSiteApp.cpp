@@ -4,6 +4,7 @@
 #define WINDOW_HEIGHT 720
 #define MAX_FRAME_IN_FLIGHT 2 //0..2 -> 3 frames
 #define MAX_MATERIAL_PER_DESCRIPTOR 64
+#define XR_ENABLED 1
 
 const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -46,21 +47,27 @@ void VkTestSiteApp::initWindow() {
   m_window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "VK test", nullptr, nullptr);
 }
 
-void VkTestSiteApp::initVk() {
+void VkTestSiteApp:: initVk() {
   ZoneScoped;
   m_loader = {};
   const auto vkGetInstanceProcAddr = m_loader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
   VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
+  m_xrSystem = std::make_unique<vr::XrSystem>();
   createInstance();
 
   VkSurfaceKHR surface_tmp;
   glfwCreateWindowSurface(m_instance, m_window, nullptr, &surface_tmp);
   m_surface = vk::UniqueSurfaceKHR(surface_tmp, m_instance);
-  const auto deviceTmp = pickPhysicalDevice(m_instance, m_surface.get(), DEVICE_EXTENSIONS);
-  if (!deviceTmp) {
-    abort();
+  if constexpr (XR_ENABLED) {
+    m_physicalDevice = m_xrSystem->makeVkPhysicalDevice(m_instance);
   }
-  m_physicalDevice = *deviceTmp;
+  else {
+    const auto deviceTmp = pickPhysicalDevice(m_instance, m_surface.get(), DEVICE_EXTENSIONS);
+    if (!deviceTmp) {
+      abort();
+    }
+    m_physicalDevice = *deviceTmp;
+  }
   const auto props = m_physicalDevice.getProperties();
   std::cout << "Physical device: " << props.deviceName << std::endl;
   m_msaaSamples = findMaxMsaaSamples(m_physicalDevice);
@@ -106,7 +113,7 @@ void VkTestSiteApp::initVk() {
   m_texManager = std::make_unique<TextureManager>(
     m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
 
-  m_xrSystem = std::make_unique<vr::XrSystem>(m_instance, m_physicalDevice, m_device);
+  m_xrSystem->createSession(m_instance, m_physicalDevice, m_device, indices.graphics, 0);
 
   m_camera = std::make_unique<Camera>(m_swapchain.extent);
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -201,7 +208,11 @@ void VkTestSiteApp::createInstance() {
   //vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR
   auto create_info = makeInstanceCreateInfoChain({}, app_info,
                                                  enabled_layers, enabled_extensions);
-  m_instance = vk::createInstance(create_info.get<vk::InstanceCreateInfo>());
+  if constexpr (XR_ENABLED) {
+    m_instance = m_xrSystem->makeVkInstance(create_info.get<vk::InstanceCreateInfo>());
+  } else {
+    m_instance = vk::createInstance(create_info.get<vk::InstanceCreateInfo>());
+  }
   VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
 
 #ifndef NDEBUG
@@ -277,7 +288,11 @@ void VkTestSiteApp::createLogicalDevice() {
   );
   device_create_info.setPNext(&features13);
 
-  m_device = m_physicalDevice.createDevice(device_create_info);
+  if constexpr (XR_ENABLED) {
+    m_device = m_xrSystem->makeVkDevice(device_create_info, m_physicalDevice);
+  } else {
+    m_device = m_physicalDevice.createDevice(device_create_info);
+  }
   VULKAN_HPP_DEFAULT_DISPATCHER.init(m_device);
 }
 
