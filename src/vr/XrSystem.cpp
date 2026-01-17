@@ -138,7 +138,7 @@ vk::PhysicalDevice vr::XrSystem::makeVkPhysicalDevice(const vk::Instance vkInsta
 
   vk::PhysicalDevice physicalDevice;
   xr_instance->getVulkanGraphicsDevice2KHR(getInfo,
-    reinterpret_cast<VkPhysicalDevice*>(&physicalDevice), getXRDispatch());
+                                           reinterpret_cast<VkPhysicalDevice *>(&physicalDevice), getXRDispatch());
   assert(physicalDevice);
 
   return physicalDevice;
@@ -222,13 +222,19 @@ void vr::XrSystem::createSession(
 
 bool vr::XrSystem::findSwapchainFormat() {
   auto swapchainFormats = session->enumerateSwapchainFormatsToVector();
-  for (const auto &format: swapchainFormats) {
-    if (static_cast<std::uint64_t>(vk::Format::eR8G8B8A8Unorm) == format
-        || static_cast<std::uint64_t>(vk::Format::eR8G8B8A8Srgb) == format) {
-      swapchainFormat = static_cast<vk::Format>(format);
-      return true;
+  const auto it = std::ranges::find_if(
+    swapchainFormats,
+    [](auto format) {
+      return format == static_cast<std::uint64_t>(vk::Format::eR8G8B8A8Unorm) ||
+             format == static_cast<std::uint64_t>(vk::Format::eR8G8B8A8Srgb);
     }
+  );
+
+  if (it != swapchainFormats.end()) {
+    swapchainFormat = static_cast<vk::Format>(*it);
+    return true;
   }
+
   return false;
 }
 
