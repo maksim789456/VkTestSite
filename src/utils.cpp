@@ -308,6 +308,42 @@ static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4 &m) {
   );
 }
 
+static std::vector<vk::ImageView> createSwapchainImageViews(
+  const vk::Device &device,
+  const std::vector<vk::Image> &swapchainImages,
+  const vk::Format swapchainImageFormat
+) {
+  ZoneScoped;
+  std::vector<vk::ImageView> imageViews;
+  imageViews.reserve(swapchainImages.size());
+
+  for (const auto &image: swapchainImages) {
+    vk::ImageSubresourceRange subresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+    vk::ImageViewCreateInfo info({}, image, vk::ImageViewType::e2D, swapchainImageFormat, {}, subresourceRange);
+    imageViews.push_back(device.createImageView(info));
+  }
+
+  return imageViews;
+}
+
+static std::vector<vk::UniqueImageView> createSwapchainImageViewsUnique(
+  const vk::Device &device,
+  const std::vector<vk::UniqueImage> &swapchainImages,
+  const vk::Format swapchainImageFormat
+) {
+  ZoneScoped;
+  std::vector<vk::UniqueImageView> imageViews;
+  imageViews.reserve(swapchainImages.size());
+
+  for (const auto &image: swapchainImages) {
+    vk::ImageSubresourceRange subresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
+    vk::ImageViewCreateInfo info({}, image.get(), vk::ImageViewType::e2D, swapchainImageFormat, {}, subresourceRange);
+    imageViews.push_back(device.createImageViewUnique(info));
+  }
+
+  return imageViews;
+}
+
 static std::pair<vma::UniqueImage, vma::UniqueAllocation> createImageUnique(
   const vma::Allocator allocator,
   const uint32_t width, const uint32_t height,

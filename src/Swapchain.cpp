@@ -46,24 +46,6 @@ vk::Extent2D get_swapchain_extent(
   return extent;
 }
 
-std::vector<vk::ImageView> create_swapchain_image_views(
-  const vk::Device &device,
-  const std::vector<vk::Image> &swapchainImages,
-  vk::Format swapchainImageFormat
-) {
-  ZoneScoped;
-  std::vector<vk::ImageView> imageViews;
-  imageViews.reserve(swapchainImages.size());
-
-  for (const auto &image: swapchainImages) {
-    vk::ImageSubresourceRange subresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
-    vk::ImageViewCreateInfo info({}, image, vk::ImageViewType::e2D, swapchainImageFormat, {}, subresourceRange);
-    imageViews.push_back(device.createImageView(info));
-  }
-
-  return imageViews;
-}
-
 Swapchain::Swapchain(): format() {
 }
 
@@ -115,7 +97,7 @@ Swapchain::Swapchain(
 
   swapchain = device.createSwapchainKHR(info);
   images = device.getSwapchainImagesKHR(swapchain);
-  imageViews = create_swapchain_image_views(device, images, format);
+  imageViews = createSwapchainImageViews(device, images, format);
 }
 
 void Swapchain::cmdSetViewport(const vk::CommandBuffer cmdBuffer) const {
