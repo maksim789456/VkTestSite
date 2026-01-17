@@ -8,7 +8,7 @@ void ShaderModule::load(
   auto filename = std::filesystem::path(path).filename();
   auto file = std::ifstream(path, std::ios::binary | std::ios::ate);
   if (file.fail() || !file.is_open()) {
-    std::cerr << "Failed to open shader source file" << std::endl;
+    spdlog::error("Failed to open shader source file");
     abort();
   }
 
@@ -33,7 +33,7 @@ void ShaderModule::reflect(
   ZoneScoped;
   m_spvReflectModule = std::make_unique<spv_reflect::ShaderModule>(m_spv);
   if (m_spvReflectModule->GetResult() != SPV_REFLECT_RESULT_SUCCESS) {
-    std::cerr << "Failed to reflect shader module" << std::endl;
+    spdlog::error("Failed to reflect shader module");
     abort();
   }
 

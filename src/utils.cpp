@@ -71,7 +71,7 @@ std::vector<char const *> static gatherExtensions(
   for (const auto &extension: extensions) {
 #ifndef NDEBUG
     if (!extensionAvailable(extension)) {
-      std::cerr << "Extension " << extension << " not available" << std::endl;
+      spdlog::error(std::format("Extension {} not available", extension));
       abort();
     }
 #endif
@@ -194,7 +194,7 @@ std::optional<vk::PhysicalDevice> static pickPhysicalDevice(
   const std::vector<vk::PhysicalDevice> physical_devices = instance.enumeratePhysicalDevices();
 
   if (physical_devices.empty()) {
-    std::cerr << "No GPU's devices found" << std::endl;
+    spdlog::error("No GPU's devices found");
     return std::nullopt;
   }
 
@@ -233,7 +233,7 @@ std::optional<vk::PhysicalDevice> static pickPhysicalDevice(
     }
   }
 
-  std::cerr << "Failed to found a suitable GPU!" << std::endl;
+  spdlog::error("Failed to found a suitable GPU!");
   return std::nullopt;
 }
 
