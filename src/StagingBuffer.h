@@ -56,8 +56,8 @@ public:
 
     m_virtualBlock = vma::createVirtualBlockUnique(vma::VirtualBlockCreateInfo(bufferSize));
 
-    constexpr auto semaTypeInfo = vk::SemaphoreTypeCreateInfo(vk::SemaphoreType::eTimeline);
-    auto semaInfo = vk::SemaphoreCreateInfo({}, &semaTypeInfo);
+    const auto semaTypeInfo = vk::SemaphoreTypeCreateInfo(vk::SemaphoreType::eTimeline);
+    const auto semaInfo = vk::SemaphoreCreateInfo({}, &semaTypeInfo);
     m_timeline = m_device.createSemaphoreUnique(semaInfo);
   }
 

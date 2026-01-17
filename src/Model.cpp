@@ -48,7 +48,7 @@ Model::Model(
   const std::filesystem::path &modelPath
 ): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_allocator(allocator) {
   ZoneScoped;
-  std::cout << "Loading model from: " << modelPath.string() << std::endl;
+  spdlog::info(std::format("Loading model from: {}", modelPath.string()));
   Assimp::Importer importer;
 
   const aiScene *scene = importer.ReadFile(

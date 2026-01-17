@@ -33,7 +33,7 @@ vk::Pipeline PipelineBuilder::buildGraphics() {
   colorAttachments = m_colorBlendAttachments.has_value() ? m_colorBlendAttachments.value() : colorAttachments;
   auto colorBlend = vk::PipelineColorBlendStateCreateInfo({}, false, vk::LogicOp::eCopy, colorAttachments);
 
-  auto pipelineInfo = vk::GraphicsPipelineCreateInfo{};
+  auto pipelineInfo = vk::GraphicsPipelineCreateInfo();
   pipelineInfo.setStages(shaderStages)
       .setPVertexInputState(&vertexInputInfo)
       .setPInputAssemblyState(&inputAssembly)
@@ -62,7 +62,7 @@ vk::Pipeline PipelineBuilder::buildCompute() {
   if (!m_shaderModule->isCompute())
     throw std::runtime_error("Try to build compute pipeline, but shader detected as graphics!");
 
-  auto pipelineInfo = vk::ComputePipelineCreateInfo{};
+  auto pipelineInfo = vk::ComputePipelineCreateInfo();
   pipelineInfo
       .setStage(m_shaderModule->computePipelineInfo)
       .setLayout(m_pipelineLayout)
