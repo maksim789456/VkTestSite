@@ -69,7 +69,7 @@ void VkTestSiteApp:: initVk() {
     m_physicalDevice = *deviceTmp;
   }
   const auto props = m_physicalDevice.getProperties();
-  std::cout << "Physical device: " << props.deviceName << std::endl;
+  spdlog::info(std::format("Physical device: {}", std::string(props.deviceName)));
   m_msaaSamples = findMaxMsaaSamples(m_physicalDevice);
   createLogicalDevice();
   createQueues();
@@ -83,7 +83,8 @@ void VkTestSiteApp:: initVk() {
   VmaAllocator vmaAllocator;
   auto allocCreateResult = vmaCreateAllocator(&allocatorInfo, &vmaAllocator);
   if (allocCreateResult != VK_SUCCESS) {
-    std::cerr << "vmaCreateAllocator failed with error code: " << allocCreateResult << std::endl;
+    spdlog::error(std::format("vmaCreateAllocator failed with error code: {}",
+                              vk::to_string(static_cast<vk::Result>(allocCreateResult))));
     throw std::runtime_error("Failed to create VMA allocator");
   }
   m_allocator = vma::Allocator(vmaAllocator);
@@ -158,10 +159,12 @@ void VkTestSiteApp:: initVk() {
   vkInitInfo.Subpass = 1;
   vkInitInfo.DescriptorPoolSize = 100;
   vkInitInfo.CheckVkResultFn = [](const VkResult err) {
-    if (err != VK_SUCCESS) std::cerr << "Imgui Vk Error: " << err << std::endl;
+    if (err != VK_SUCCESS)
+      spdlog::error(std::format("Imgui Vk Error: {}",
+                                vk::to_string(static_cast<vk::Result>(err))));
   };
   if (!ImGui_ImplVulkan_Init(&vkInitInfo)) {
-    std::cerr << "Failed to initialize Imgui Vulkan render" << std::endl;
+    spdlog::error("Failed to initialize Imgui Vulkan render");
     abort();
   }
 

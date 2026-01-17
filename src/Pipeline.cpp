@@ -51,7 +51,7 @@ vk::Pipeline PipelineBuilder::buildGraphics() {
 
   auto result = m_device.createGraphicsPipeline(nullptr, pipelineInfo);
   if (result.result != vk::Result::eSuccess) {
-    std::cerr << "Failed to create graphics pipeline!" << std::endl;
+    spdlog::error("Failed to create graphics pipeline!");
     abort();
   }
   setObjectName(m_device, result.value, m_name);
@@ -71,7 +71,7 @@ vk::Pipeline PipelineBuilder::buildCompute() {
 
   auto result = m_device.createComputePipeline(nullptr, pipelineInfo);
   if (result.result != vk::Result::eSuccess) {
-    std::cerr << "Failed to create compute pipeline!" << std::endl;
+    spdlog::error("Failed to create compute pipeline!");
     abort();
   }
   setObjectName(m_device, result.value, m_name);
