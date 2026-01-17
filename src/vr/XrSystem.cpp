@@ -178,6 +178,10 @@ void vr::XrSystem::createSession(
     return;
   }
 
+  m_vkInstance = vkInstance;
+  m_device = device;
+  m_physicalDevice = physicalDevice;
+
   xr::GraphicsRequirementsVulkanKHR vkGraphicsReq;
   xr_instance->getVulkanGraphicsRequirements2KHR(systemId, vkGraphicsReq, getXRDispatch());
   const auto vkVersion = xr::Version(1, 3, 0);

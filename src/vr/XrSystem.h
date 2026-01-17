@@ -42,6 +42,10 @@ namespace vr {
     xr::SystemId systemId;
     xr::SystemProperties sysProps;
 
+    vk::Instance m_vkInstance;
+    vk::PhysicalDevice m_physicalDevice;
+    vk::Device m_device;
+
     xr::UniqueSession session;
     xr::UniqueSpace xrSpace;
     xr::UniqueSpace headSpace;
