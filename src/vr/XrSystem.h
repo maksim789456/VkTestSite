@@ -10,6 +10,7 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr.hpp>
 #include "vr/XrUtils.cpp"
+#include "utils.cpp"
 
 namespace vr {
   class XrSystem {
@@ -54,7 +55,8 @@ namespace vr {
     vk::Extent2D eyeRenderSize;
     vk::Format swapchainFormat;
     xr::UniqueSwapchain swapchain;
-    std::vector<xr::SwapchainImageVulkanKHR> swapchainImages;
+    std::vector<vk::UniqueImage> swapchainImages;
+    std::vector<vk::UniqueImageView> swapchainImageViews;
 
     xr::SessionState sessionState = xr::SessionState::Unknown;
 

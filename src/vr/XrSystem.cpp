@@ -270,8 +270,20 @@ bool vr::XrSystem::createSwapchain() {
     return false;
   }
 
-  swapchainImages = enumerateSwapchainImagesToVector<xr::SwapchainImageVulkanKHR>
-      (swapchain.get(), getXRDispatch()).value;
+  const auto xrSwapchainImagesResult = enumerateSwapchainImagesToVector<xr::SwapchainImageVulkanKHR>(
+    swapchain.get(), getXRDispatch());
+  assert(xrSwapchainImagesResult.result == xr::Result::Success);
+
+  swapchainImages =
+      xrSwapchainImagesResult.value
+      | std::views::transform([](auto const &xrSwapchainImage) {
+        return vk::UniqueImage(xrSwapchainImage.image);
+      })
+      | std::ranges::to<std::vector>();
+
+  swapchainImageViews = createSwapchainImageViewsUnique(m_device, swapchainImages, swapchainFormat);
+
+  //TODO: sync objs?
 
   return true;
 }
