@@ -287,3 +287,60 @@ bool vr::XrSystem::createSwapchain() {
 
   return true;
 }
+
+void vr::XrSystem::handleEvent(xr::EventDataBuffer event) {
+  switch (event.type) {
+    case xr::StructureType::EventDataSessionStateChanged: {
+      const auto &sessionStateChanged = eventAs(xr::EventDataSessionStateChanged);
+      spdlog::warn("[XR] Session State Change: {}", xr::to_string(sessionStateChanged.state));
+      sessionState = sessionStateChanged.state;
+      switch (sessionState) {
+        case xr::SessionState::Ready: {
+          xr::SessionBeginInfo beginInfo = {};
+          beginInfo.primaryViewConfigurationType = xr::ViewConfigurationType::PrimaryStereo;
+          session->beginSession(beginInfo);
+          sessionRunning = true;
+          break;
+        }
+        case xr::SessionState::Stopping: {
+          session->endSession();
+          sessionRunning = false;
+          break;
+        }
+        case xr::SessionState::Exiting:
+        case xr::SessionState::LossPending: {
+          sessionRunning = false;
+          applicationRunning = false;
+          break;
+        }
+        default: break;
+      }
+      break;
+    }
+    // Section: warnings
+    case xr::StructureType::EventDataEventsLost: {
+      const auto &eventsLost = eventAs(xr::EventDataEventsLost);
+      spdlog::warn("[XR] Events Lost: {}", eventsLost.lostEventCount);
+      break;
+    }
+    case xr::StructureType::EventDataInstanceLossPending: {
+      const auto &instanceLoosPending = eventAs(xr::EventDataInstanceLossPending);
+      spdlog::warn("[XR] Instance Loss Pending at: {}", instanceLoosPending.lossTime.get());
+      break;
+    }
+    case xr::StructureType::EventDataInteractionProfileChanged: {
+      const auto &interactionProfileChanged = eventAs(xr::EventDataInteractionProfileChanged);
+      spdlog::warn("[XR] Interaction Profile changed for Session: {}",
+                   fmt::ptr(interactionProfileChanged.session.get()));
+      break;
+    }
+    case xr::StructureType::EventDataReferenceSpaceChangePending: {
+      const auto &referenceSpaceChangePending = eventAs(xr::EventDataReferenceSpaceChangePending);
+      spdlog::warn("[XR] Reference Space Change pending for Session: {}",
+                   fmt::ptr(referenceSpaceChangePending.session.get()));
+      break;
+    }
+    default:
+      break;
+  }
+}

@@ -12,6 +12,8 @@
 #include "vr/XrUtils.cpp"
 #include "utils.cpp"
 
+#define eventAs(type) (*reinterpret_cast<type *>(&event))
+
 namespace vr {
   class XrSystem {
   public:
@@ -59,6 +61,8 @@ namespace vr {
     std::vector<vk::UniqueImageView> swapchainImageViews;
 
     xr::SessionState sessionState = xr::SessionState::Unknown;
+    bool sessionRunning = false;
+    bool applicationRunning = false;
 
     xr::DispatchLoaderDynamic &getXRDispatch() {
       static xr::DispatchLoaderDynamic dispatch = xr::DispatchLoaderDynamic::createFullyPopulated(
@@ -69,6 +73,8 @@ namespace vr {
     bool findSwapchainFormat();
 
     bool createSwapchain();
+
+    void handleEvent(xr::EventDataBuffer event);
   };
 }
 
