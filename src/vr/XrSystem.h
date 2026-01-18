@@ -38,6 +38,12 @@ namespace vr {
     vk::Device makeVkDevice(const vk::DeviceCreateInfo &createInfo,
       vk::PhysicalDevice physicalDevice);
 
+    void pollEvents();
+
+    void startFrame();
+
+    void present();
+
   private:
     bool ready = false;
     xr::UniqueInstance xr_instance;
@@ -64,6 +70,15 @@ namespace vr {
     bool sessionRunning = false;
     bool applicationRunning = false;
 
+    bool shouldRender;
+    xr::Time predictedEndTime;
+    uint32_t swapchainIdx;
+
+    glm::vec3 headPosition{0.0f};
+    glm::quat headRotation = glm::identity<glm::quat>();
+    std::vector<xr::View> xrViews;
+    xr::CompositionLayerProjectionView xrProjViews[2];
+
     xr::DispatchLoaderDynamic &getXRDispatch() {
       static xr::DispatchLoaderDynamic dispatch = xr::DispatchLoaderDynamic::createFullyPopulated(
         xr_instance.get(), &xrGetInstanceProcAddr);
@@ -75,6 +90,12 @@ namespace vr {
     bool createSwapchain();
 
     void handleEvent(xr::EventDataBuffer event);
+
+    void xrWaitFrame();
+
+    void xrBeginFrame();
+
+    void xrEndFrame();
   };
 }
 

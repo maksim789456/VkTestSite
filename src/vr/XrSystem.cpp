@@ -288,11 +288,22 @@ bool vr::XrSystem::createSwapchain() {
   return true;
 }
 
+void vr::XrSystem::pollEvents() {
+  xr::EventDataBuffer event;
+  xr::Result result;
+  do {
+    result = xr_instance->pollEvent(event);
+    if(result == xr::Result::Success) {
+      handleEvent(event);
+    }
+  } while(result == xr::Result::Success);
+}
+
 void vr::XrSystem::handleEvent(xr::EventDataBuffer event) {
   switch (event.type) {
     case xr::StructureType::EventDataSessionStateChanged: {
       const auto &sessionStateChanged = eventAs(xr::EventDataSessionStateChanged);
-      spdlog::warn("[XR] Session State Change: {}", xr::to_string(sessionStateChanged.state));
+      spdlog::info("[XR] Session State Change: {}", xr::to_string(sessionStateChanged.state));
       sessionState = sessionStateChanged.state;
       switch (sessionState) {
         case xr::SessionState::Ready: {
@@ -342,5 +353,105 @@ void vr::XrSystem::handleEvent(xr::EventDataBuffer event) {
     }
     default:
       break;
+  }
+}
+
+void vr::XrSystem::startFrame() {
+  if (!sessionRunning) {
+    return;
+  }
+  xrWaitFrame();
+  xrBeginFrame();
+}
+
+void vr::XrSystem::present() {
+  if (!sessionRunning) {
+    return;
+  }
+
+  {
+    ZoneScopedN("XR Acquire swapchain");
+    swapchainIdx = swapchain->acquireSwapchainImage({});
+  }
+  {
+    ZoneScopedN("XR Wait swapchain");
+    xr::SwapchainImageWaitInfo waitInfo = {};
+    waitInfo.timeout = xr::Duration::infinite();
+    swapchain->waitSwapchainImage(waitInfo);
+  }
+  //TODO: Make own xr fence for render, trigger it when main render done
+  //TODO: wait fence, reset
+
+  xrEndFrame();
+}
+
+
+void vr::XrSystem::xrWaitFrame() {
+  ZoneScopedN("XR Wait frame");
+  const xr::FrameState state = session->waitFrame({});
+  shouldRender = static_cast<bool>(state.shouldRender);
+  predictedEndTime = state.predictedDisplayTime;
+
+  TracyPlot("XR Display duration (ms)", state.predictedDisplayPeriod.get() / 1000000.0);
+
+  xr::ViewState viewState = {};
+  xr::ViewLocateInfo locateInfo = {};
+  locateInfo.viewConfigurationType = xr::ViewConfigurationType::PrimaryStereo;
+  locateInfo.displayTime = predictedEndTime;
+  locateInfo.space = xrSpace.get();
+  {
+    ZoneScopedN("Get views");
+    xrViews = session->locateViewsToVector(locateInfo, viewState);
+  }
+
+  xr::SpaceLocation headLocation = headSpace->locateSpace(xrSpace.get(), predictedEndTime);
+  headPosition = xrSpaceToVkSpace(toGlm(headLocation.pose.position));
+  headRotation = xrSpaceToVkSpace(toGlm(headLocation.pose.orientation));
+
+  //TODO: Use info from  xrViews[left] and xrViews[right] and update camera
+}
+
+void vr::XrSystem::xrBeginFrame() {
+  ZoneScopedN("XR Begin frame");
+  session->beginFrame({});
+}
+
+void vr::XrSystem::xrEndFrame() {
+  ZoneScopedN("XR End frame");
+  {
+    ZoneScopedN("XR Swapchain release");
+    swapchain->releaseSwapchainImage({});
+  }
+
+  auto updateView = [&](uint32_t idx) {
+    ZoneScopedN("Update eye");
+    auto& view = xrProjViews[idx];
+    view.pose = xrViews[idx].pose;
+    view.fov = xrViews[idx].fov;
+
+    xr::SwapchainSubImage &subImage = view.subImage;
+    subImage.imageArrayIndex = idx;
+    subImage.imageRect = xr::Rect2Di(xr::Offset2Di(), xr::Extent2Di(eyeRenderSize.width, eyeRenderSize.height));
+    subImage.swapchain = swapchain.get();
+  };
+
+  updateView(0); updateView(1);
+
+  xr::CompositionLayerProjection eyes;
+  eyes.space = xrSpace.get();
+  eyes.viewCount = 2;
+  eyes.views = xrProjViews;
+
+  const xr::CompositionLayerBaseHeader * const layers [] = { &eyes };
+
+  xr::FrameEndInfo frameEndInfo;
+  frameEndInfo.displayTime = predictedEndTime;
+  frameEndInfo.environmentBlendMode = xr::EnvironmentBlendMode::Opaque;
+  frameEndInfo.layerCount = 1;
+  frameEndInfo.layers = layers;
+
+  {
+    ZoneScopedN("XR End Frame");
+    session->endFrame(frameEndInfo);
   }
 }
