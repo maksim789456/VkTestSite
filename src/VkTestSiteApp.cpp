@@ -14,6 +14,13 @@ const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
 };
 
+const std::vector<const char *> INSTANCE_EXTENSIONS = {
+  VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+#ifndef NDEBUG
+  VK_EXT_DEBUG_UTILS_EXTENSION_NAME
+#endif
+};
+
 const std::vector LAYERS = {
 #ifndef NDEBUG
   "VK_LAYER_KHRONOS_validation"
@@ -47,7 +54,7 @@ void VkTestSiteApp::initWindow() {
   m_window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "VK test", nullptr, nullptr);
 }
 
-void VkTestSiteApp:: initVk() {
+void VkTestSiteApp::initVk() {
   ZoneScoped;
   m_loader = {};
   const auto vkGetInstanceProcAddr = m_loader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
@@ -60,8 +67,7 @@ void VkTestSiteApp:: initVk() {
   m_surface = vk::UniqueSurfaceKHR(surface_tmp, m_instance);
   if constexpr (XR_ENABLED) {
     m_physicalDevice = m_xrSystem->makeVkPhysicalDevice(m_instance);
-  }
-  else {
+  } else {
     const auto deviceTmp = pickPhysicalDevice(m_instance, m_surface.get(), DEVICE_EXTENSIONS);
     if (!deviceTmp) {
       abort();
@@ -187,15 +193,16 @@ void VkTestSiteApp::createInstance() {
   const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 
   std::vector<std::string> required_extensions;
+  required_extensions.reserve(INSTANCE_EXTENSIONS.size());
   const std::vector<std::string> required_layers;
+
+  for (const char *ext: INSTANCE_EXTENSIONS) {
+    required_extensions.emplace_back(ext);
+  }
 
   for (uint32_t i = 0; i < glfw_extension_count; ++i) {
     required_extensions.emplace_back(glfw_extensions[i]);
   }
-
-#ifndef NDEBUG
-  required_extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
 
   const auto enabled_extensions = gatherExtensions(required_extensions
 #ifndef NDEBUG
