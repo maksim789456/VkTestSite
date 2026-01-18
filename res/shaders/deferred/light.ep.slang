@@ -2,8 +2,8 @@ import lighting;
 
 struct UBO {
   float4 viewPos;
-  float4x4 viewProj;
-  float4x4 invViewProj;
+  float4x4 viewProj[2];
+  float4x4 invViewProj[2];
   uint32_t displayDebugTarget;
 }
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
@@ -30,12 +30,12 @@ VSOutput vertexMain(uint VertexIndex: SV_VertexID)
 }
 
 [shader("fragment")]
-float4 fragmentMain(VSOutput input, uniform uint pushLightCount) : SV_Target
+float4 fragmentMain(VSOutput input, uint viewId : SV_ViewID, uniform uint pushLightCount) : SV_Target
 {
     float depth = depthInput.SubpassLoad().r;
     float4 ndc = float4(input.UV * 2.0f - 1.0f, depth, 1.0);
 
-    float4 worldPosH = mul(ubo.invViewProj, ndc);
+    float4 worldPosH = mul(ubo.invViewProj[viewId], ndc);
     float3 fragPos = worldPosH.xyz / worldPosH.w;
 
     float3 normal = normalize(normalInput.SubpassLoad().rgb);

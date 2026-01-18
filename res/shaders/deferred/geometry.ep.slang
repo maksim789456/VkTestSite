@@ -21,8 +21,8 @@ struct VSOutput
 
 struct UBO {
   float4 viewPos;
-  float4x4 viewProj;
-  float4x4 invViewProj;
+  float4x4 viewProj[2];
+  float4x4 invViewProj[2];
   uint32_t displayDebugTarget;
 }
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
@@ -35,11 +35,11 @@ struct FSOutput
 };
 
 [shader("vertex")]
-VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
+VSOutput vertexMain(VSInput input, uint viewId: SV_ViewID, uniform float4x4 pushModel)
 {
     float4 worldPos = mul(pushModel, float4(input.Pos, 1.0));
     VSOutput out;
-    out.Pos = mul(ubo.viewProj, worldPos);
+    out.Pos = mul(ubo.viewProj[viewId], worldPos);
     out.WorldPos = worldPos.xyz;
     out.Normal = input.Normal;
     out.TexCoord = input.TexCoord;
