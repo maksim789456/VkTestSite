@@ -1,6 +1,9 @@
 #pragma once
 
 #include <future>
+#include <glm/fwd.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <openxr/openxr.hpp>
 #include <openxr/openxr_reflection.h>
@@ -128,4 +131,30 @@ enumerateSwapchainImagesToVector(xr::Swapchain swapchain, Dispatch &&d) {
   OPENXR_HPP_ASSERT(succeeded(result));
 
   return {result, std::move(images)};
+}
+
+inline glm::quat toGlm(const XrQuaternionf& q) {
+  return glm::make_quat(&q.x);
+}
+
+inline glm::vec3 toGlm(const XrVector3f& v) {
+  return glm::make_vec3(&v.x);
+}
+
+inline glm::mat4 toGlm(const XrPosef& p) {
+  const glm::mat4 orientation = glm::mat4_cast(toGlm(p.orientation));
+  const glm::mat4 translation = glm::translate(glm::mat4(1.0f), toGlm(p.position));
+  return translation * orientation;
+}
+
+inline glm::vec3 xrSpaceToVkSpace(const glm::vec3& xrSpace) {
+  return glm::vec3 { xrSpace.x, -xrSpace.z, xrSpace.y };
+}
+
+inline glm::quat xrSpaceToVkSpace(const glm::quat& xrSpace) {
+  const glm::quat correction = glm::rotate(glm::identity<glm::quat>(), glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+  glm::quat result = xrSpace;
+  result.y = -xrSpace.z;
+  result.z = xrSpace.y;
+  return result * correction;
 }
