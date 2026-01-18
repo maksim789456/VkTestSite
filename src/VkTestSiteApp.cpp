@@ -586,6 +586,9 @@ void VkTestSiteApp::mainLoop() {
     const float deltaTime = currentTime - m_lastTime;
     m_lastTime = currentTime;
     glfwPollEvents();
+    if constexpr (XR_ENABLED) {
+      m_xrSystem->pollEvents();
+    }
     m_texManager->checkTextureLoading();
     if (glfwGetWindowAttrib(m_window, GLFW_ICONIFIED) != 0) {
       ImGui_ImplGlfw_Sleep(10);
@@ -704,6 +707,10 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     throw std::runtime_error("Failed to acquire swapchain image!");
   }
 
+  if constexpr (XR_ENABLED) {
+    m_xrSystem->startFrame();
+  }
+
   m_camera->onUpdate(deltaTime);
   updateUniformBuffer(imageIndex);
   recordCommandBuffer(draw_data, m_commandBuffers[imageIndex], imageIndex);
@@ -733,6 +740,10 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
     recreateSwapchain();
     return;
+  }
+
+  if constexpr (XR_ENABLED) {
+    m_xrSystem->present();
   }
 
   m_presentQueue.waitIdle();
@@ -835,7 +846,6 @@ void VkTestSiteApp::recreateSwapchain() {
 
   m_device.waitIdle();
   cleanupSwapchain();
-  m_xrSystem.release();
 
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
   createRenderPass();
@@ -881,6 +891,7 @@ void VkTestSiteApp::cleanup() {
   }
 
   cleanupSwapchain();
+  m_xrSystem.release();
 
   if (m_modelLoaded)
     m_model.reset();
