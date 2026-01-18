@@ -45,8 +45,8 @@
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
-  glm::mat4 viewProj;
-  glm::mat4 invViewProj;
+  glm::mat4 viewProj[2];
+  glm::mat4 invViewProj[2];
   uint32_t displayDebugTarget;
 };
 

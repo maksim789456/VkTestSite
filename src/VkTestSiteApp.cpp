@@ -6,12 +6,13 @@
 #define MAX_MATERIAL_PER_DESCRIPTOR 64
 #define XR_ENABLED 1
 
-const std::vector DEVICE_EXTENSIONS = {
+const std::vector<const char *> DEVICE_EXTENSIONS = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME,
   VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
   VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME,
   VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-  VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
+  VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME,
+  VK_KHR_MULTIVIEW_EXTENSION_NAME
 };
 
 const std::vector<const char *> INSTANCE_EXTENSIONS = {
@@ -268,8 +269,12 @@ void VkTestSiteApp::createLogicalDevice() {
   vk::PhysicalDeviceHostQueryResetFeatures hostQueryResetFeatures{};
   vk::PhysicalDeviceTimelineSemaphoreFeatures timeline_semaphore_features{};
   vk::PhysicalDeviceVulkan13Features features13{};
+  vk::PhysicalDeviceMultiviewFeaturesKHR physicalDeviceMultiviewFeatures{};
 
-  hostQueryResetFeatures.setHostQueryReset(true);
+  physicalDeviceMultiviewFeatures.setMultiview(true);
+  hostQueryResetFeatures
+      .setHostQueryReset(true)
+      .setPNext(&physicalDeviceMultiviewFeatures);
   timeline_semaphore_features
       .setTimelineSemaphore(true)
       .setPNext(&hostQueryResetFeatures);
