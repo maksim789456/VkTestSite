@@ -36,13 +36,15 @@ namespace vr {
     vk::PhysicalDevice makeVkPhysicalDevice(const vk::Instance vkInstance);
 
     vk::Device makeVkDevice(const vk::DeviceCreateInfo &createInfo,
-      vk::PhysicalDevice physicalDevice);
+                            vk::PhysicalDevice physicalDevice);
 
     void pollEvents();
 
     void startFrame();
 
     void present();
+
+    bool isReady() { return ready; }
 
   private:
     bool ready = false;

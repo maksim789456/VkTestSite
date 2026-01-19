@@ -4,7 +4,7 @@
 #define WINDOW_HEIGHT 720
 #define MAX_FRAME_IN_FLIGHT 2 //0..2 -> 3 frames
 #define MAX_MATERIAL_PER_DESCRIPTOR 64
-#define XR_ENABLED 1
+#define XR_ENABLED true
 
 const std::vector<const char *> DEVICE_EXTENSIONS = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -66,7 +66,7 @@ void VkTestSiteApp::initVk() {
   VkSurfaceKHR surface_tmp;
   glfwCreateWindowSurface(m_instance, m_window, nullptr, &surface_tmp);
   m_surface = vk::UniqueSurfaceKHR(surface_tmp, m_instance);
-  if constexpr (XR_ENABLED) {
+  if (XR_ENABLED && m_xrSystem->isReady()) {
     m_physicalDevice = m_xrSystem->makeVkPhysicalDevice(m_instance);
   } else {
     const auto deviceTmp = pickPhysicalDevice(m_instance, m_surface.get(), DEVICE_EXTENSIONS);
@@ -219,7 +219,7 @@ void VkTestSiteApp::createInstance() {
   //vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR
   auto create_info = makeInstanceCreateInfoChain({}, app_info,
                                                  enabled_layers, enabled_extensions);
-  if constexpr (XR_ENABLED) {
+  if (XR_ENABLED && m_xrSystem->isReady()) {
     m_instance = m_xrSystem->makeVkInstance(create_info.get<vk::InstanceCreateInfo>());
   } else {
     m_instance = vk::createInstance(create_info.get<vk::InstanceCreateInfo>());
@@ -303,7 +303,7 @@ void VkTestSiteApp::createLogicalDevice() {
   );
   device_create_info.setPNext(&features13);
 
-  if constexpr (XR_ENABLED) {
+  if (XR_ENABLED && m_xrSystem->isReady()) {
     m_device = m_xrSystem->makeVkDevice(device_create_info, m_physicalDevice);
   } else {
     m_device = m_physicalDevice.createDevice(device_create_info);
@@ -598,7 +598,7 @@ void VkTestSiteApp::mainLoop() {
     const float deltaTime = currentTime - m_lastTime;
     m_lastTime = currentTime;
     glfwPollEvents();
-    if constexpr (XR_ENABLED) {
+    if (XR_ENABLED && m_xrSystem->isReady()) {
       m_xrSystem->pollEvents();
     }
     m_texManager->checkTextureLoading();
@@ -719,7 +719,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     throw std::runtime_error("Failed to acquire swapchain image!");
   }
 
-  if constexpr (XR_ENABLED) {
+  if (XR_ENABLED && m_xrSystem->isReady()) {
     m_xrSystem->startFrame();
   }
 
@@ -754,7 +754,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     return;
   }
 
-  if constexpr (XR_ENABLED) {
+  if (XR_ENABLED && m_xrSystem->isReady()) {
     m_xrSystem->present();
   }
 
