@@ -111,17 +111,16 @@ void VkTestSiteApp::initVk() {
     m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
   );
   m_lightingCommandBuffers = m_device.allocateCommandBuffersUnique(lightCmdsInfo);
+  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
+  m_xrSystem->createSession(m_instance, m_physicalDevice, m_device, indices.graphics, 0);
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
-  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   m_stagingBuffer = std::make_unique<StagingBuffer>(m_device, m_allocator, 128 * 1024 * 1024); // 64 MB
   m_transferThread = std::make_unique<TransferThread>(m_device, m_transferQueue, indices.transfer, *m_stagingBuffer);
   m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_device, m_allocator, *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
     m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
-
-  m_xrSystem->createSession(m_instance, m_physicalDevice, m_device, indices.graphics, 0);
 
   m_camera = std::make_unique<Camera>(m_swapchain.extent);
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
