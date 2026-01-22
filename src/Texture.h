@@ -30,7 +30,8 @@ public:
     vk::ImageAspectFlags aspects,
     vk::ImageUsageFlags usage,
     bool useSampler = false,
-    const std::string &name = "Texture"
+    const std::string &name = "Texture",
+    const uint32_t arrayLayers = 1
   );
 
   ~Texture() {
@@ -76,14 +77,16 @@ inline Texture::Texture(
   const vk::ImageAspectFlags aspects,
   const vk::ImageUsageFlags usage,
   const bool useSampler,
-  const std::string &name
+  const std::string &name,
+  const uint32_t arrayLayers
 ): width(width), height(height), mipLevels(mipLevels) {
   ZoneScoped;
   std::tie(m_image, m_imageAlloc) = createImageUnique(
     allocator,
     width, height, mipLevels,
     samples, format, vk::ImageTiling::eOptimal,
-    usage, vk::MemoryPropertyFlagBits::eDeviceLocal
+    usage, vk::MemoryPropertyFlagBits::eDeviceLocal,
+    arrayLayers
   );
   setObjectName(device, m_image.get(), std::format("{} ", name));
   auto info = allocator.getAllocationInfo(m_imageAlloc.get());

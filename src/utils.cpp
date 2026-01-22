@@ -352,12 +352,13 @@ static std::pair<vma::UniqueImage, vma::UniqueAllocation> createImageUnique(
   const vk::Format format,
   const vk::ImageTiling tiling,
   const vk::ImageUsageFlags usage,
-  const vk::MemoryPropertyFlags properties
+  const vk::MemoryPropertyFlags properties,
+  const uint32_t arrayLayers = 1
 ) {
   auto info = vk::ImageCreateInfo(
     {}, vk::ImageType::e2D,
     format, vk::Extent3D(width, height, 1),
-    mipLevels, 1, samples,
+    mipLevels, arrayLayers, samples,
     tiling, usage, vk::SharingMode::eExclusive
   );
   info.setInitialLayout(vk::ImageLayout::eUndefined);
@@ -405,7 +406,8 @@ static void cmdTransitionImageLayout(
   const vk::ImageLayout newLayout,
   const uint32_t mipLevels,
   const vk::Format format = vk::Format::eR32G32B32A32Sfloat,
-  const uint32_t baseMipLevel = 0
+  const uint32_t baseMipLevel = 0,
+  const uint32_t arrayLayers = 1
 ) {
   auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
     -> std::tuple<vk::AccessFlags, vk::AccessFlags, vk::PipelineStageFlags, vk::PipelineStageFlags> {
@@ -445,7 +447,7 @@ static void cmdTransitionImageLayout(
     }
   }
 
-  const auto subresource = vk::ImageSubresourceRange(aspectMask, baseMipLevel, mipLevels, 0, 1);
+  const auto subresource = vk::ImageSubresourceRange(aspectMask, baseMipLevel, mipLevels, 0, arrayLayers);
   const auto barrier = vk::ImageMemoryBarrier(
     srcAccessMask, dstAccessMask,
     oldLayout, newLayout,
@@ -515,10 +517,11 @@ static void transitionImageLayout(
   const vk::ImageLayout oldLayout,
   const vk::ImageLayout newLayout,
   const uint32_t mipLevels,
-  const uint32_t baseMipLevel = 0
+  const uint32_t baseMipLevel = 0,
+  const uint32_t arrayLayers = 1
 ) {
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
-    cmdTransitionImageLayout(cmd, image, oldLayout, newLayout, mipLevels, format, baseMipLevel);
+    cmdTransitionImageLayout(cmd, image, oldLayout, newLayout, mipLevels, format, baseMipLevel, arrayLayers);
   });
 }
 
