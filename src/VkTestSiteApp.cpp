@@ -417,7 +417,8 @@ void VkTestSiteApp::createColorObjets() {
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
     vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Albedo G-Buffer"
+    false, "Albedo G-Buffer",
+    m_xrSystem->isReady() ? 2 : 1
   );
   m_normal = std::make_unique<Texture>(
     m_device, m_allocator,
@@ -426,7 +427,8 @@ void VkTestSiteApp::createColorObjets() {
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
     vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Normal G-Buffer"
+    false, "Normal G-Buffer",
+    m_xrSystem->isReady() ? 2 : 1
   );
 }
 
@@ -440,7 +442,8 @@ void VkTestSiteApp::createDepthObjets() {
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eDepth,
     vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Depth attachment"
+    false, "Depth attachment",
+    m_xrSystem->isReady() ? 2 : 1
   );
 
   transitionImageLayout(
@@ -448,7 +451,8 @@ void VkTestSiteApp::createDepthObjets() {
     m_depth->getImage(),
     depthFormat,
     vk::ImageLayout::eUndefined,
-    vk::ImageLayout::eDepthStencilAttachmentOptimal, 1
+    vk::ImageLayout::eDepthStencilAttachmentOptimal, 1,
+    m_xrSystem->isReady() ? 2 : 1
   );
 }
 
