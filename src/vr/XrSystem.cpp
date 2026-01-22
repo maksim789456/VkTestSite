@@ -356,19 +356,12 @@ void vr::XrSystem::handleEvent(xr::EventDataBuffer event) {
   }
 }
 
-void vr::XrSystem::startFrame() {
+uint32_t vr::XrSystem::startFrame() {
   if (!sessionRunning) {
-    return;
+    return -1;
   }
   xrWaitFrame();
   xrBeginFrame();
-}
-
-void vr::XrSystem::present() {
-  if (!sessionRunning) {
-    return;
-  }
-
   {
     ZoneScopedN("XR Acquire swapchain");
     swapchainIdx = swapchain->acquireSwapchainImage({});
@@ -379,12 +372,12 @@ void vr::XrSystem::present() {
     waitInfo.timeout = xr::Duration::infinite();
     swapchain->waitSwapchainImage(waitInfo);
   }
-  //TODO: Make own xr fence for render, trigger it when main render done
-  //TODO: wait fence, reset
-
-  xrEndFrame();
+  return swapchainIdx;
 }
 
+void vr::XrSystem::endFrame() {
+  xrEndFrame();
+}
 
 void vr::XrSystem::xrWaitFrame() {
   ZoneScopedN("XR Wait frame");

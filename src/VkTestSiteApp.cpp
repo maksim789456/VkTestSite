@@ -723,7 +723,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   }
 
   if (XR_ENABLED && m_xrSystem->isReady()) {
-    m_xrSystem->startFrame();
+    auto xrImageIndex = m_xrSystem->startFrame();
   }
 
   m_camera->onUpdate(deltaTime);
@@ -758,7 +758,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   }
 
   if (XR_ENABLED && m_xrSystem->isReady()) {
-    m_xrSystem->present();
+    m_xrSystem->endFrame();
   }
 
   m_presentQueue.waitIdle();

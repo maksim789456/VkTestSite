@@ -40,11 +40,15 @@ namespace vr {
 
     void pollEvents();
 
-    void startFrame();
+    uint32_t startFrame();
 
-    void present();
+    void endFrame();
 
     bool isReady() { return ready; }
+    vk::Format getSwapchainFormat() const { return swapchainFormat; }
+    vk::Extent2D getEyeSize() const { return eyeRenderSize; }
+
+    std::vector<vk::UniqueImageView> swapchainImageViews;
 
   private:
     bool ready = false;
@@ -66,7 +70,6 @@ namespace vr {
     vk::Format swapchainFormat;
     xr::UniqueSwapchain swapchain;
     std::vector<vk::UniqueImage> swapchainImages;
-    std::vector<vk::UniqueImageView> swapchainImageViews;
 
     xr::SessionState sessionState = xr::SessionState::Unknown;
     bool sessionRunning = false;
@@ -74,7 +77,7 @@ namespace vr {
 
     bool shouldRender;
     xr::Time predictedEndTime;
-    uint32_t swapchainIdx;
+    uint32_t swapchainIdx = -1;
 
     glm::vec3 headPosition{0.0f};
     glm::quat headRotation = glm::identity<glm::quat>();
