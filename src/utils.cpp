@@ -115,10 +115,17 @@ VKAPI_ATTR vk::Bool32 static VKAPI_CALL debugUtilsMessangerCallback(
   }
 
   std::ostringstream oss;
+  auto msg = std::string(pCallbackData->pMessage ? pCallbackData->pMessage : "no_message");
+  // Remove spec boilerplate
+  const std::string specPrefix = "The Vulkan spec states:";
+  if (msg.find(specPrefix) != std::string::npos) {
+    msg = msg.substr(0, msg.find(specPrefix));
+  }
+
   oss << vk::to_string(messageTypes)
       << " | ID: " << pCallbackData->messageIdNumber
       << " (" << (pCallbackData->pMessageIdName ? pCallbackData->pMessageIdName : "no_name") << ")"
-      << " | Message: " << (pCallbackData->pMessage ? pCallbackData->pMessage : "no_message");
+      << " | Message: " << msg;
 
   if (pCallbackData->queueLabelCount > 0) {
     oss << " | QueueLabels: ";
@@ -311,15 +318,17 @@ static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4 &m) {
 static std::vector<vk::ImageView> createSwapchainImageViews(
   const vk::Device &device,
   const std::vector<vk::Image> &swapchainImages,
-  const vk::Format swapchainImageFormat
+  const vk::Format swapchainImageFormat,
+  const uint32_t arrayLayers = 1
 ) {
   ZoneScoped;
+  const auto viewType = arrayLayers > 1 ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D;
   std::vector<vk::ImageView> imageViews;
   imageViews.reserve(swapchainImages.size());
 
   for (const auto &image: swapchainImages) {
-    vk::ImageSubresourceRange subresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
-    vk::ImageViewCreateInfo info({}, image, vk::ImageViewType::e2D, swapchainImageFormat, {}, subresourceRange);
+    vk::ImageSubresourceRange subresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, arrayLayers);
+    vk::ImageViewCreateInfo info({}, image, viewType, swapchainImageFormat, {}, subresourceRange);
     imageViews.push_back(device.createImageView(info));
   }
 
@@ -329,16 +338,23 @@ static std::vector<vk::ImageView> createSwapchainImageViews(
 static std::vector<vk::UniqueImageView> createSwapchainImageViewsUnique(
   const vk::Device &device,
   const std::vector<vk::UniqueImage> &swapchainImages,
-  const vk::Format swapchainImageFormat
+  const vk::Format swapchainImageFormat,
+  const std::string name = "Swapchain view",
+  const uint32_t arrayLayers = 1
 ) {
   ZoneScoped;
+  const auto viewType = arrayLayers > 1 ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D;
   std::vector<vk::UniqueImageView> imageViews;
   imageViews.reserve(swapchainImages.size());
 
   for (const auto &image: swapchainImages) {
-    vk::ImageSubresourceRange subresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1);
-    vk::ImageViewCreateInfo info({}, image.get(), vk::ImageViewType::e2D, swapchainImageFormat, {}, subresourceRange);
+    vk::ImageSubresourceRange subresourceRange(vk::ImageAspectFlagBits::eColor, 0, 1, 0, arrayLayers);
+    vk::ImageViewCreateInfo info({}, image.get(), viewType, swapchainImageFormat, {}, subresourceRange);
     imageViews.push_back(device.createImageViewUnique(info));
+  }
+
+  for (int i = 0; i < imageViews.size(); ++i) {
+    setObjectName(device, imageViews[i].get(), std::format("{} {}", name, i));
   }
 
   return imageViews;
@@ -392,10 +408,12 @@ static vk::UniqueImageView createImageViewUnique(
   const vk::Image image,
   const vk::Format format,
   const vk::ImageAspectFlags aspect,
-  const uint32_t mipLevel
+  const uint32_t mipLevel,
+  const uint32_t arrayLayers = 1
 ) {
-  const auto subresource = vk::ImageSubresourceRange(aspect, mipLevel, 1, 0, 1);
-  const auto info = vk::ImageViewCreateInfo({}, image, vk::ImageViewType::e2D, format, {}, subresource);
+  const auto viewType = arrayLayers > 1 ? vk::ImageViewType::e2DArray : vk::ImageViewType::e2D;
+  const auto subresource = vk::ImageSubresourceRange(aspect, mipLevel, 1, 0, arrayLayers);
+  const auto info = vk::ImageViewCreateInfo({}, image, viewType, format, {}, subresource);
   return device.createImageViewUnique(info);
 }
 

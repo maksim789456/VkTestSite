@@ -93,7 +93,7 @@ inline Texture::Texture(
   setObjectName(device, info.deviceMemory, std::format("{} memory", name));
 
   for (uint32_t mip = 0; mip < mipLevels; ++mip) {
-    m_imageViews.emplace_back(createImageViewUnique(device, m_image.get(), format, aspects, mip));
+    m_imageViews.emplace_back(createImageViewUnique(device, m_image.get(), format, aspects, mip, arrayLayers));
     setObjectName(device, getImageView(mip), std::format("{} view (mip = {})", name, mip));
   }
 
