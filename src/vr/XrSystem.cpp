@@ -261,7 +261,8 @@ bool vr::XrSystem::createSwapchain() {
   swapchainCI.faceCount = 1;
   swapchainCI.format = static_cast<uint64_t>(swapchainFormat);
   swapchainCI.createFlags = xr::SwapchainCreateFlagBits::ProtectedContent;
-  swapchainCI.usageFlags = xr::SwapchainUsageFlagBits::ColorAttachment;
+  swapchainCI.usageFlags = xr::SwapchainUsageFlagBits::ColorAttachment
+                           | xr::SwapchainUsageFlagBits::TransferSrc;
   try {
     swapchain = session->createSwapchainUnique(swapchainCI);
   } catch (xr::exceptions::Error &error) {
@@ -281,7 +282,8 @@ bool vr::XrSystem::createSwapchain() {
       })
       | std::ranges::to<std::vector>();
 
-  swapchainImageViews = createSwapchainImageViewsUnique(m_device, swapchainImages, swapchainFormat);
+  swapchainImageViews = createSwapchainImageViewsUnique(
+    m_device, swapchainImages, swapchainFormat, "XR Swapchain View", 2);
 
   //TODO: sync objs?
 
@@ -293,10 +295,10 @@ void vr::XrSystem::pollEvents() {
   xr::Result result;
   do {
     result = xr_instance->pollEvent(event);
-    if(result == xr::Result::Success) {
+    if (result == xr::Result::Success) {
       handleEvent(event);
     }
-  } while(result == xr::Result::Success);
+  } while (result == xr::Result::Success);
 }
 
 void vr::XrSystem::handleEvent(xr::EventDataBuffer event) {
@@ -361,12 +363,10 @@ uint32_t vr::XrSystem::startFrame() {
     return -1;
   }
   xrWaitFrame();
-  xrBeginFrame();
-  {
+  xrBeginFrame(); {
     ZoneScopedN("XR Acquire swapchain");
     swapchainIdx = swapchain->acquireSwapchainImage({});
-  }
-  {
+  } {
     ZoneScopedN("XR Wait swapchain");
     xr::SwapchainImageWaitInfo waitInfo = {};
     waitInfo.timeout = xr::Duration::infinite();
@@ -391,8 +391,7 @@ void vr::XrSystem::xrWaitFrame() {
   xr::ViewLocateInfo locateInfo = {};
   locateInfo.viewConfigurationType = xr::ViewConfigurationType::PrimaryStereo;
   locateInfo.displayTime = predictedEndTime;
-  locateInfo.space = xrSpace.get();
-  {
+  locateInfo.space = xrSpace.get(); {
     ZoneScopedN("Get views");
     xrViews = session->locateViewsToVector(locateInfo, viewState);
   }
@@ -401,7 +400,17 @@ void vr::XrSystem::xrWaitFrame() {
   headPosition = xrSpaceToVkSpace(toGlm(headLocation.pose.position));
   headRotation = xrSpaceToVkSpace(toGlm(headLocation.pose.orientation));
 
-  //TODO: Use info from  xrViews[left] and xrViews[right] and update camera
+  auto updateCamera = [&](uint32_t idx, xr::View &view) {
+    glm::vec3 translation{0.0f};
+    auto tmp = makeXrViewMatrix(view.pose);
+    // used to align with engine orientation
+    //glm::mat4 correctOrientation = glm::rotate(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+    eyeViews[idx] = glm::inverse(tmp); // * correctOrientation;// * glm::translate({}, translation);
+    eyeProjections[idx] = makeXrProjectionMatrix(view.fov);
+  };
+
+  updateCamera(0, xrViews[0]);
+  updateCamera(1, xrViews[1]);
 }
 
 void vr::XrSystem::xrBeginFrame() {
@@ -410,15 +419,14 @@ void vr::XrSystem::xrBeginFrame() {
 }
 
 void vr::XrSystem::xrEndFrame() {
-  ZoneScopedN("XR End frame");
-  {
+  ZoneScopedN("XR End frame"); {
     ZoneScopedN("XR Swapchain release");
     swapchain->releaseSwapchainImage({});
   }
 
   auto updateView = [&](uint32_t idx) {
     ZoneScopedN("Update eye");
-    auto& view = xrProjViews[idx];
+    auto &view = xrProjViews[idx];
     view.pose = xrViews[idx].pose;
     view.fov = xrViews[idx].fov;
 
@@ -428,22 +436,21 @@ void vr::XrSystem::xrEndFrame() {
     subImage.swapchain = swapchain.get();
   };
 
-  updateView(0); updateView(1);
+  updateView(0);
+  updateView(1);
 
   xr::CompositionLayerProjection eyes;
   eyes.space = xrSpace.get();
   eyes.viewCount = 2;
   eyes.views = xrProjViews;
 
-  const xr::CompositionLayerBaseHeader * const layers [] = { &eyes };
+  const xr::CompositionLayerBaseHeader *const layers[] = {&eyes};
 
   xr::FrameEndInfo frameEndInfo;
   frameEndInfo.displayTime = predictedEndTime;
   frameEndInfo.environmentBlendMode = xr::EnvironmentBlendMode::Opaque;
   frameEndInfo.layerCount = 1;
-  frameEndInfo.layers = layers;
-
-  {
+  frameEndInfo.layers = layers; {
     ZoneScopedN("XR End Frame");
     session->endFrame(frameEndInfo);
   }

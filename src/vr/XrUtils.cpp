@@ -1,9 +1,11 @@
 #pragma once
 
 #include <future>
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/fwd.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/transform.hpp>
 
 #include <openxr/openxr.hpp>
 #include <openxr/openxr_reflection.h>
@@ -133,28 +135,64 @@ enumerateSwapchainImagesToVector(xr::Swapchain swapchain, Dispatch &&d) {
   return {result, std::move(images)};
 }
 
-inline glm::quat toGlm(const XrQuaternionf& q) {
+inline glm::quat toGlm(const XrQuaternionf &q) {
   return glm::make_quat(&q.x);
 }
 
-inline glm::vec3 toGlm(const XrVector3f& v) {
+inline glm::vec3 toGlm(const XrVector3f &v) {
   return glm::make_vec3(&v.x);
 }
 
-inline glm::mat4 toGlm(const XrPosef& p) {
+inline glm::mat4 makeXrViewMatrix(const XrPosef &p) {
   const glm::mat4 orientation = glm::mat4_cast(toGlm(p.orientation));
   const glm::mat4 translation = glm::translate(glm::mat4(1.0f), toGlm(p.position));
   return translation * orientation;
 }
 
-inline glm::vec3 xrSpaceToVkSpace(const glm::vec3& xrSpace) {
-  return glm::vec3 { xrSpace.x, -xrSpace.z, xrSpace.y };
+inline glm::vec3 xrSpaceToVkSpace(const glm::vec3 &xrSpace) {
+  return glm::vec3{xrSpace.x, -xrSpace.z, xrSpace.y};
 }
 
-inline glm::quat xrSpaceToVkSpace(const glm::quat& xrSpace) {
-  const glm::quat correction = glm::rotate(glm::identity<glm::quat>(), glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+inline glm::quat xrSpaceToVkSpace(const glm::quat &xrSpace) {
+  const glm::quat correction = glm::rotate(glm::identity<glm::quat>(), glm::half_pi<float>(),
+                                           glm::vec3(1.0f, 0.0f, 0.0f));
   glm::quat result = xrSpace;
   result.y = -xrSpace.z;
   result.z = xrSpace.y;
   return result * correction;
+}
+
+inline XrFovf toTanFovf(const XrFovf &fov) {
+  return {tanf(fov.angleLeft), tanf(fov.angleRight), tanf(fov.angleUp), tanf(fov.angleDown)};
+}
+
+inline glm::mat4 makeXrProjectionMatrix(
+  const XrFovf &fov,
+  float nearZ = 0.005f,
+  float farZ = 1000.0f
+) {
+  auto tanFov = toTanFovf(fov);
+  const auto &tanAngleRight = tanFov.angleRight;
+  const auto &tanAngleLeft = tanFov.angleLeft;
+  const auto &tanAngleUp = tanFov.angleUp;
+  const auto &tanAngleDown = tanFov.angleDown;
+
+  const float tanAngleWidth = tanAngleRight - tanAngleLeft;
+  const float tanAngleHeight = tanAngleDown - tanAngleUp;
+  constexpr float offsetZ = 0;
+
+  glm::mat4 projectionMatrix(0.0f);
+
+  projectionMatrix[0][0] = 2.0f / tanAngleWidth;
+  projectionMatrix[1][1] = 2.0f / tanAngleHeight;
+
+  projectionMatrix[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
+  projectionMatrix[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
+
+  projectionMatrix[2][2] = -(farZ + offsetZ) / (farZ - nearZ);
+  projectionMatrix[2][3] = -1;
+
+  projectionMatrix[3][2] = -(farZ * (nearZ + offsetZ)) / (farZ - nearZ);
+
+  return projectionMatrix;
 }

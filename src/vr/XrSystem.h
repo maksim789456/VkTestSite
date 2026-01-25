@@ -47,6 +47,11 @@ namespace vr {
     bool isReady() { return ready; }
     vk::Format getSwapchainFormat() const { return swapchainFormat; }
     vk::Extent2D getEyeSize() const { return eyeRenderSize; }
+    const glm::mat4 &getEyeProjection(const uint32_t eye) const { return eyeProjections[eye]; };
+    const glm::mat4 &getEyeView(const uint32_t eye) const { return eyeViews[eye]; };
+    glm::mat4 getEyeViewProj(const uint32_t eye) const {
+      return eyeProjections[eye] * eyeViews[eye];
+    }
 
     std::vector<vk::UniqueImageView> swapchainImageViews;
 
@@ -83,6 +88,8 @@ namespace vr {
     glm::quat headRotation = glm::identity<glm::quat>();
     std::vector<xr::View> xrViews;
     xr::CompositionLayerProjectionView xrProjViews[2];
+    glm::mat4 eyeViews[2];
+    glm::mat4 eyeProjections[2];
 
     xr::DispatchLoaderDynamic &getXRDispatch() {
       static xr::DispatchLoaderDynamic dispatch = xr::DispatchLoaderDynamic::createFullyPopulated(
