@@ -801,7 +801,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
         m_framebuffers[imageIndex],
         m_renderPass,
         m_geometryPipeline,
-        m_swapchain,
+        m_swapchain.extent,
         m_geometryDescriptorSet,
         0,
         imageIndex

@@ -252,7 +252,7 @@ vk::CommandBuffer Model::cmdDraw(
   const vk::Framebuffer framebuffer,
   const vk::RenderPass renderPass,
   const vk::Pipeline pipeline,
-  const Swapchain &swapchain,
+  const vk::Extent2D viewportSize,
   const DescriptorSet &descriptorSet,
   const uint32_t subpass,
   const uint32_t imageIndex
@@ -269,8 +269,10 @@ vk::CommandBuffer Model::cmdDraw(
   cmdBuf.reset();
   cmdBuf.begin(beginInfo);
 
-  swapchain.cmdSetViewport(cmdBuf);
-  swapchain.cmdSetScissor(cmdBuf);
+  const auto viewport = vk::Viewport(0, 0, viewportSize.width, viewportSize.height, 0, 1);
+  cmdBuf.setViewport(0, viewport);
+  const auto scissorRect = vk::Rect2D(vk::Offset2D(), viewportSize);
+  cmdBuf.setScissor(0, scissorRect);
   cmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, pipeline);
 
   for (const auto &sub: m_submeshes) {

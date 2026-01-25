@@ -63,7 +63,7 @@ public:
     vk::Framebuffer framebuffer,
     vk::RenderPass renderPass,
     vk::Pipeline pipeline,
-    const Swapchain &swapchain,
+    vk::Extent2D viewportSize,
     const DescriptorSet &descriptorSet,
     uint32_t subpass,
     uint32_t imageIndex
