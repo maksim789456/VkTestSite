@@ -73,6 +73,7 @@ private:
   vk::Queue m_presentQueue;
   Swapchain m_swapchain;
   vk::RenderPass m_renderPass;
+  vk::RenderPass m_desktopRenderPass;
   vk::Pipeline m_geometryPipeline;
   vk::Pipeline m_lightingPipeline;
   vk::CommandPool m_commandPool;
@@ -97,6 +98,7 @@ private:
   std::unique_ptr<vr::XrSystem> m_xrSystem;
 
   std::vector<vk::Framebuffer> m_framebuffers;
+  std::vector<vk::Framebuffer> m_desktopFramebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms = {};
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
@@ -129,6 +131,12 @@ private:
   void render(ImDrawData* draw_data, float deltaTime);
   void updateUniformBuffer(uint32_t imageIndex);
   void recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
+  void recordXrCommandBuffer(
+    ImDrawData* draw_data,
+    const vk::CommandBuffer& commandBuffer,
+    uint32_t imageIndex,
+    uint32_t xrImageIndex
+    );
   void recreateSwapchain();
   void cleanupSwapchain();
   void cleanup();

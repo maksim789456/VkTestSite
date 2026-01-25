@@ -97,6 +97,8 @@ void VkTestSiteApp::initVk() {
   m_allocator = vma::Allocator(vmaAllocator);
 
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
+  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
+  m_xrSystem->createSession(m_instance, m_physicalDevice, m_device, indices.graphics, 0);
   createRenderPass();
   createUniformBuffers();
   m_descriptorPool = DescriptorPool(m_device);
@@ -111,8 +113,6 @@ void VkTestSiteApp::initVk() {
     m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
   );
   m_lightingCommandBuffers = m_device.allocateCommandBuffersUnique(lightCmdsInfo);
-  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
-  m_xrSystem->createSession(m_instance, m_physicalDevice, m_device, indices.graphics, 0);
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
@@ -159,10 +159,10 @@ void VkTestSiteApp::initVk() {
   vkInitInfo.Device = m_device;
   vkInitInfo.QueueFamily = indices.graphics;
   vkInitInfo.Queue = m_graphicsQueue;
-  vkInitInfo.RenderPass = m_renderPass;
+  vkInitInfo.RenderPass = m_xrSystem->isReady() ? m_desktopRenderPass : m_renderPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
   vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-  vkInitInfo.Subpass = 1;
+  vkInitInfo.Subpass = m_xrSystem->isReady() ? 0 : 1;
   vkInitInfo.DescriptorPoolSize = 100;
   vkInitInfo.CheckVkResultFn = [](const VkResult err) {
     if (err != VK_SUCCESS)
@@ -328,11 +328,14 @@ void VkTestSiteApp::createRenderPass() {
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
       vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
-    vk::AttachmentDescription( // Final color (swapchain)
-      {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
+    vk::AttachmentDescription( // Final color (swapchain or xr swapchain)
+      {},
+      m_xrSystem->isReady() ? m_xrSystem->getSwapchainFormat() : m_swapchain.format,
+      vk::SampleCountFlagBits::e1,
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-      vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR)
+      vk::ImageLayout::eUndefined,
+      m_xrSystem->isReady() ? vk::ImageLayout::eColorAttachmentOptimal : vk::ImageLayout::ePresentSrcKHR)
   };
 
   auto colorRefs = {
@@ -372,9 +375,44 @@ void VkTestSiteApp::createRenderPass() {
   };
 
   std::vector subpasses = {subpass0, subpass1};
-  const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpasses, dependencies);
+  auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpasses, dependencies);
+
+  if (m_xrSystem->isReady()) {
+    const std::array<uint32_t, 2> viewMasks = {0b11, 0b11}; // 2 views for 2 subpass
+    vk::RenderPassMultiviewCreateInfo multiview{};
+    multiview.setViewMasks(viewMasks);
+    renderPassInfo.setPNext(&multiview);
+  }
 
   m_renderPass = m_device.createRenderPass(renderPassInfo);
+
+  if (XR_ENABLED && m_xrSystem->isReady()) {
+    const auto deskAttachment = vk::AttachmentDescription( // Final color (swapchain)
+      {},
+      m_swapchain.format,
+      vk::SampleCountFlagBits::e1,
+      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
+      vk::ImageLayout::eUndefined,
+      vk::ImageLayout::ePresentSrcKHR);
+    constexpr auto deskRef =
+        vk::AttachmentReference{0, vk::ImageLayout::eColorAttachmentOptimal};
+    const auto subpass = vk::SubpassDescription(
+      {}, vk::PipelineBindPoint::eGraphics,
+      {}, deskRef
+    );
+    const auto dependency = vk::SubpassDependency{
+      vk::SubpassExternal,
+      0,
+      vk::PipelineStageFlagBits::eColorAttachmentOutput,
+      vk::PipelineStageFlagBits::eColorAttachmentOutput,
+      {},
+      vk::AccessFlagBits::eColorAttachmentWrite
+    };
+
+    const auto deskRenderPassInfo = vk::RenderPassCreateInfo({}, deskAttachment, subpass, dependency);
+    m_desktopRenderPass = m_device.createRenderPass(deskRenderPassInfo);
+  }
 }
 
 void VkTestSiteApp::createPipeline() {
@@ -410,9 +448,10 @@ void VkTestSiteApp::createPipeline() {
 }
 
 void VkTestSiteApp::createColorObjets() {
+  const auto size = m_xrSystem->isReady() ? m_xrSystem->getEyeSize() : m_swapchain.extent;
   m_albedo = std::make_unique<Texture>(
     m_device, m_allocator,
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    size.width, size.height, 1,
     vk::Format::eR8G8B8A8Unorm,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
@@ -422,7 +461,7 @@ void VkTestSiteApp::createColorObjets() {
   );
   m_normal = std::make_unique<Texture>(
     m_device, m_allocator,
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    size.width, size.height, 1,
     vk::Format::eR16G16B16A16Sfloat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
@@ -434,10 +473,11 @@ void VkTestSiteApp::createColorObjets() {
 
 void VkTestSiteApp::createDepthObjets() {
   constexpr auto depthFormat = vk::Format::eD32Sfloat;
+  const auto size = m_xrSystem->isReady() ? m_xrSystem->getEyeSize() : m_swapchain.extent;
 
   m_depth = std::make_unique<Texture>(
     m_device, m_allocator,
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    size.width, size.height, 1,
     depthFormat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eDepth,
@@ -451,27 +491,45 @@ void VkTestSiteApp::createDepthObjets() {
     m_depth->getImage(),
     depthFormat,
     vk::ImageLayout::eUndefined,
-    vk::ImageLayout::eDepthStencilAttachmentOptimal, 1,
+    vk::ImageLayout::eDepthStencilAttachmentOptimal, 1, 0,
     m_xrSystem->isReady() ? 2 : 1
   );
 }
 
 void VkTestSiteApp::createFramebuffers() {
   ZoneScoped;
-  m_framebuffers.resize(m_swapchain.imageViews.size());
-  for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
+  const auto size = m_xrSystem->isReady() ? m_xrSystem->swapchainImageViews.size() : m_swapchain.imageViews.size();
+  m_framebuffers.resize(size);
+  for (size_t i = 0; i < size; ++i) {
     std::vector attachments = {
       m_depth->getImageView(),
       m_albedo->getImageView(),
       m_normal->getImageView(),
-      m_swapchain.imageViews[i]
+      m_xrSystem->isReady() ? m_xrSystem->swapchainImageViews[i].get() : m_swapchain.imageViews[i]
     };
 
+    const auto xrEyeSize = m_xrSystem->getEyeSize();
     auto framebufferInfo = vk::FramebufferCreateInfo(
       {}, m_renderPass, attachments,
-      m_swapchain.extent.width, m_swapchain.extent.height, 1
+      m_xrSystem->isReady() ? xrEyeSize.width : m_swapchain.extent.width,
+      m_xrSystem->isReady() ? xrEyeSize.height : m_swapchain.extent.height, 1
     );
     m_framebuffers[i] = m_device.createFramebuffer(framebufferInfo);
+  }
+
+  if (XR_ENABLED && m_xrSystem->isReady()) {
+    m_desktopFramebuffers.resize(m_swapchain.imageViews.size());
+    for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
+      std::vector attachments = {
+        m_swapchain.imageViews[i]
+      };
+      auto framebufferInfo = vk::FramebufferCreateInfo(
+        {}, m_desktopRenderPass, attachments,
+        m_swapchain.extent.width,
+        m_swapchain.extent.height, 1
+      );
+      m_desktopFramebuffers[i] = m_device.createFramebuffer(framebufferInfo);
+    }
   }
 }
 
@@ -716,19 +774,25 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
       m_swapchain.swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
     imageIndex = acquireResult.value;
   } catch (vk::OutOfDateKHRError &) {
+    spdlog::warn("Recreate swapchain: OutOfDateKHRError");
     recreateSwapchain();
     return;
   } catch (vk::SystemError &) {
     throw std::runtime_error("Failed to acquire swapchain image!");
   }
 
+  uint32_t xrImageIndex = -1;
   if (XR_ENABLED && m_xrSystem->isReady()) {
-    auto xrImageIndex = m_xrSystem->startFrame();
+    xrImageIndex = m_xrSystem->startFrame();
   }
 
   m_camera->onUpdate(deltaTime);
   updateUniformBuffer(imageIndex);
-  recordCommandBuffer(draw_data, m_commandBuffers[imageIndex], imageIndex);
+  if (XR_ENABLED && m_xrSystem->isReady()) {
+    recordXrCommandBuffer(draw_data, m_commandBuffers[imageIndex], imageIndex, xrImageIndex);
+  } else {
+    recordCommandBuffer(draw_data, m_commandBuffers[imageIndex], imageIndex);
+  }
 
   vk::PipelineStageFlags pipelineStageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
   const auto submitInfo = vk::SubmitInfo(
@@ -737,6 +801,10 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     m_commandBuffers[imageIndex],
     m_renderFinished[m_currentFrame]);
   m_graphicsQueue.submit(submitInfo, m_inFlight[m_currentFrame]);
+
+  if (XR_ENABLED && m_xrSystem->isReady()) {
+    m_xrSystem->endFrame();
+  }
 
   executeSingleTimeCommands(m_device, m_graphicsQueue, m_commandPool, [&](const vk::CommandBuffer cmd) {
     //m_vkContext->Collect(cmd);
@@ -753,12 +821,9 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   }
 
   if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
+    spdlog::warn(std::format("Recreate swapchain: {}", vk::to_string(presentResult)));
     recreateSwapchain();
     return;
-  }
-
-  if (XR_ENABLED && m_xrSystem->isReady()) {
-    m_xrSystem->endFrame();
   }
 
   m_presentQueue.waitIdle();
@@ -767,10 +832,19 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
 }
 
 void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
+  std::array<glm::mat4, 2> viewProj;
+  std::array<glm::mat4, 2> invViewProj;
+  if (m_xrSystem->isReady()) {
+    viewProj = {m_xrSystem->getEyeViewProj(0), m_xrSystem->getEyeViewProj(1)};
+    invViewProj = {glm::inverse(viewProj[0]), glm::inverse(viewProj[1])};
+  } else {
+    viewProj = {m_camera->getViewProj(), m_camera->getViewProj()};
+    invViewProj = {m_camera->getInvViewProj(), m_camera->getInvViewProj()};
+  }
   auto ubo = UniformBufferObject{
     glm::vec4(m_camera->getViewPos(), 1.0f),
-    {m_camera->getViewProj(), m_camera->getViewProj()},
-    {m_camera->getInvViewProj(), m_camera->getInvViewProj()},
+    {viewProj[0], viewProj[1]},
+    {invViewProj[0], invViewProj[1]},
     static_cast<uint32_t>(m_debugView)
   };
   m_uniforms[imageIndex].map(ubo);
@@ -852,7 +926,95 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   commandBuffer.end();
 }
 
+void VkTestSiteApp::recordXrCommandBuffer(
+  ImDrawData *draw_data,
+  const vk::CommandBuffer &commandBuffer,
+  uint32_t imageIndex, uint32_t xrImageIndex
+) {
+  ZoneScoped;
+  commandBuffer.reset();
+  commandBuffer.begin(vk::CommandBufferBeginInfo());
+
+  auto renderArea = vk::Rect2D({}, m_xrSystem->getEyeSize());
+  auto colorClearValue = m_modelLoaded
+                           ? vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f))
+                           : vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
+  auto albedoClearValue = vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
+  auto normalClearValue = vk::ClearValue(vk::ClearColorValue(0.5f, 0.5f, 1.0f, 1.0f));
+  auto depthClearValue = vk::ClearValue(vk::ClearDepthStencilValue(0.0f, 0));
+  auto clearValues = {depthClearValue, albedoClearValue, normalClearValue, colorClearValue};
+  const auto xrBeginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[xrImageIndex], renderArea, clearValues);
+  commandBuffer.beginRenderPass(xrBeginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
+    // Model temp render
+    if (m_modelLoaded) {
+      auto modelCmd = m_model->cmdDraw(
+        *m_vkContext,
+        m_framebuffers[xrImageIndex],
+        m_renderPass,
+        m_geometryPipeline,
+        renderArea.extent,
+        m_geometryDescriptorSet,
+        0,
+        imageIndex
+      );
+
+      commandBuffer.executeCommands(modelCmd);
+    }
+  }
+  commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers); {
+    //Light subpass
+    auto lightCmd = m_lightingCommandBuffers[imageIndex].get();
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[xrImageIndex]);
+    auto lightBeginInfo = vk::CommandBufferBeginInfo(
+      vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
+      &inheritanceInfo);
+    lightCmd.reset();
+    lightCmd.begin(lightBeginInfo); {
+      //TracyVkZone(m_vkContext, lightCmd, "Light Pass");
+      const auto viewport = vk::Viewport(0, 0, renderArea.extent.width, renderArea.extent.height, 0, 1);
+      lightCmd.setViewport(0, viewport);
+      const auto scissorRect = vk::Rect2D(vk::Offset2D(), renderArea.extent);
+      lightCmd.setScissor(0, scissorRect);
+      lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
+      m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
+      auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
+      lightCmd.pushConstants(m_lightingDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eFragment, 0,
+                             sizeof(lightPush), &lightPush);
+      lightCmd.draw(3, 1, 0, 0);
+    }
+    lightCmd.end();
+    commandBuffer.executeCommands(lightCmd);
+  }
+  commandBuffer.endRenderPass();
+  // END OF XR RENDER
+  // START OF DESKTOP RENDER
+  renderArea = vk::Rect2D({}, m_swapchain.extent);
+  const auto deskBeginInfo = vk::RenderPassBeginInfo(m_desktopRenderPass, m_desktopFramebuffers[imageIndex], renderArea,
+                                                     {colorClearValue});
+  commandBuffer.beginRenderPass(deskBeginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
+    // TODO: Blit copy for mirror
+  } {
+    // ImGUI Secondary Cmd record -> exec
+    auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_desktopRenderPass, 0, m_desktopFramebuffers[imageIndex]);
+    auto imguiBeginInfo = vk::CommandBufferBeginInfo(
+      vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
+      &inheritanceInfo);
+    imguiCmd.reset();
+    imguiCmd.begin(imguiBeginInfo); {
+      ImGui_ImplVulkan_RenderDrawData(draw_data, imguiCmd);
+    }
+    imguiCmd.end();
+
+    commandBuffer.executeCommands(imguiCmd);
+  }
+  commandBuffer.endRenderPass();
+  // END OF DESKTOP RENDER
+  commandBuffer.end();
+}
+
 void VkTestSiteApp::recreateSwapchain() {
+  ZoneScoped;
   int width = 0, height = 0;
   while (width == 0 || height == 0) {
     glfwGetFramebufferSize(m_window, &width, &height);
@@ -887,9 +1049,15 @@ void VkTestSiteApp::cleanupSwapchain() {
   for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
   }
+  for (const auto framebuffer: m_desktopFramebuffers) {
+    m_device.destroyFramebuffer(framebuffer);
+  }
   m_device.destroyPipeline(m_geometryPipeline);
   m_device.destroyPipeline(m_lightingPipeline);
   m_device.destroyRenderPass(m_renderPass);
+  if (XR_ENABLED && m_xrSystem->isReady()) {
+    m_device.destroyRenderPass(m_desktopRenderPass);
+  }
   m_swapchain.destroy(m_device);
 }
 
