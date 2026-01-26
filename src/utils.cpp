@@ -5,6 +5,7 @@
 #include <tracy/Tracy.hpp>
 #include <assimp/scene.h>
 #include <glm/ext/matrix_float4x4.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include "spdlog/spdlog.h"
 
 #include <functional>
@@ -300,12 +301,7 @@ static void executeSingleTimeCommands(
 }
 
 static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4 &m) {
-  return glm::mat4(
-    m.a1, m.b1, m.c1, m.d1,
-    m.a2, m.b2, m.c2, m.d2,
-    m.a3, m.b3, m.c3, m.d3,
-    m.a4, m.b4, m.c4, m.d4
-  );
+  return glm::transpose(glm::make_mat4(&m.a1));
 }
 
 static std::pair<vma::UniqueImage, vma::UniqueAllocation> createImageUnique(
@@ -355,9 +351,10 @@ static vk::UniqueImageView createImageViewUnique(
   const vk::Image image,
   const vk::Format format,
   const vk::ImageAspectFlags aspect,
-  const uint32_t mipLevel
+  const uint32_t mipLevel,
+  const uint32_t mipLevels = 1
 ) {
-  const auto subresource = vk::ImageSubresourceRange(aspect, mipLevel, 1, 0, 1);
+  const auto subresource = vk::ImageSubresourceRange(aspect, mipLevel, mipLevels, 0, 1);
   const auto info = vk::ImageViewCreateInfo({}, image, vk::ImageViewType::e2D, format, {}, subresource);
   return device.createImageViewUnique(info);
 }

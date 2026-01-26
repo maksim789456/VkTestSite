@@ -235,10 +235,13 @@ void Model::createCommandBuffers(
   const uint32_t imagesCount
 ) {
   ZoneScoped;
-  const auto info = vk::CommandBufferAllocateInfo(
-    commandPool, vk::CommandBufferLevel::eSecondary, imagesCount
-  );
-  m_commandBuffers = device.allocateCommandBuffersUnique(info);
+  m_commandBuffers.resize(2);
+  for (int i = 0; i < 2; ++i) {
+    const auto info = vk::CommandBufferAllocateInfo(
+      commandPool, vk::CommandBufferLevel::eSecondary, imagesCount
+    );
+    m_commandBuffers[i] = device.allocateCommandBuffersUnique(info);
+  }
 }
 
 inline ModelPushConsts Model::calcPushConsts(const glm::mat4 &transform) const {
@@ -255,7 +258,8 @@ vk::CommandBuffer Model::cmdDraw(
   const Swapchain &swapchain,
   const DescriptorSet &descriptorSet,
   const uint32_t subpass,
-  const uint32_t imageIndex
+  const uint32_t imageIndex,
+  const uint32_t iter
 ) {
   ZoneScoped;
   const auto inheritanceInfo = vk::CommandBufferInheritanceInfo(renderPass, subpass, framebuffer);
@@ -264,7 +268,7 @@ vk::CommandBuffer Model::cmdDraw(
     &inheritanceInfo
   );
 
-  const auto cmdBuf = m_commandBuffers[imageIndex].get();
+  const auto cmdBuf = m_commandBuffers[iter][imageIndex].get();
 
   cmdBuf.reset();
   cmdBuf.begin(beginInfo);

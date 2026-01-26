@@ -10,10 +10,11 @@ const std::vector DEVICE_EXTENSIONS = {
   VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
   VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME,
   VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-  VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
+  VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME,
+  VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME
 };
 
-const std::vector LAYERS = {
+const std::vector<const char *> LAYERS = {
 #ifndef NDEBUG
   "VK_LAYER_KHRONOS_validation"
 #endif
@@ -93,10 +94,15 @@ void VkTestSiteApp::initVk() {
   createDepthObjets();
   createDescriptorSet();
   createPipeline();
-  const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
+  const auto computeCmdsInfo = vk::CommandBufferAllocateInfo(
     m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
   );
-  m_lightingCommandBuffers = m_device.allocateCommandBuffersUnique(lightCmdsInfo);
+  m_computeCommandBuffers = m_device.allocateCommandBuffersUnique(computeCmdsInfo);
+
+  const auto cfrDebugCmdsInfo = vk::CommandBufferAllocateInfo(
+    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
+  );
+  m_cfrDebugCB = m_device.allocateCommandBuffersUnique(cfrDebugCmdsInfo);
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
@@ -105,7 +111,7 @@ void VkTestSiteApp::initVk() {
   m_transferThread = std::make_unique<TransferThread>(m_device, m_transferQueue, indices.transfer, *m_stagingBuffer);
   m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_device, m_allocator, *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
-    m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
+    m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_cfrDescriptorSet, 2);
 
   m_camera = std::make_unique<Camera>(m_swapchain.extent);
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -147,7 +153,7 @@ void VkTestSiteApp::initVk() {
   vkInitInfo.RenderPass = m_renderPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
   vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-  vkInitInfo.Subpass = 1;
+  vkInitInfo.Subpass = 0;
   vkInitInfo.DescriptorPoolSize = 100;
   vkInitInfo.CheckVkResultFn = [](const VkResult err) {
     if (err != VK_SUCCESS)
@@ -287,19 +293,9 @@ void VkTestSiteApp::createRenderPass() {
   const auto attachments = {
     vk::AttachmentDescription( // Depth
       {}, vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e1,
-      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
       vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilReadOnlyOptimal),
-    vk::AttachmentDescription( // Albedo
-      {}, vk::Format::eR8G8B8A8Unorm, vk::SampleCountFlagBits::e1,
-      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-      vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
-    vk::AttachmentDescription( // Normal
-      {}, vk::Format::eR16G16B16A16Sfloat, vk::SampleCountFlagBits::e1,
-      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
-      vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
-      vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
     vk::AttachmentDescription( // Final color (swapchain)
       {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
@@ -307,43 +303,24 @@ void VkTestSiteApp::createRenderPass() {
       vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR)
   };
 
-  auto colorRefs = {
-    vk::AttachmentReference{1, vk::ImageLayout::eColorAttachmentOptimal}, //Albedo
-    vk::AttachmentReference{2, vk::ImageLayout::eColorAttachmentOptimal} // Normal
-  };
   constexpr auto depthRef = vk::AttachmentReference{0, vk::ImageLayout::eDepthStencilAttachmentOptimal};
+  const vk::AttachmentReference colorRef{1, vk::ImageLayout::eColorAttachmentOptimal};
+  const auto color = {colorRef};
   auto subpass0 = vk::SubpassDescription(
     {}, vk::PipelineBindPoint::eGraphics,
-    {}, colorRefs, {}, &depthRef
-  );
-
-  auto inputRefs = {
-    vk::AttachmentReference{0, vk::ImageLayout::eShaderReadOnlyOptimal}, //Depth
-    vk::AttachmentReference{1, vk::ImageLayout::eShaderReadOnlyOptimal}, //Albedo
-    vk::AttachmentReference{2, vk::ImageLayout::eShaderReadOnlyOptimal} // Normal
-  };
-  constexpr auto colorRef = vk::AttachmentReference{3, vk::ImageLayout::eColorAttachmentOptimal};
-  auto subpass1 = vk::SubpassDescription(
-    {}, vk::PipelineBindPoint::eGraphics,
-    inputRefs, colorRef
+    {}, color, {}, &depthRef
   );
 
   auto dependencies = {
     vk::SubpassDependency(
       vk::SubpassExternal, 0,
-      vk::PipelineStageFlagBits::eBottomOfPipe,
       vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-      vk::AccessFlagBits::eMemoryRead,
+      vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
+      {},
       vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite),
-    vk::SubpassDependency(
-      0, 1,
-      vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-      vk::PipelineStageFlagBits::eFragmentShader,
-      vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-      vk::AccessFlagBits::eInputAttachmentRead),
   };
 
-  std::vector subpasses = {subpass0, subpass1};
+  std::vector subpasses = {subpass0};
   const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpasses, dependencies);
 
   m_renderPass = m_device.createRenderPass(renderPassInfo);
@@ -351,55 +328,86 @@ void VkTestSiteApp::createRenderPass() {
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
-  m_geometryPipeline = PipelineBuilder(
+  m_preDepthPipeline = PipelineBuilder(
         m_device,
         m_renderPass,
         m_geometryDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/geometry.ep.slang.spv",
-        "Geometry Pass Pipeline"
+        "../res/shaders/clustered_forward/pre_depth.ep.slang.spv",
+        "Depth Pre-Pass Pipeline"
       )
       .withBindingDescriptions({Vertex::GetBindingDescription()})
       .withAttributeDescriptions({Vertex::GetAttributeDescriptions()})
       .withColorBlendAttachments({
         PipelineBuilder::makeDefaultColorAttachmentState(),
+      })
+      .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
+      .withSubpass(0)
+      .buildGraphics();
+  m_hiZDownsampleComputePipeline = PipelineBuilder(
+        m_device,
+        m_renderPass,
+        m_hiZDownsampleDescriptorSet.getPipelineLayout(),
+        "../res/shaders/clustered_forward/hi_z_downsample.cmp.slang.spv",
+        "Hi-Z Downsample Compute Pipeline"
+      )
+      .buildCompute();
+  m_clusterComputePipeline = PipelineBuilder(
+        m_device,
+        m_renderPass,
+        m_clusterComputeDescriptorSet.getPipelineLayout(),
+        "../res/shaders/clustered_forward/clusters.cmp.slang.spv",
+        "Cluster Compute Pipeline"
+      )
+      .buildCompute();
+  m_cfrPipeline = PipelineBuilder(
+        m_device,
+        m_renderPass,
+        m_cfrDescriptorSet.getPipelineLayout(),
+        "../res/shaders/clustered_forward/forward.ep.slang.spv",
+        "Clustered Forward Pass Pipeline"
+      )
+      .withBindingDescriptions({Vertex::GetBindingDescription()})
+      .withAttributeDescriptions({Vertex::GetAttributeDescriptions()})
+      .withColorBlendAttachments({
         PipelineBuilder::makeDefaultColorAttachmentState(),
       })
       .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
       .withSubpass(0)
       .buildGraphics();
-
-  m_lightingPipeline = PipelineBuilder(
+  m_cfrDebugPipeline = PipelineBuilder(
         m_device,
         m_renderPass,
-        m_lightingDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/light.ep.slang.spv",
-        "Lighting Pass Pipeline"
+        m_cfrDebugDescriptorSet.getPipelineLayout(),
+        "../res/shaders/clustered_forward/cfr_debug.ep.slang.spv",
+        "CFR Debug Pipeline"
       )
+      .withColorBlendAttachments({
+        PipelineBuilder::makeDefaultColorAttachmentState(),
+      })
       .depthStencil(false, false, vk::CompareOp::eAlways)
       .withCullMode(vk::CullModeFlagBits::eNone)
-      .withSubpass(1)
+      .withSubpass(0)
       .buildGraphics();
 }
 
 void VkTestSiteApp::createColorObjets() {
-  m_albedo = std::make_unique<Texture>(
-    m_device, m_allocator,
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
-    vk::Format::eR8G8B8A8Unorm,
-    vk::SampleCountFlagBits::e1,
-    vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Albedo G-Buffer"
-  );
-  m_normal = std::make_unique<Texture>(
-    m_device, m_allocator,
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
-    vk::Format::eR16G16B16A16Sfloat,
-    vk::SampleCountFlagBits::e1,
-    vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Normal G-Buffer"
-  );
+  m_clusterCount = XSLICES * YSLICES * ZSLICES;
+  m_clustersCountBufferSize = m_clusterCount * sizeof(uint32_t);
+  m_clustersIndicesBufferSize = ((MAX_LIGHTS_PER_CLUSTER + 1) * m_clusterCount) * sizeof(uint32_t);
+
+  m_clustersCount = createBufferUnique(
+    m_allocator, m_clustersCountBufferSize,
+    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst |
+    vk::BufferUsageFlagBits::eTransferSrc,
+    vma::MemoryUsage::eAutoPreferDevice);
+  m_clustersCountStaging = createBufferUnique(
+    m_allocator, m_clustersCountBufferSize,
+    vk::BufferUsageFlagBits::eTransferDst,
+    vma::MemoryUsage::eGpuToCpu);
+  m_clustersIndices = createBufferUnique(
+    m_allocator, m_clustersIndicesBufferSize,
+    vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    vma::MemoryUsage::eAutoPreferDevice);
 }
 
 void VkTestSiteApp::createDepthObjets() {
@@ -411,8 +419,9 @@ void VkTestSiteApp::createDepthObjets() {
     depthFormat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eDepth,
-    vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Depth attachment"
+    vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment |
+    vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc,
+    true, "Depth buffer attachment"
   );
 
   transitionImageLayout(
@@ -422,6 +431,48 @@ void VkTestSiteApp::createDepthObjets() {
     vk::ImageLayout::eUndefined,
     vk::ImageLayout::eDepthStencilAttachmentOptimal, 1
   );
+
+  const uint32_t hiZMipLevels =
+      1 + static_cast<uint32_t>(std::floor(std::log2(std::max(m_swapchain.extent.width, m_swapchain.extent.height))));
+  m_hiZ = std::make_unique<Texture>(
+    m_device, m_allocator,
+    m_swapchain.extent.width, m_swapchain.extent.height, hiZMipLevels,
+    vk::Format::eR16G16Sfloat,
+    vk::SampleCountFlagBits::e1,
+    vk::ImageAspectFlagBits::eColor,
+    vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage
+    | vk::ImageUsageFlagBits::eTransferDst,
+    true, "Hi-Z buffer attachment"
+  );
+
+  m_hiZAllView = createImageViewUnique(m_device, m_hiZ->getImage(),
+    vk::Format::eR16G16Sfloat, vk::ImageAspectFlagBits::eColor, 0, hiZMipLevels);
+
+  transitionImageLayout(
+    m_device, m_graphicsQueue, m_commandPool,
+    m_hiZ->getImage(),
+    vk::Format::eR16G16Sfloat,
+    vk::ImageLayout::eUndefined,
+    vk::ImageLayout::eGeneral, hiZMipLevels
+  );
+
+  m_clusterDebug = std::make_unique<Texture>(
+    m_device, m_allocator,
+    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    vk::Format::eR16G16B16A16Sfloat,
+    vk::SampleCountFlagBits::e1,
+    vk::ImageAspectFlagBits::eColor,
+    vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage,
+    true, "Cluster compute debug out"
+  );
+
+  transitionImageLayout(
+    m_device, m_graphicsQueue, m_commandPool,
+    m_clusterDebug->getImage(),
+    vk::Format::eR16G16B16A16Sfloat,
+    vk::ImageLayout::eUndefined,
+    vk::ImageLayout::eGeneral, 1
+  );
 }
 
 void VkTestSiteApp::createFramebuffers() {
@@ -430,8 +481,6 @@ void VkTestSiteApp::createFramebuffers() {
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
     std::vector attachments = {
       m_depth->getImageView(),
-      m_albedo->getImageView(),
-      m_normal->getImageView(),
       m_swapchain.imageViews[i]
     };
 
@@ -448,6 +497,8 @@ void VkTestSiteApp::createUniformBuffers() {
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
     m_uniforms.emplace_back(m_allocator,
                             vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+    m_cameraMultiple.emplace_back(m_allocator,
+                                  vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
   }
 }
 
@@ -467,9 +518,23 @@ void VkTestSiteApp::createDescriptorSet() {
     .bufferInfos = uniform_infos
   };
 
+  std::vector<vk::DescriptorBufferInfo> uniform_infos2;
+  for (const auto &ub: m_cameraMultiple) {
+    uniform_infos2.emplace_back(ub.getBufferInfo());
+  }
+  const auto ubo2Descriptor = DescriptorLayout{
+    .type = vk::DescriptorType::eUniformBuffer,
+    .stage = vk::ShaderStageFlagBits::eCompute,
+    .bindingFlags = {},
+    .shaderBinding = 0,
+    .count = 1,
+    .imageInfos = {},
+    .bufferInfos = uniform_infos2
+  };
+
   const auto lightsDescriptor = DescriptorLayout{
     .type = vk::DescriptorType::eStorageBuffer,
-    .stage = vk::ShaderStageFlagBits::eFragment,
+    .stage = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eCompute,
     .bindingFlags = {},
     .shaderBinding = 1,
     .count = 1,
@@ -477,65 +542,132 @@ void VkTestSiteApp::createDescriptorSet() {
     .bufferInfos = m_lightManager->getBufferInfos()
   };
 
+  const auto clusterCountDescriptor = DescriptorLayout{
+    .type = vk::DescriptorType::eStorageBuffer,
+    .stage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eCompute,
+    .bindingFlags = {},
+    .shaderBinding = 3,
+    .count = 1,
+    .imageInfos = {},
+    .bufferInfos = {
+      vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
+      vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
+      vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
+      vk::DescriptorBufferInfo(m_clustersCount.first.get(), 0, m_clustersCountBufferSize),
+    }
+  };
+  const auto clusterIndicesDescriptor = DescriptorLayout{
+    .type = vk::DescriptorType::eStorageBuffer,
+    .stage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eCompute,
+    .bindingFlags = {},
+    .shaderBinding = 4,
+    .count = 1,
+    .imageInfos = {},
+    .bufferInfos = {
+      vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
+      vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
+      vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
+      vk::DescriptorBufferInfo(m_clustersIndices.first.get(), 0, m_clustersIndicesBufferSize),
+    }
+  };
+
   m_geometryDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
-      uboDescriptor,
+      uboDescriptor
+    }, {
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
+    }, "Geometry DS");
+  m_hiZDownsampleDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
       DescriptorLayout{
         .type = vk::DescriptorType::eCombinedImageSampler,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound |
-                        vk::DescriptorBindingFlagBits::eUpdateAfterBind,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
+        .shaderBinding = 0,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_depth->getSampler(), m_depth->getImageView(),
+                                  vk::ImageLayout::eShaderReadOnlyOptimal)
+        },
+        .bufferInfos = {}
+      },
+      DescriptorLayout{
+        .type = vk::DescriptorType::eStorageImage,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
         .shaderBinding = 1,
-        .count = MAX_TEXTURE_PER_DESCRIPTOR,
-        .imageInfos = {},
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_hiZ->getSampler(), m_hiZ->getImageView(),
+                                  vk::ImageLayout::eGeneral)
+        },
         .bufferInfos = {}
       }
     }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
-    });
-
-  m_lightingDescriptorSet = DescriptorSet(
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(HiZDownsampleConsts))
+    }, "HiZ Downsample DS", vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor);
+  m_clusterComputeDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
+      ubo2Descriptor,
+      lightsDescriptor,
+      DescriptorLayout{
+        .type = vk::DescriptorType::eCombinedImageSampler,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
+        .shaderBinding = 2,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_hiZ->getSampler(), m_hiZAllView.get(),
+                                  vk::ImageLayout::eShaderReadOnlyOptimal)
+        },
+        .bufferInfos = {}
+      },
+      //clustersDescriptor
+      //clusterCountDescriptor,
+      clusterIndicesDescriptor,
+      DescriptorLayout{
+        .type = vk::DescriptorType::eStorageImage,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
+        .shaderBinding = 5,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_clusterDebug->getSampler(), m_clusterDebug->getImageView(),
+                                  vk::ImageLayout::eGeneral)
+        },
+        .bufferInfos = {}
+      },
+    }, {
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(LightPushConsts))
+    }, "Cluster Compute DS");
+  m_cfrDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
       uboDescriptor,
       lightsDescriptor,
       DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
+        .type = vk::DescriptorType::eCombinedImageSampler,
         .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
+        .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound |
+                        vk::DescriptorBindingFlagBits::eUpdateAfterBind,
         .shaderBinding = 2,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
+        .count = MAX_TEXTURE_PER_DESCRIPTOR,
+        .imageInfos = {},
         .bufferInfos = {}
       },
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 3,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 4,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
+      //clusterCountDescriptor,
+      clusterIndicesDescriptor
     }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eFragment, 0, sizeof(LightPushConsts)) // Lights count
-    });
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts)),
+    }, "CFR DS");
+  m_cfrDebugDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
+      uboDescriptor
+    }, {}, "CFR Debug DS");
 }
 
 void VkTestSiteApp::createCommandPool() {
@@ -551,6 +683,9 @@ void VkTestSiteApp::createCommandBuffers() {
   const auto commandBufInfo = vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary,
                                                             m_swapchain.imageViews.size());
   m_commandBuffers = m_device.allocateCommandBuffers(commandBufInfo);
+  for (int i = 0; i < m_commandBuffers.size(); ++i) {
+    setObjectName(m_device, m_commandBuffers[i], std::format("Primary Command Buffer {}", i));
+  }
 }
 
 void VkTestSiteApp::createSyncObjects() {
@@ -610,15 +745,20 @@ void VkTestSiteApp::mainLoop() {
       vmaFreeStatsString(m_allocator, statsString);
     }
 
+    ImGui::Checkbox("Enable Slice Debug", &m_showClusterSliceDebug);
+    if (m_showClusterSliceDebug) {
+      ImGui::SliderInt("X Slice", &m_xSlice, 0, XSLICES - 1);
+      ImGui::SliderInt("Y Slice", &m_ySlice, 0, YSLICES - 1);
+    }
+
     ImGui::Separator();
     ImGui::Text("Select G-Buffer Debug Output");
     ImGui::RadioButton("None", &m_debugView, 0);
     ImGui::RadioButton("Depth", &m_debugView, 1);
     ImGui::RadioButton("Albedo", &m_debugView, 2);
     ImGui::RadioButton("Normal", &m_debugView, 3);
-    ImGui::RadioButton("Normal (TBN)", &m_debugView, 4);
-    ImGui::RadioButton("Tangent (TBN)", &m_debugView, 5);
-    ImGui::RadioButton("BiTangent (TBN)", &m_debugView, 6);
+    ImGui::RadioButton("Clusters", &m_debugView, 4);
+    ImGui::RadioButton("Clusters Z", &m_debugView, 5);
     ImGui::End();
 
     if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
@@ -724,13 +864,30 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
 }
 
 void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
+  auto projInfo = glm::vec4(m_swapchain.extent.width, m_swapchain.extent.height, m_camera->getZNear(),
+                            m_camera->getZFar());
   auto ubo = UniformBufferObject{
     glm::vec4(m_camera->getViewPos(), 1.0f),
     m_camera->getViewProj(),
     m_camera->getInvViewProj(),
-    static_cast<uint32_t>(m_debugView)
+    projInfo,
+    glm::ivec4(
+      m_debugView,
+      m_showClusterSliceDebug ? m_xSlice : -1,
+      m_showClusterSliceDebug ? m_ySlice : -1,
+      m_lightManager->getCount()
+      )
+  };
+  auto cameraData = CameraData{
+    m_camera->getView(),
+    m_camera->getViewProj(),
+    m_camera->getInvViewProj(),
+    glm::inverse(m_camera->getProj()),
+    projInfo,
+    m_camera->getFrustumCorners()
   };
   m_uniforms[imageIndex].map(ubo);
+  m_cameraMultiple[imageIndex].map(cameraData);
   m_lightManager->map(imageIndex);
 }
 
@@ -744,20 +901,18 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   auto colorClearValue = m_modelLoaded
                            ? vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f))
                            : vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
-  auto albedoClearValue = vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
-  auto normalClearValue = vk::ClearValue(vk::ClearColorValue(0.5f, 0.5f, 1.0f, 1.0f));
   auto depthClearValue = vk::ClearValue(vk::ClearDepthStencilValue(0.0f, 0));
-  auto clearValues = {depthClearValue, albedoClearValue, normalClearValue, colorClearValue};
+  auto clearValues = {depthClearValue, colorClearValue};
   const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, clearValues);
 
   commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
-    // Model temp render
+    // Depth pre-pass
     if (m_modelLoaded) {
       auto modelCmd = m_model->cmdDraw(
         *m_vkContext,
         m_framebuffers[imageIndex],
         m_renderPass,
-        m_geometryPipeline,
+        m_preDepthPipeline,
         m_swapchain,
         m_geometryDescriptorSet,
         0,
@@ -767,31 +922,77 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       commandBuffer.executeCommands(modelCmd);
     }
   }
-  commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers); {
-    //Light subpass
-    auto lightCmd = m_lightingCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
-    auto lightBeginInfo = vk::CommandBufferBeginInfo(
+  commandBuffer.endRenderPass(); {
+    cmdTransitionImageLayout2( // Depth buffer - depth pre-pass -> shader read
+      commandBuffer, m_depth->getImage(),
+      vk::ImageLayout::eDepthStencilReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1)
+    );
+    buildHiZ(commandBuffer, imageIndex);
+    cmdTransitionImageLayout2( // Hi-Z (all) -> Clusters compute shader read
+      commandBuffer, m_hiZ->getImage(),
+      vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, 0, m_hiZ->mipLevels, 0, 1)
+    );
+  } {
+    commandBuffer.fillBuffer(m_clustersCount.first.get(), 0, VK_WHOLE_SIZE, 0);
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_clusterComputePipeline);
+    m_clusterComputeDescriptorSet.bind(commandBuffer, imageIndex, {}, vk::PipelineBindPoint::eCompute);
+    auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
+    commandBuffer.pushConstants(m_clusterComputeDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0,
+                                sizeof(lightPush), &lightPush);
+
+    commandBuffer.dispatch(4, 3, 24);
+
+    cmdTransitionImageLayout2( // Depth buffer - cluster compute read -> CFR/ImGui usage
+      commandBuffer, m_depth->getImage(),
+      vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1)
+    );
+    vk::BufferCopy copyRegion = {0, 0, m_clustersCountBufferSize};
+    commandBuffer.copyBuffer(m_clustersCount.first.get(), m_clustersCountStaging.first.get(), 1, &copyRegion);
+  }
+  commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
+    // Model temp render
+    if (m_modelLoaded && !m_showClusterSliceDebug) {
+      auto modelCmd = m_model->cmdDraw(
+        *m_vkContext,
+        m_framebuffers[imageIndex],
+        m_renderPass,
+        m_cfrPipeline,
+        m_swapchain,
+        m_cfrDescriptorSet,
+        0,
+        imageIndex,
+        1
+      );
+
+      commandBuffer.executeCommands(modelCmd);
+    }
+  }
+  if (m_showClusterSliceDebug) {
+    // CFR Draw logic
+    auto cfrDebugCB = m_cfrDebugCB[imageIndex].get();
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 0, m_framebuffers[imageIndex]);
+    auto cfrDebugBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
-    lightCmd.reset();
-    lightCmd.begin(lightBeginInfo); {
-      //TracyVkZone(m_vkContext, lightCmd, "Light Pass");
-      m_swapchain.cmdSetViewport(lightCmd);
-      m_swapchain.cmdSetScissor(lightCmd);
-      lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
-      m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
-      auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
-      lightCmd.pushConstants(m_lightingDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eFragment, 0,
-                             sizeof(lightPush), &lightPush);
-      lightCmd.draw(3, 1, 0, 0);
+    cfrDebugCB.reset();
+    cfrDebugCB.begin(cfrDebugBeginInfo); {
+      m_swapchain.cmdSetViewport(cfrDebugCB);
+      m_swapchain.cmdSetScissor(cfrDebugCB);
+      cfrDebugCB.bindPipeline(vk::PipelineBindPoint::eGraphics, m_cfrDebugPipeline);
+      m_cfrDebugDescriptorSet.bind(cfrDebugCB, imageIndex, {});
+      cfrDebugCB.draw(3, 1, 0, 0);
     }
-    lightCmd.end();
-    commandBuffer.executeCommands(lightCmd);
-  } {
+    cfrDebugCB.end();
+
+    commandBuffer.executeCommands(cfrDebugCB);
+  }
+  {
     // ImGUI Secondary Cmd record -> exec
     auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 0, m_framebuffers[imageIndex]);
     auto imguiBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
@@ -807,6 +1008,56 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
 
   commandBuffer.endRenderPass();
   commandBuffer.end();
+}
+
+void VkTestSiteApp::buildHiZ(const vk::CommandBuffer &commandBuffer, const uint32_t imageIndex) const {
+  uint32_t width = m_hiZ->width, height = m_hiZ->height;
+  for (int mip = 0; mip < m_hiZ->mipLevels; ++mip) {
+    uint32_t dstW = width;
+    uint32_t dstH = height;
+
+    if (mip != 0) {
+      dstW = std::max(1u, width >> 1);
+      dstH = std::max(1u, height >> 1);
+
+      cmdTransitionImageLayout2(
+        commandBuffer,
+        m_hiZ->getImage(),
+        vk::ImageLayout::eShaderReadOnlyOptimal,
+        vk::ImageLayout::eGeneral,
+        vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip, 1, 0, 1)
+      );
+    }
+
+    const auto srcInfo =
+        mip == 0
+          ? vk::DescriptorImageInfo(
+            m_depth->getSampler(), m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+          : vk::DescriptorImageInfo(
+            m_hiZ->getSampler(), m_hiZ->getImageView(mip - 1), vk::ImageLayout::eShaderReadOnlyOptimal);
+    const auto dstInfo = vk::DescriptorImageInfo(
+      m_hiZ->getSampler(), m_hiZ->getImageView(mip), vk::ImageLayout::eGeneral);
+    std::array writes = {
+      vk::WriteDescriptorSet({}, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &srcInfo),
+      vk::WriteDescriptorSet({}, 1, 0, 1, vk::DescriptorType::eStorageImage, &dstInfo)
+    };
+
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_hiZDownsampleComputePipeline);
+    auto downsample = HiZDownsampleConsts{.srcDstWH = glm::vec4(width, height, dstW, dstH)};
+    commandBuffer.pushDescriptorSet(
+      vk::PipelineBindPoint::eCompute, m_hiZDownsampleDescriptorSet.getPipelineLayout(), 0, writes);
+    commandBuffer.pushConstants(m_hiZDownsampleDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0,
+                                sizeof(downsample), &downsample);
+    commandBuffer.dispatch((dstW + 7) / 8, (dstH + 7) / 8, 1);
+
+    cmdTransitionImageLayout2( // HiZ - dst general -> src readable
+      commandBuffer, m_hiZ->getImage(),
+      vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip, 1, 0, 1)
+    );
+
+    width = dstW, height = dstH;
+  }
 }
 
 void VkTestSiteApp::recreateSwapchain() {
@@ -826,7 +1077,7 @@ void VkTestSiteApp::recreateSwapchain() {
   createColorObjets();
   createDepthObjets();
   createDescriptorSet();
-  m_texManager->updateDS(m_geometryDescriptorSet);
+  m_texManager->updateDS(m_cfrDescriptorSet);
   createPipeline();
   createFramebuffers();
   createCommandBuffers();
@@ -834,18 +1085,29 @@ void VkTestSiteApp::recreateSwapchain() {
 
 void VkTestSiteApp::cleanupSwapchain() {
   m_uniforms.clear();
+  m_cameraMultiple.clear();
+  m_clustersCount.first.reset();
+  m_clustersCount.second.reset();
+  m_clustersCountStaging.first.reset();
+  m_clustersCountStaging.second.reset();
+  m_clustersIndices.first.reset();
+  m_clustersIndices.second.reset();
   m_geometryDescriptorSet.destroy(m_device);
-  m_lightingDescriptorSet.destroy(m_device);
+  m_hiZDownsampleDescriptorSet.destroy(m_device);
+  m_clusterComputeDescriptorSet.destroy(m_device);
+  m_cfrDescriptorSet.destroy(m_device);
+  m_cfrDebugDescriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
   m_depth.reset();
-  m_albedo.reset();
-  m_normal.reset();
   for (const auto framebuffer: m_framebuffers) {
     m_device.destroyFramebuffer(framebuffer);
   }
-  m_device.destroyPipeline(m_geometryPipeline);
-  m_device.destroyPipeline(m_lightingPipeline);
+  m_device.destroyPipeline(m_preDepthPipeline);
+  m_device.destroyPipeline(m_hiZDownsampleComputePipeline);
+  m_device.destroyPipeline(m_clusterComputePipeline);
+  m_device.destroyPipeline(m_cfrPipeline);
+  m_device.destroyPipeline(m_cfrDebugPipeline);
   m_device.destroyRenderPass(m_renderPass);
   m_swapchain.destroy(m_device);
 }
@@ -872,7 +1134,7 @@ void VkTestSiteApp::cleanup() {
   m_transferThread.reset();
   m_stagingBuffer.reset();
   m_imguiCommandBuffers.clear();
-  m_lightingCommandBuffers.clear();
+  m_computeCommandBuffers.clear();
   m_device.destroyCommandPool(m_commandPool);
   vmaDestroyAllocator(m_allocator);
   m_device.destroy();

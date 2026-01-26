@@ -41,11 +41,31 @@
 #include "TextureWorkersPool.h"
 #include "TransferThread.h"
 
+#define XSLICES 16
+#define YSLICES 9
+#define ZSLICES 24
+#define MAX_LIGHTS_PER_CLUSTER 32
+#define WORKGROUP_SIZE 64
+
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
   glm::mat4 viewProj;
   glm::mat4 invViewProj;
-  uint32_t displayDebugTarget;
+  glm::vec4 projInfo;
+  glm::ivec4 debugInfo; //debug target, xSlice, ySlice, tmpLightCount
+};
+
+struct alignas(16) CameraData {
+  glm::mat4 view;
+  glm::mat4 viewProj;
+  glm::mat4 invViewProj;
+  glm::mat4 invProj;
+  glm::vec4 projInfo;
+  glm::vec4 frustumCorners;
+};
+
+struct alignas(16) HiZDownsampleConsts {
+  glm::ivec4 srcDstWH; // x: srcW, y: srcH, z: dstW, w: dstH
 };
 
 class VkTestSiteApp {
@@ -71,15 +91,22 @@ private:
   vk::Queue m_presentQueue;
   Swapchain m_swapchain;
   vk::RenderPass m_renderPass;
-  vk::Pipeline m_geometryPipeline;
-  vk::Pipeline m_lightingPipeline;
+  vk::Pipeline m_preDepthPipeline;
+  vk::Pipeline m_hiZDownsampleComputePipeline;
+  vk::Pipeline m_clusterComputePipeline;
+  vk::Pipeline m_cfrPipeline;
+  vk::Pipeline m_cfrDebugPipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_geometryDescriptorSet;
-  DescriptorSet m_lightingDescriptorSet;
+  DescriptorSet m_clusterComputeDescriptorSet;
+  DescriptorSet m_hiZDownsampleDescriptorSet;
+  DescriptorSet m_cfrDescriptorSet;
+  DescriptorSet m_cfrDebugDescriptorSet;
   std::unique_ptr<Texture> m_depth;
-  std::unique_ptr<Texture> m_albedo;
-  std::unique_ptr<Texture> m_normal;
+  std::unique_ptr<Texture> m_hiZ;
+  std::unique_ptr<Texture> m_clusterDebug;
+  vk::UniqueImageView m_hiZAllView;
   std::unique_ptr<Camera> m_camera;
 
   std::unique_ptr<Model> m_model;
@@ -94,16 +121,29 @@ private:
 
   std::vector<vk::Framebuffer> m_framebuffers;
   std::vector<UniformBuffer<UniformBufferObject>> m_uniforms = {};
+  std::vector<UniformBuffer<CameraData>> m_cameraMultiple = {};
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
-  std::vector<vk::UniqueCommandBuffer> m_lightingCommandBuffers;
+  std::vector<vk::UniqueCommandBuffer> m_cfrDebugCB;
+  std::vector<vk::UniqueCommandBuffer> m_computeCommandBuffers;
   std::vector<vk::Fence> m_inFlight;
   std::vector<vk::Semaphore> m_imageAvailable;
   std::vector<vk::Semaphore> m_renderFinished;
 
+  vk::DeviceSize m_clusterCount = 0;
+  std::pair<vma::UniqueBuffer, vma::UniqueAllocation> m_clustersCount;
+  std::pair<vma::UniqueBuffer, vma::UniqueAllocation> m_clustersCountStaging;
+  vk::DeviceSize m_clustersCountBufferSize = 0;
+  std::pair<vma::UniqueBuffer, vma::UniqueAllocation> m_clustersIndices;
+  vk::DeviceSize m_clustersIndicesBufferSize = 0;
+
   uint32_t m_currentFrame = 0;
   int32_t m_debugView = 0;
   float m_lastTime = 0.0f;
+
+  bool m_showClusterSliceDebug = false;
+  int32_t m_xSlice = 0;
+  int32_t m_ySlice = 0;
 
   void initWindow();
   void initVk();
@@ -125,6 +165,7 @@ private:
   void render(ImDrawData* draw_data, float deltaTime);
   void updateUniformBuffer(uint32_t imageIndex);
   void recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
+  void buildHiZ(const vk::CommandBuffer& commandBuffer, const uint32_t imageIndex) const;
   void recreateSwapchain();
   void cleanupSwapchain();
   void cleanup();

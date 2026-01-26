@@ -66,7 +66,8 @@ public:
     const Swapchain &swapchain,
     const DescriptorSet &descriptorSet,
     uint32_t subpass,
-    uint32_t imageIndex
+    uint32_t imageIndex,
+    uint32_t iter = 0
   );
 
   void drawUI();
@@ -104,7 +105,7 @@ private:
   Transform m_transform;
   std::vector<Submesh> m_submeshes;
   std::vector<Material> m_materials;
-  std::vector<vk::UniqueCommandBuffer> m_commandBuffers;
+  std::vector<std::vector<vk::UniqueCommandBuffer> > m_commandBuffers;
 
   vk::Device m_device = nullptr;
   vk::Queue m_graphicsQueue = nullptr;
