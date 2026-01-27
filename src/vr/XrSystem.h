@@ -9,6 +9,8 @@
 #include <openxr/openxr_platform.h>
 #include <openxr/openxr.h>
 #include <openxr/openxr.hpp>
+#include <glm/gtx/quaternion.hpp>
+#include <spdlog/spdlog.h>
 #include "vr/XrUtils.cpp"
 #include "utils.cpp"
 
@@ -91,6 +93,16 @@ namespace vr {
     glm::mat4 eyeViews[2];
     glm::mat4 eyeProjections[2];
 
+    xr::UniqueActionSet actionSet;
+    xr::UniqueAction moveAction;
+    xr::UniqueAction turnAction;
+
+    glm::vec3 playerPosition{0.0f};
+    glm::quat playerRotation = glm::identity<glm::quat>();
+
+    glm::vec2 moveData;
+    glm::vec2 turnData;
+
     xr::DispatchLoaderDynamic &getXRDispatch() {
       static xr::DispatchLoaderDynamic dispatch = xr::DispatchLoaderDynamic::createFullyPopulated(
         xr_instance.get(), &xrGetInstanceProcAddr);
@@ -101,6 +113,8 @@ namespace vr {
 
     bool createSwapchain();
 
+    void initActions();
+    void readActions();
     void handleEvent(xr::EventDataBuffer event);
 
     void xrWaitFrame();

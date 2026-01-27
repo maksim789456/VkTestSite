@@ -1,7 +1,5 @@
 #include "XrSystem.h"
 
-#include <spdlog/spdlog.h>
-
 const std::vector<std::string> XR_API_LAYERS = {
 };
 const std::vector<std::string> XR_INSTANCE_EXTS = {
@@ -222,6 +220,7 @@ void vr::XrSystem::createSession(
     return;
   }
   createSwapchain();
+  initActions();
 }
 
 bool vr::XrSystem::findSwapchainFormat() {
@@ -288,6 +287,86 @@ bool vr::XrSystem::createSwapchain() {
   //TODO: sync objs?
 
   return true;
+}
+
+void vr::XrSystem::initActions() {
+  const xr::ActionSetCreateInfo setInfo("movement", "Movement", 0);
+  actionSet = xr_instance->createActionSetUnique(setInfo);
+
+  const xr::Path leftHand  = xr_instance->stringToPath("/user/hand/left");
+  const xr::Path rightHand = xr_instance->stringToPath("/user/hand/right");
+
+  const xr::Path handSubactions[] = { leftHand, rightHand };
+
+  xr::ActionCreateInfo actionInfo(nullptr);
+  actionInfo.subactionPaths = handSubactions;
+  actionInfo.countSubactionPaths = 2;
+  actionInfo.actionType = xr::ActionType::Vector2FInput;
+  strcpy(actionInfo.actionName, "move");
+  strcpy(actionInfo.localizedActionName, "Move");
+  moveAction = actionSet->createActionUnique(actionInfo);
+
+  actionInfo.actionType = xr::ActionType::Vector2FInput;
+  strcpy(actionInfo.actionName, "turn");
+  strcpy(actionInfo.localizedActionName, "Turn");
+  turnAction = actionSet->createActionUnique(actionInfo);
+
+  const std::vector<xr::ActionSuggestedBinding> bindings = {
+    xr::ActionSuggestedBinding(moveAction.get(), xr_instance->stringToPath("/user/hand/left/input/thumbstick")),
+    xr::ActionSuggestedBinding(turnAction.get(), xr_instance->stringToPath("/user/hand/right/input/thumbstick")),
+  };
+
+  xr::InteractionProfileSuggestedBinding suggested;
+  suggested.interactionProfile = xr_instance->stringToPath("/interaction_profiles/oculus/touch_controller");
+  suggested.suggestedBindings = bindings.data();
+  suggested.countSuggestedBindings = bindings.size();
+  xr_instance->suggestInteractionProfileBindings(suggested);
+
+  const xr::SessionActionSetsAttachInfo attachInfo(1, &actionSet.get());
+  session->attachSessionActionSets(attachInfo);
+}
+
+void vr::XrSystem::readActions() {
+  const xr::ActiveActionSet activeSet(actionSet.get(), xr::Path::null());
+  const xr::ActionsSyncInfo syncInfo(1, &activeSet);
+  session->syncActions(syncInfo);
+
+  xr::ActionStateVector2f moveState;
+  const xr::ActionStateGetInfo moveGet(moveAction.get(), xr::Path::null());
+  session->getActionStateVector2f(moveGet, moveState);
+  moveData = moveState.isActive ? toGlm(moveState.currentState) : glm::vec2(0.0f);
+
+  xr::ActionStateVector2f turnState;
+  const xr::ActionStateGetInfo turnGet(turnAction.get(), xr::Path::null());
+  session->getActionStateVector2f(turnGet, turnState);
+  turnData = turnState.isActive ? toGlm(turnState.currentState) : glm::vec2(0.0f);
+}
+
+void vr::XrSystem::updateMovement(float deltaTime) {
+  constexpr float moveSpeed = 2.0f;
+  constexpr float turnSpeed = 1.5f;
+
+  float yawDelta = turnData.x * turnSpeed * deltaTime;
+  auto yawRot = glm::angleAxis(yawDelta, glm::vec3(0.0f, 1.0f, 0.0f));
+  playerRotation = glm::normalize(yawRot * playerRotation);
+
+  auto headF = headRotation * glm::vec3(0, 0, -1.0f);
+  headF.y = 0.0f;
+
+  if (glm::length2(headRotation) > 0.0001f)
+    headF = glm::normalize(headF);
+
+  auto headR =
+      glm::normalize(glm::cross(headF, glm::vec3(0.0f, 1.0f, 0.0f)));
+
+  auto moveDir =
+      headF * moveData.y +
+      headR * moveData.x;
+
+  if (glm::length2(moveDir) > 0.0001f)
+    moveDir = glm::normalize(moveDir);
+
+  playerPosition += moveDir * moveSpeed * deltaTime;
 }
 
 void vr::XrSystem::pollEvents() {
