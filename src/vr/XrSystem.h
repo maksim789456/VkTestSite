@@ -43,7 +43,7 @@ namespace vr {
     void pollEvents();
 
     uint32_t startFrame();
-
+    void update(float deltaTime);
     void endFrame();
 
     bool isReady() { return ready; }
@@ -115,6 +115,8 @@ namespace vr {
 
     void initActions();
     void readActions();
+    void updateMovement(float deltaTime);
+
     void handleEvent(xr::EventDataBuffer event);
 
     void xrWaitFrame();

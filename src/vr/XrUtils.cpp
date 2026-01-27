@@ -147,7 +147,7 @@ inline glm::vec3 toGlm(const XrVector3f &v) {
   return glm::make_vec3(&v.x);
 }
 
-inline glm::mat4 makeXrViewMatrix(const XrPosef &p) {
+inline glm::mat4 makeXrPoseMatrix(const XrPosef &p) {
   const glm::mat4 orientation = glm::mat4_cast(toGlm(p.orientation));
   const glm::mat4 translation = glm::translate(glm::mat4(1.0f), toGlm(p.position));
   return translation * orientation;

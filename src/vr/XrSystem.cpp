@@ -454,6 +454,11 @@ uint32_t vr::XrSystem::startFrame() {
   return swapchainIdx;
 }
 
+void vr::XrSystem::update(float deltaTime) {
+  readActions();
+  updateMovement(deltaTime);
+}
+
 void vr::XrSystem::endFrame() {
   xrEndFrame();
 }
@@ -479,12 +484,14 @@ void vr::XrSystem::xrWaitFrame() {
   headPosition = xrSpaceToVkSpace(toGlm(headLocation.pose.position));
   headRotation = xrSpaceToVkSpace(toGlm(headLocation.pose.orientation));
 
+  auto playerTransform = glm::translate(glm::mat4(1.0f), playerPosition) *
+    glm::mat4_cast(playerRotation);
+
   auto updateCamera = [&](uint32_t idx, xr::View &view) {
     glm::vec3 translation{0.0f};
-    auto tmp = makeXrViewMatrix(view.pose);
-    // used to align with engine orientation
-    //glm::mat4 correctOrientation = glm::rotate(-glm::half_pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
-    eyeViews[idx] = glm::inverse(tmp); // * correctOrientation;// * glm::translate({}, translation);
+    auto xrPose = makeXrPoseMatrix(view.pose);
+    auto worldFromHmd = playerTransform * xrPose;
+    eyeViews[idx] = glm::inverse(worldFromHmd);
     eyeProjections[idx] = makeXrProjectionMatrix(view.fov);
   };
 
