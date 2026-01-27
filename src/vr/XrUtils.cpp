@@ -139,6 +139,10 @@ inline glm::quat toGlm(const XrQuaternionf &q) {
   return glm::make_quat(&q.x);
 }
 
+inline glm::vec2 toGlm(const XrVector2f &v) {
+  return glm::make_vec2(&v.x);
+}
+
 inline glm::vec3 toGlm(const XrVector3f &v) {
   return glm::make_vec3(&v.x);
 }
@@ -179,7 +183,6 @@ inline glm::mat4 makeXrProjectionMatrix(
 
   const float tanAngleWidth = tanAngleRight - tanAngleLeft;
   const float tanAngleHeight = tanAngleDown - tanAngleUp;
-  constexpr float offsetZ = 0;
 
   glm::mat4 projectionMatrix(0.0f);
 
@@ -189,10 +192,9 @@ inline glm::mat4 makeXrProjectionMatrix(
   projectionMatrix[2][0] = (tanAngleRight + tanAngleLeft) / tanAngleWidth;
   projectionMatrix[2][1] = (tanAngleUp + tanAngleDown) / tanAngleHeight;
 
-  projectionMatrix[2][2] = -(farZ + offsetZ) / (farZ - nearZ);
+  projectionMatrix[2][2] = nearZ / (farZ - nearZ);
+  projectionMatrix[3][2] = (farZ * nearZ) / (farZ - nearZ);
   projectionMatrix[2][3] = -1;
-
-  projectionMatrix[3][2] = -(farZ * (nearZ + offsetZ)) / (farZ - nearZ);
 
   return projectionMatrix;
 }
