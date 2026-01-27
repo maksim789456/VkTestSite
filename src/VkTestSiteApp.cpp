@@ -768,8 +768,15 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   auto _ = m_device.waitForFences(m_inFlight[m_currentFrame], true, UINT64_MAX);
   m_device.resetFences(m_inFlight[m_currentFrame]);
 
+  uint32_t xrImageIndex = -1;
+  if (XR_ENABLED && m_xrSystem->isReady()) {
+    xrImageIndex = m_xrSystem->startFrame();
+    m_xrSystem->update(deltaTime);
+  }
+
   uint32_t imageIndex;
   try {
+    ZoneScopedN("Acquire desktop swapchain image");
     const auto acquireResult = m_device.acquireNextImageKHR(
       m_swapchain.swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
     imageIndex = acquireResult.value;
@@ -779,11 +786,6 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     return;
   } catch (vk::SystemError &) {
     throw std::runtime_error("Failed to acquire swapchain image!");
-  }
-
-  uint32_t xrImageIndex = -1;
-  if (XR_ENABLED && m_xrSystem->isReady()) {
-    xrImageIndex = m_xrSystem->startFrame();
   }
 
   m_camera->onUpdate(deltaTime);
