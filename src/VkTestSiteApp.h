@@ -93,7 +93,7 @@ private:
   std::unique_ptr<TextureWorkerPool> m_textureWorkerPool;
 
   std::vector<vk::Framebuffer> m_framebuffers;
-  std::vector<UniformBuffer<UniformBufferObject>> m_uniforms = {};
+  std::unique_ptr<UniformBuffer<UniformBufferObject>> m_uniform;
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_lightingCommandBuffers;
