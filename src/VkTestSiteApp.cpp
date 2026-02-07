@@ -604,7 +604,7 @@ void VkTestSiteApp::mainLoop() {
     ImGui::Separator();
     ImGui::Text("Select G-Buffer Debug Output");
     ImGui::RadioButton("None", &m_debugView, 0);
-    ImGui::RadioButton("Depth", &m_debugView, 1);
+    ImGui::RadioButton("Light", &m_debugView, 1);
     ImGui::RadioButton("Albedo", &m_debugView, 2);
     ImGui::RadioButton("Normal", &m_debugView, 3);
     ImGui::RadioButton("Normal (TBN)", &m_debugView, 4);
