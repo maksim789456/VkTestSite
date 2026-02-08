@@ -446,26 +446,17 @@ void VkTestSiteApp::createFramebuffers() {
 void VkTestSiteApp::createUniformBuffers() {
   ZoneScoped;
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
-    m_uniforms.emplace_back(m_allocator,
-                            vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible);
+    m_uniform = std::make_unique<UniformBuffer<UniformBufferObject>>(
+      m_allocator,
+      m_swapchain.imageViews.size(),
+      vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+      0
+    );
   }
 }
 
 void VkTestSiteApp::createDescriptorSet() {
   ZoneScoped;
-  std::vector<vk::DescriptorBufferInfo> uniform_infos;
-  for (const auto &ub: m_uniforms) {
-    uniform_infos.emplace_back(ub.getBufferInfo());
-  }
-  const auto uboDescriptor = DescriptorLayout{
-    .type = vk::DescriptorType::eUniformBuffer,
-    .stage = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-    .bindingFlags = {},
-    .shaderBinding = 0,
-    .count = 1,
-    .imageInfos = {},
-    .bufferInfos = uniform_infos
-  };
 
   const auto lightsDescriptor = DescriptorLayout{
     .type = vk::DescriptorType::eStorageBuffer,
@@ -480,7 +471,7 @@ void VkTestSiteApp::createDescriptorSet() {
   m_geometryDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
-      uboDescriptor,
+      m_uniform->getDescriptorLayout(),
       DescriptorLayout{
         .type = vk::DescriptorType::eCombinedImageSampler,
         .stage = vk::ShaderStageFlagBits::eFragment,
@@ -498,7 +489,7 @@ void VkTestSiteApp::createDescriptorSet() {
   m_lightingDescriptorSet = DescriptorSet(
     m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
-      uboDescriptor,
+      m_uniform->getDescriptorLayout(),
       lightsDescriptor,
       DescriptorLayout{
         .type = vk::DescriptorType::eInputAttachment,
@@ -613,7 +604,7 @@ void VkTestSiteApp::mainLoop() {
     ImGui::Separator();
     ImGui::Text("Select G-Buffer Debug Output");
     ImGui::RadioButton("None", &m_debugView, 0);
-    ImGui::RadioButton("Depth", &m_debugView, 1);
+    ImGui::RadioButton("Light", &m_debugView, 1);
     ImGui::RadioButton("Albedo", &m_debugView, 2);
     ImGui::RadioButton("Normal", &m_debugView, 3);
     ImGui::RadioButton("Normal (TBN)", &m_debugView, 4);
@@ -730,7 +721,7 @@ void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
     m_camera->getInvViewProj(),
     static_cast<uint32_t>(m_debugView)
   };
-  m_uniforms[imageIndex].map(ubo);
+  m_uniform->map(imageIndex, ubo);
   m_lightManager->map(imageIndex);
 }
 
@@ -833,7 +824,7 @@ void VkTestSiteApp::recreateSwapchain() {
 }
 
 void VkTestSiteApp::cleanupSwapchain() {
-  m_uniforms.clear();
+  m_uniform.reset();
   m_geometryDescriptorSet.destroy(m_device);
   m_lightingDescriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);

@@ -8,26 +8,32 @@
 template<typename UBO>
 class UniformBuffer {
 public:
-  UniformBuffer() = default;
-  UniformBuffer(vma::Allocator allocator, vk::Flags<vk::MemoryPropertyFlagBits> flags);
+  UniformBuffer(
+    vma::Allocator allocator,
+    uint32_t imagesCount,
+    vk::ShaderStageFlags shaderStage,
+    uint32_t shaderBinding
+  );
+
+  UniformBuffer() = delete;
+
   ~UniformBuffer() = default;
 
-  UniformBuffer(const UniformBuffer&) = delete;
-  UniformBuffer& operator=(const UniformBuffer&) = delete;
+  [[nodiscard]] const vk::DescriptorBufferInfo &getBufferInfo(const uint32_t imageIdx) const { return buffersInfo[imageIdx]; };
+  [[nodiscard]] const DescriptorLayout& getDescriptorLayout() const { return dsLayout; };
 
-  UniformBuffer(UniformBuffer&&) noexcept = default;
-  UniformBuffer& operator=(UniformBuffer&&) noexcept = default;
-
-  [[nodiscard]] const vk::DescriptorBufferInfo& getBufferInfo() const { return bufferInfo; };
-  void map(const UBO& ubo);
+  void map(const uint32_t imageIdx, const UBO &ubo);
 
   vk::DeviceSize bufferSize = 0;
-  vk::DescriptorBufferInfo bufferInfo{};
+
 private:
   vma::Allocator allocator = nullptr;
-  vma::UniqueBuffer uniformBuffer = {};
-  vma::UniqueAllocation uniformBufferAlloc = {};
-  void* uniformBufferMapped = nullptr;
+  std::vector<vma::UniqueBuffer> buffers = {};
+  std::vector<vma::UniqueAllocation> buffersAlloc = {};
+  std::vector<void *> buffersMapped = {};
+  std::vector<vk::DescriptorBufferInfo> buffersInfo = {};
+
+  DescriptorLayout dsLayout = {};
 };
 
 #include "Ubo.tpp"
