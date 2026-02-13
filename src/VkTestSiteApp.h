@@ -48,6 +48,11 @@ struct alignas(16) UniformBufferObject {
   uint32_t displayDebugTarget;
 };
 
+
+struct alignas(16) HiZDownsampleConsts {
+  glm::ivec4 srcDstWH; // x: srcW, y: srcH, z: dstW, w: dstH
+};
+
 class VkTestSiteApp {
 public:
   void run();
@@ -74,11 +79,14 @@ private:
   vk::RenderPass m_lightPass;
   vk::Pipeline m_geometryPipeline;
   vk::Pipeline m_lightingPipeline;
+  vk::Pipeline m_hiZDownsampleComputePipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
   DescriptorSet m_geometryDescriptorSet;
   DescriptorSet m_lightingDescriptorSet;
+  DescriptorSet m_hiZDownsampleDescriptorSet;
   std::unique_ptr<Texture> m_depth;
+  std::unique_ptr<Texture> m_hiZ;
   std::unique_ptr<Texture> m_albedo;
   std::unique_ptr<Texture> m_normal;
   std::unique_ptr<Camera> m_camera;
@@ -127,6 +135,7 @@ private:
   void render(ImDrawData* draw_data, float deltaTime);
   void updateUniformBuffer(uint32_t imageIndex);
   void recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
+  void buildHiZ(const vk::CommandBuffer& commandBuffer) const;
   void recreateSwapchain();
   void cleanupSwapchain();
   void cleanup();

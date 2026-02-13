@@ -362,6 +362,14 @@ void VkTestSiteApp::createPipeline() {
       .depthStencil(false, false, vk::CompareOp::eAlways)
       .withCullMode(vk::CullModeFlagBits::eNone)
       .buildGraphics();
+  m_hiZDownsampleComputePipeline = PipelineBuilder(
+        m_device,
+        nullptr,
+        m_hiZDownsampleDescriptorSet.getPipelineLayout(),
+        "../res/shaders/shadows/hi_z_downsample.cmp.slang.spv",
+        "Hi-Z Downsample Compute Pipeline"
+      )
+      .buildCompute();
 }
 
 void VkTestSiteApp::createColorObjets() {
@@ -405,6 +413,27 @@ void VkTestSiteApp::createDepthObjets() {
     depthFormat,
     vk::ImageLayout::eUndefined,
     vk::ImageLayout::eDepthStencilAttachmentOptimal, 1
+  );
+
+  const uint32_t hiZMipLevels =
+      1 + static_cast<uint32_t>(std::floor(std::log2(std::max(m_swapchain.extent.width, m_swapchain.extent.height))));
+  m_hiZ = std::make_unique<Texture>(
+    m_device, m_allocator,
+    m_swapchain.extent.width, m_swapchain.extent.height, hiZMipLevels,
+    vk::Format::eR16G16Sfloat,
+    vk::SampleCountFlagBits::e1,
+    vk::ImageAspectFlagBits::eColor,
+    vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eStorage
+    | vk::ImageUsageFlagBits::eTransferDst,
+    true, "Hi-Z buffer attachment"
+  );
+
+  transitionImageLayout(
+    m_device, m_graphicsQueue, m_commandPool,
+    m_hiZ->getImage(),
+    vk::Format::eR16G16Sfloat,
+    vk::ImageLayout::eUndefined,
+    vk::ImageLayout::eShaderReadOnlyOptimal, hiZMipLevels
   );
 }
 
@@ -520,6 +549,37 @@ void VkTestSiteApp::createDescriptorSet() {
     }, {
       vk::PushConstantRange(vk::ShaderStageFlagBits::eFragment, 0, sizeof(LightPushConsts)) // Lights count
     });
+
+  m_hiZDownsampleDescriptorSet = DescriptorSet(
+    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    {
+      DescriptorLayout{
+        .type = vk::DescriptorType::eCombinedImageSampler,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
+        .shaderBinding = 0,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_depth->getSampler(), m_depth->getImageView(),
+                                  vk::ImageLayout::eShaderReadOnlyOptimal)
+        },
+        .bufferInfos = {}
+      },
+      DescriptorLayout{
+        .type = vk::DescriptorType::eStorageImage,
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .bindingFlags = {},
+        .shaderBinding = 1,
+        .count = 1,
+        .imageInfos = {
+          vk::DescriptorImageInfo(m_hiZ->getSampler(), m_hiZ->getImageView(),
+                                  vk::ImageLayout::eGeneral)
+        },
+        .bufferInfos = {}
+      }
+    }, {
+      vk::PushConstantRange(vk::ShaderStageFlagBits::eCompute, 0, sizeof(HiZDownsampleConsts))
+    }, "HiZ Downsample DS", vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor);
 }
 
 void VkTestSiteApp::createCommandPool() {
@@ -754,6 +814,12 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
     }
   }
   commandBuffer.endRenderPass(); {
+    cmdTransitionImageLayout2( // Depth buffer - depth pre-pass -> shader read
+      commandBuffer, m_depth->getImage(),
+      vk::ImageLayout::eDepthStencilReadOnlyOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1)
+    );
+    buildHiZ(commandBuffer);
   }
   commandBuffer.beginRenderPass(lightBegin, vk::SubpassContents::eSecondaryCommandBuffers); {
     //Light subpass
@@ -797,6 +863,56 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   commandBuffer.end();
 }
 
+void VkTestSiteApp::buildHiZ(const vk::CommandBuffer &commandBuffer) const {
+  uint32_t width = m_hiZ->width, height = m_hiZ->height;
+  for (int mip = 0; mip < m_hiZ->mipLevels; ++mip) {
+    uint32_t dstW = width;
+    uint32_t dstH = height;
+
+    if (mip != 0) {
+      dstW = std::max(1u, width >> 1);
+      dstH = std::max(1u, height >> 1);
+    }
+
+    cmdTransitionImageLayout2(
+      commandBuffer,
+      m_hiZ->getImage(),
+      vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageLayout::eGeneral,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip, 1, 0, 1)
+    );
+
+    const auto srcInfo =
+        mip == 0
+          ? vk::DescriptorImageInfo(
+            m_depth->getSampler(), m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+          : vk::DescriptorImageInfo(
+            m_hiZ->getSampler(), m_hiZ->getImageView(mip - 1), vk::ImageLayout::eShaderReadOnlyOptimal);
+    const auto dstInfo = vk::DescriptorImageInfo(
+      m_hiZ->getSampler(), m_hiZ->getImageView(mip), vk::ImageLayout::eGeneral);
+    std::array writes = {
+      vk::WriteDescriptorSet({}, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &srcInfo),
+      vk::WriteDescriptorSet({}, 1, 0, 1, vk::DescriptorType::eStorageImage, &dstInfo)
+    };
+
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eCompute, m_hiZDownsampleComputePipeline);
+    auto downsample = HiZDownsampleConsts{.srcDstWH = glm::vec4(width, height, dstW, dstH)};
+    commandBuffer.pushDescriptorSet(
+      vk::PipelineBindPoint::eCompute, m_hiZDownsampleDescriptorSet.getPipelineLayout(), 0, writes);
+    commandBuffer.pushConstants(m_hiZDownsampleDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eCompute, 0,
+                                sizeof(downsample), &downsample);
+    commandBuffer.dispatch((dstW + 7) / 8, (dstH + 7) / 8, 1);
+
+    cmdTransitionImageLayout2( // HiZ - dst general -> src readable
+      commandBuffer, m_hiZ->getImage(),
+      vk::ImageLayout::eGeneral, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageSubresourceRange(vk::ImageAspectFlagBits::eColor, mip, 1, 0, 1)
+    );
+
+    width = dstW, height = dstH;
+  }
+}
+
 void VkTestSiteApp::recreateSwapchain() {
   int width = 0, height = 0;
   while (width == 0 || height == 0) {
@@ -824,9 +940,11 @@ void VkTestSiteApp::cleanupSwapchain() {
   m_uniform.reset();
   m_geometryDescriptorSet.destroy(m_device);
   m_lightingDescriptorSet.destroy(m_device);
+  m_hiZDownsampleDescriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
   m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
   m_depth.reset();
+  m_hiZ.reset();
   m_albedo.reset();
   m_normal.reset();
   for (const auto framebuffer: m_geometryFBs) {
@@ -837,6 +955,7 @@ void VkTestSiteApp::cleanupSwapchain() {
   }
   m_device.destroyPipeline(m_geometryPipeline);
   m_device.destroyPipeline(m_lightingPipeline);
+  m_device.destroyPipeline(m_hiZDownsampleComputePipeline);
   m_device.destroyRenderPass(m_lightPass);
   m_device.destroyRenderPass(m_geometryPass);
   m_swapchain.destroy(m_device);
