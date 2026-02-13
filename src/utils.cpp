@@ -114,11 +114,17 @@ VKAPI_ATTR vk::Bool32 static VKAPI_CALL debugUtilsMessangerCallback(
       break;
   }
 
+  std::string msg = pCallbackData->pMessage;
+  size_t pos = msg.find("The Vulkan spec states:");
+  if (pos != std::string::npos) {
+    msg = msg.substr(0, pos);
+  }
+
   std::ostringstream oss;
   oss << vk::to_string(messageTypes)
       << " | ID: " << pCallbackData->messageIdNumber
       << " (" << (pCallbackData->pMessageIdName ? pCallbackData->pMessageIdName : "no_name") << ")"
-      << " | Message: " << (pCallbackData->pMessage ? pCallbackData->pMessage : "no_message");
+      << " | Message: " << (pCallbackData->pMessage ? msg : "no_message");
 
   if (pCallbackData->queueLabelCount > 0) {
     oss << " | QueueLabels: ";
@@ -378,6 +384,9 @@ static void cmdTransitionImageLayout(
 
         if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
           return {{}, AF::eTransferWrite, PF::eTopOfPipe, PF::eTransfer};
+        }
+        if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+          return {{}, AF::eShaderRead, PF::eTopOfPipe, PF::eFragmentShader};
         }
         if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eTransferSrcOptimal) {
           return {AF::eTransferWrite, AF::eTransferRead, PF::eTransfer, PF::eTransfer};
