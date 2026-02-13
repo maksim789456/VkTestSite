@@ -10,7 +10,8 @@ const std::vector DEVICE_EXTENSIONS = {
   VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
   VK_EXT_HOST_QUERY_RESET_EXTENSION_NAME,
   VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME,
-  VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME
+  VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME,
+  VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME
 };
 
 const std::vector LAYERS = {
@@ -144,10 +145,10 @@ void VkTestSiteApp::initVk() {
   vkInitInfo.Device = m_device;
   vkInitInfo.QueueFamily = indices.graphics;
   vkInitInfo.Queue = m_graphicsQueue;
-  vkInitInfo.RenderPass = m_renderPass;
+  vkInitInfo.RenderPass = m_lightPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
   vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-  vkInitInfo.Subpass = 1;
+  vkInitInfo.Subpass = 0;
   vkInitInfo.DescriptorPoolSize = 100;
   vkInitInfo.CheckVkResultFn = [](const VkResult err) {
     if (err != VK_SUCCESS)
@@ -284,10 +285,10 @@ void VkTestSiteApp::createLogicalDevice() {
 
 void VkTestSiteApp::createRenderPass() {
   ZoneScoped;
-  const auto attachments = {
+  const auto geoAttachments = {
     vk::AttachmentDescription( // Depth
       {}, vk::Format::eD32Sfloat, vk::SampleCountFlagBits::e1,
-      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare,
+      vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
       vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilReadOnlyOptimal),
     vk::AttachmentDescription( // Albedo
@@ -300,6 +301,9 @@ void VkTestSiteApp::createRenderPass() {
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
       vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
+  };
+
+  const auto lightAttachments = {
     vk::AttachmentDescription( // Final color (swapchain)
       {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
@@ -312,48 +316,29 @@ void VkTestSiteApp::createRenderPass() {
     vk::AttachmentReference{2, vk::ImageLayout::eColorAttachmentOptimal} // Normal
   };
   constexpr auto depthRef = vk::AttachmentReference{0, vk::ImageLayout::eDepthStencilAttachmentOptimal};
-  auto subpass0 = vk::SubpassDescription(
+  auto geoPass = vk::SubpassDescription(
     {}, vk::PipelineBindPoint::eGraphics,
     {}, colorRefs, {}, &depthRef
   );
 
-  auto inputRefs = {
-    vk::AttachmentReference{0, vk::ImageLayout::eShaderReadOnlyOptimal}, //Depth
-    vk::AttachmentReference{1, vk::ImageLayout::eShaderReadOnlyOptimal}, //Albedo
-    vk::AttachmentReference{2, vk::ImageLayout::eShaderReadOnlyOptimal} // Normal
-  };
-  constexpr auto colorRef = vk::AttachmentReference{3, vk::ImageLayout::eColorAttachmentOptimal};
-  auto subpass1 = vk::SubpassDescription(
+  constexpr auto colorRef = vk::AttachmentReference{0, vk::ImageLayout::eColorAttachmentOptimal};
+  auto lightPass = vk::SubpassDescription(
     {}, vk::PipelineBindPoint::eGraphics,
-    inputRefs, colorRef
+    {}, colorRef
   );
 
-  auto dependencies = {
-    vk::SubpassDependency(
-      vk::SubpassExternal, 0,
-      vk::PipelineStageFlagBits::eBottomOfPipe,
-      vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-      vk::AccessFlagBits::eMemoryRead,
-      vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite),
-    vk::SubpassDependency(
-      0, 1,
-      vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests,
-      vk::PipelineStageFlagBits::eFragmentShader,
-      vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite,
-      vk::AccessFlagBits::eInputAttachmentRead),
-  };
+  const auto geoPassInfo = vk::RenderPassCreateInfo({}, geoAttachments, geoPass, {});
+  m_geometryPass = m_device.createRenderPass(geoPassInfo);
 
-  std::vector subpasses = {subpass0, subpass1};
-  const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpasses, dependencies);
-
-  m_renderPass = m_device.createRenderPass(renderPassInfo);
+  const auto lightPassInfo = vk::RenderPassCreateInfo({}, lightAttachments, lightPass, {});
+  m_lightPass = m_device.createRenderPass(lightPassInfo);
 }
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
   m_geometryPipeline = PipelineBuilder(
         m_device,
-        m_renderPass,
+        m_geometryPass,
         m_geometryDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/geometry.ep.slang.spv",
         "Geometry Pass Pipeline"
@@ -365,19 +350,17 @@ void VkTestSiteApp::createPipeline() {
         PipelineBuilder::makeDefaultColorAttachmentState(),
       })
       .depthStencil(true, true, vk::CompareOp::eGreaterOrEqual)
-      .withSubpass(0)
       .buildGraphics();
 
   m_lightingPipeline = PipelineBuilder(
         m_device,
-        m_renderPass,
+        m_lightPass,
         m_lightingDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/light.ep.slang.spv",
         "Lighting Pass Pipeline"
       )
       .depthStencil(false, false, vk::CompareOp::eAlways)
       .withCullMode(vk::CullModeFlagBits::eNone)
-      .withSubpass(1)
       .buildGraphics();
 }
 
@@ -388,8 +371,8 @@ void VkTestSiteApp::createColorObjets() {
     vk::Format::eR8G8B8A8Unorm,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Albedo G-Buffer"
+    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
+    true, "Albedo G-Buffer"
   );
   m_normal = std::make_unique<Texture>(
     m_device, m_allocator,
@@ -397,8 +380,8 @@ void VkTestSiteApp::createColorObjets() {
     vk::Format::eR16G16B16A16Sfloat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
-    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Normal G-Buffer"
+    vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled,
+    true, "Normal G-Buffer"
   );
 }
 
@@ -411,8 +394,9 @@ void VkTestSiteApp::createDepthObjets() {
     depthFormat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eDepth,
-    vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment,
-    false, "Depth attachment"
+    vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eInputAttachment
+    | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc,
+    true, "Depth attachment"
   );
 
   transitionImageLayout(
@@ -426,33 +410,39 @@ void VkTestSiteApp::createDepthObjets() {
 
 void VkTestSiteApp::createFramebuffers() {
   ZoneScoped;
-  m_framebuffers.resize(m_swapchain.imageViews.size());
+  m_geometryFBs.resize(m_swapchain.imageViews.size());
+  m_lightFBs.resize(m_swapchain.imageViews.size());
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
-    std::vector attachments = {
+    std::vector geoAttachments = {
       m_depth->getImageView(),
       m_albedo->getImageView(),
-      m_normal->getImageView(),
+      m_normal->getImageView()
+    };
+
+    std::vector lightAttachments = {
       m_swapchain.imageViews[i]
     };
 
     auto framebufferInfo = vk::FramebufferCreateInfo(
-      {}, m_renderPass, attachments,
+      {}, m_geometryPass, geoAttachments,
       m_swapchain.extent.width, m_swapchain.extent.height, 1
     );
-    m_framebuffers[i] = m_device.createFramebuffer(framebufferInfo);
+    m_geometryFBs[i] = m_device.createFramebuffer(framebufferInfo);
+
+    framebufferInfo.renderPass = m_lightPass;
+    framebufferInfo.setAttachments(lightAttachments);
+    m_lightFBs[i] = m_device.createFramebuffer(framebufferInfo);
   }
 }
 
 void VkTestSiteApp::createUniformBuffers() {
   ZoneScoped;
-  for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
-    m_uniform = std::make_unique<UniformBuffer<UniformBufferObject>>(
-      m_allocator,
-      m_swapchain.imageViews.size(),
-      vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-      0
-    );
-  }
+  m_uniform = std::make_unique<UniformBuffer<UniformBufferObject> >(
+    m_allocator,
+    m_swapchain.imageViews.size(),
+    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+    0
+  );
 }
 
 void VkTestSiteApp::createDescriptorSet() {
@@ -492,35 +482,38 @@ void VkTestSiteApp::createDescriptorSet() {
       m_uniform->getDescriptorLayout(),
       lightsDescriptor,
       DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
+        .type = vk::DescriptorType::eCombinedImageSampler,
         .stage = vk::ShaderStageFlagBits::eFragment,
         .bindingFlags = {},
         .shaderBinding = 2,
         .count = 1,
         .imageInfos = {
-          vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+          vk::DescriptorImageInfo(m_depth->getSampler(), m_depth->getImageView(),
+                                  vk::ImageLayout::eShaderReadOnlyOptimal)
         },
         .bufferInfos = {}
       },
       DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
+        .type = vk::DescriptorType::eCombinedImageSampler,
         .stage = vk::ShaderStageFlagBits::eFragment,
         .bindingFlags = {},
         .shaderBinding = 3,
         .count = 1,
         .imageInfos = {
-          vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+          vk::DescriptorImageInfo(m_albedo->getSampler(), m_albedo->getImageView(),
+                                  vk::ImageLayout::eShaderReadOnlyOptimal)
         },
         .bufferInfos = {}
       },
       DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
+        .type = vk::DescriptorType::eCombinedImageSampler,
         .stage = vk::ShaderStageFlagBits::eFragment,
         .bindingFlags = {},
         .shaderBinding = 4,
         .count = 1,
         .imageInfos = {
-          vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
+          vk::DescriptorImageInfo(m_normal->getSampler(), m_normal->getImageView(),
+                                  vk::ImageLayout::eShaderReadOnlyOptimal)
         },
         .bufferInfos = {}
       },
@@ -738,16 +731,18 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   auto albedoClearValue = vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f));
   auto normalClearValue = vk::ClearValue(vk::ClearColorValue(0.5f, 0.5f, 1.0f, 1.0f));
   auto depthClearValue = vk::ClearValue(vk::ClearDepthStencilValue(0.0f, 0));
-  auto clearValues = {depthClearValue, albedoClearValue, normalClearValue, colorClearValue};
-  const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, clearValues);
+  auto geoClearValues = {depthClearValue, albedoClearValue, normalClearValue};
+  auto lightClearValues = {colorClearValue};
+  const auto geoBegin = vk::RenderPassBeginInfo(m_geometryPass, m_geometryFBs[imageIndex], renderArea, geoClearValues);
+  const auto lightBegin = vk::RenderPassBeginInfo(m_lightPass, m_lightFBs[imageIndex], renderArea, lightClearValues);
 
-  commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
+  commandBuffer.beginRenderPass(geoBegin, vk::SubpassContents::eSecondaryCommandBuffers); {
     // Model temp render
     if (m_modelLoaded) {
       auto modelCmd = m_model->cmdDraw(
         *m_vkContext,
-        m_framebuffers[imageIndex],
-        m_renderPass,
+        m_geometryFBs[imageIndex],
+        m_geometryPass,
         m_geometryPipeline,
         m_swapchain,
         m_geometryDescriptorSet,
@@ -758,10 +753,12 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       commandBuffer.executeCommands(modelCmd);
     }
   }
-  commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers); {
+  commandBuffer.endRenderPass(); {
+  }
+  commandBuffer.beginRenderPass(lightBegin, vk::SubpassContents::eSecondaryCommandBuffers); {
     //Light subpass
     auto lightCmd = m_lightingCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_lightPass, 0, m_lightFBs[imageIndex]);
     auto lightBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
@@ -782,7 +779,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   } {
     // ImGUI Secondary Cmd record -> exec
     auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_lightPass, 0, m_lightFBs[imageIndex]);
     auto imguiBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
@@ -832,12 +829,16 @@ void VkTestSiteApp::cleanupSwapchain() {
   m_depth.reset();
   m_albedo.reset();
   m_normal.reset();
-  for (const auto framebuffer: m_framebuffers) {
+  for (const auto framebuffer: m_geometryFBs) {
+    m_device.destroyFramebuffer(framebuffer);
+  }
+  for (const auto framebuffer: m_lightFBs) {
     m_device.destroyFramebuffer(framebuffer);
   }
   m_device.destroyPipeline(m_geometryPipeline);
   m_device.destroyPipeline(m_lightingPipeline);
-  m_device.destroyRenderPass(m_renderPass);
+  m_device.destroyRenderPass(m_lightPass);
+  m_device.destroyRenderPass(m_geometryPass);
   m_swapchain.destroy(m_device);
 }
 

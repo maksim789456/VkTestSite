@@ -10,9 +10,9 @@ struct UBO {
 
 [[vk::binding(1, 0)]] StructuredBuffer<Light> lights;
 
-[[vk::binding(2, 0)]] SubpassInput depthInput;
-[[vk::binding(3, 0)]] SubpassInput albedoInput;
-[[vk::binding(4, 0)]] SubpassInput normalInput;
+[[vk::binding(2, 0)]] Sampler2D depthInput;
+[[vk::binding(3, 0)]] Sampler2D albedoInput;
+[[vk::binding(4, 0)]] Sampler2D normalInput;
 
 struct VSOutput
 {
@@ -53,14 +53,15 @@ VSOutput vertexMain(uint VertexIndex: SV_VertexID)
 [shader("fragment")]
 float4 fragmentMain(VSOutput input, uniform uint pushLightCount) : SV_Target
 {
-    float depth = depthInput.SubpassLoad().r;
+    float2 uv = input.UV;
+    float depth = depthInput.Sample(uv).r;
     float4 ndc = float4(input.UV * 2.0f - 1.0f, depth, 1.0);
 
     float4 worldPosH = mul(ubo.invViewProj, ndc);
     float3 fragPos = worldPosH.xyz / worldPosH.w;
 
-    float3 normal = normalize(normalInput.SubpassLoad().rgb);
-    float4 albedo = albedoInput.SubpassLoad();
+    float3 normal = normalize(normalInput.Sample(uv).rgb);
+    float4 albedo = albedoInput.Sample(uv);
 
     float3 L = float3(0.0);
     for (uint i = 0; i < pushLightCount; i++) {

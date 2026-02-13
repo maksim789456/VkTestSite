@@ -70,7 +70,8 @@ private:
   vk::Queue m_graphicsQueue;
   vk::Queue m_presentQueue;
   Swapchain m_swapchain;
-  vk::RenderPass m_renderPass;
+  vk::RenderPass m_geometryPass;
+  vk::RenderPass m_lightPass;
   vk::Pipeline m_geometryPipeline;
   vk::Pipeline m_lightingPipeline;
   vk::CommandPool m_commandPool;
@@ -92,7 +93,8 @@ private:
   std::unique_ptr<StagingBuffer> m_stagingBuffer;
   std::unique_ptr<TextureWorkerPool> m_textureWorkerPool;
 
-  std::vector<vk::Framebuffer> m_framebuffers;
+  std::vector<vk::Framebuffer> m_geometryFBs;
+  std::vector<vk::Framebuffer> m_lightFBs;
   std::unique_ptr<UniformBuffer<UniformBufferObject>> m_uniform;
   std::vector<vk::CommandBuffer> m_commandBuffers;
   std::vector<vk::UniqueCommandBuffer> m_imguiCommandBuffers;
