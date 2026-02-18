@@ -215,7 +215,7 @@ void VkTestSiteApp::createQueues() {
   const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
   m_graphicsQueue = m_device.getQueue(indices.graphics, 0);
   m_presentQueue = m_device.getQueue(indices.present, 0);
-  m_transferQueue = m_device.getQueue(indices.transfer, 1);
+  m_transferQueue = m_device.getQueue(indices.transfer, indices.isTransferQueueSeparated() ? 0 : 1);
 }
 
 void VkTestSiteApp::createLogicalDevice() {
@@ -228,7 +228,7 @@ void VkTestSiteApp::createLogicalDevice() {
 
   for (uint32_t queue_family: queue_families) {
     uint32_t count = 1;
-    if (queue_family == indices.graphics && indices.graphics == indices.transfer) {
+    if (queue_family == indices.graphics && !indices.isTransferQueueSeparated()) {
       count = 2;
     }
 
