@@ -42,8 +42,9 @@ Model::Model(
   const vk::Device device,
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
-  vma::Allocator allocator,
+  const vma::Allocator allocator,
   TextureManager &textureManager,
+  MaterialManager &materialManager,
   LightManager &lightManager,
   const std::filesystem::path &modelPath
 ): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_allocator(allocator) {
@@ -62,7 +63,7 @@ Model::Model(
     throw std::runtime_error("Import of model failed");
 
   const auto modelParent = modelPath.parent_path();
-  processMaterials(textureManager, scene, modelParent);
+  processMaterials(textureManager, materialManager, scene, modelParent);
   processLight(lightManager, scene);
   processNode(lightManager, scene->mRootNode, scene, glm::mat4(1.0f));
   m_name = std::string(scene->mRootNode->mName.C_Str());
@@ -95,8 +96,10 @@ void Model::processNode(
     }
   }
 
+  auto vertCount = 0u;
   for (unsigned int m = 0; m < node->mNumMeshes; ++m) {
     aiMesh *mesh = scene->mMeshes[node->mMeshes[m]];
+    vertCount += mesh->mNumFaces * mesh->mFaces[0].mNumIndices;
     auto gpuMesh = createMesh(mesh, scene, globalTransform);
     m_submeshes.push_back({
       .mesh = std::move(gpuMesh),
@@ -112,27 +115,28 @@ void Model::processNode(
 
 void Model::processMaterials(
   TextureManager &textureManager,
+  MaterialManager &materialManager,
   const aiScene *scene,
   const std::filesystem::path &modelParent
 ) {
   ZoneScoped;
   const auto absoluteModelParent = std::filesystem::canonical(modelParent);
-  m_materials.resize(scene->mNumMaterials);
+  m_materialBindings.resize(scene->mNumMaterials);
 
-  for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx) {
-    aiMaterial *material = scene->mMaterials[matIdx];
+  for (unsigned int i = 0; i < scene->mNumMaterials; ++i) {
+    aiMaterial *material = scene->mMaterials[i];
     Material mat;
     if (const auto albedo = getMaterialAlbedoTextureFile(material))
-      mat.albedoTexIdx = textureManager.loadTextureFromFile(absoluteModelParent, *albedo);
+      mat.textureIds.x = textureManager.loadTextureFromFile(absoluteModelParent, *albedo);
 
     if (const auto normal = getMaterialNormalTextureFile(material))
-      mat.normalTexIdx = textureManager.loadTextureFromFile(absoluteModelParent, *normal);
+      mat.textureIds.y = textureManager.loadTextureFromFile(absoluteModelParent, *normal);
 
     if (aiColor3D aiDiffuseColor; material->Get(AI_MATKEY_COLOR_DIFFUSE, aiDiffuseColor) == AI_SUCCESS) {
       mat.diffuseColor = glm::vec4(aiDiffuseColor.r, aiDiffuseColor.g, aiDiffuseColor.b, 1.0f);
     }
 
-    m_materials[matIdx] = mat;
+    m_materialBindings[i] = materialManager.addMaterial(mat);
   }
 }
 
@@ -204,7 +208,6 @@ std::unique_ptr<Mesh<Vertex, uint32_t> > Model::createMesh(
       auto pos = mesh->mVertices[vertexIndex];
       auto normal = mesh->HasNormals() ? mesh->mNormals[vertexIndex] : aiVector3D(0, 0, 1.0);
       auto texCord = texCords ? texCords[vertexIndex] : aiVector3D(0, 0, 0);
-      auto mat = m_materials[mesh->mMaterialIndex];
 
       glm::vec4 transformedPos = transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f);
       auto normalMat = glm::mat3(glm::transpose(glm::inverse(transform)));
@@ -214,9 +217,7 @@ std::unique_ptr<Mesh<Vertex, uint32_t> > Model::createMesh(
         .Position = transformedPos,
         .Normal = N,
         .UV = glm::vec2(texCord.x, 1.0f - texCord.y),
-        .Color = mat.diffuseColor,
-        .TextureIdx = mat.albedoTexIdx,
-        .NormalTextureIdx = mat.normalTexIdx
+        .MatIdx = m_materialBindings[mesh->mMaterialIndex]
       });
 
       //indices.push_back(baseIndex + static_cast<uint32_t>(vertices.size() - baseIndex - 1));

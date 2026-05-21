@@ -3,7 +3,6 @@
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 #define MAX_FRAME_IN_FLIGHT 2 //0..2 -> 3 frames
-#define MAX_MATERIAL_PER_DESCRIPTOR 64
 
 const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -88,6 +87,8 @@ void VkTestSiteApp::initVk() {
   m_descriptorPool = DescriptorPool(m_device);
   m_lightManager = std::make_unique<LightManager>(
     m_allocator, m_swapchain.imageViews.size());
+  m_materialManager = std::make_unique<MaterialManager>(
+    m_allocator, m_swapchain.imageViews.size(), 2);
   createCommandPool();
   createColorObjets();
   createDepthObjets();
@@ -481,7 +482,8 @@ void VkTestSiteApp::createDescriptorSet() {
         .count = MAX_TEXTURE_PER_DESCRIPTOR,
         .imageInfos = {},
         .bufferInfos = {}
-      }
+      },
+      m_materialManager->getDescriptorLayout()
     }, {
       vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
     });
@@ -581,7 +583,7 @@ void VkTestSiteApp::mainLoop() {
       if (path != nullptr) {
         auto pathStr = std::string(path);
         m_model = std::make_unique<Model>(
-          m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, *m_lightManager, pathStr);
+          m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, *m_materialManager, *m_lightManager, pathStr);
         m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
         m_modelLoaded = true;
       }
@@ -723,6 +725,7 @@ void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
   };
   m_uniform->map(imageIndex, ubo);
   m_lightManager->map(imageIndex);
+  m_materialManager->map(imageIndex);
 }
 
 void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::CommandBuffer &commandBuffer,
@@ -811,6 +814,7 @@ void VkTestSiteApp::recreateSwapchain() {
   cleanupSwapchain();
 
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
+  m_camera = std::make_unique<Camera>(m_swapchain.extent);
   createRenderPass();
   createUniformBuffers();
   m_descriptorPool = DescriptorPool(m_device);
@@ -825,6 +829,7 @@ void VkTestSiteApp::recreateSwapchain() {
 
 void VkTestSiteApp::cleanupSwapchain() {
   m_uniform.reset();
+  m_camera.reset();
   m_geometryDescriptorSet.destroy(m_device);
   m_lightingDescriptorSet.destroy(m_device);
   m_descriptorPool.destroy(m_device);
@@ -860,6 +865,7 @@ void VkTestSiteApp::cleanup() {
   m_texManager.reset();
   m_textureWorkerPool.reset();
   m_lightManager.reset();
+  m_materialManager.reset();
   m_transferThread.reset();
   m_stagingBuffer.reset();
   m_imguiCommandBuffers.clear();

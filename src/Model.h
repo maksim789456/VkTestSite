@@ -17,6 +17,7 @@
 #include "Swapchain.h"
 #include "Texture.h"
 #include "TextureManager.h"
+#include "MaterialManager.h"
 #include "Light.h"
 #include "Vertex.h"
 #include "Transform.h"
@@ -35,13 +36,6 @@ struct Submesh {
   std::string name;
 };
 
-struct Material {
-  uint32_t albedoTexIdx = 99;
-  uint32_t normalTexIdx = 99;
-  glm::vec4 diffuseColor = glm::vec4(1.0f);
-};
-
-
 class Model {
 public:
   Model() = default;
@@ -52,6 +46,7 @@ public:
     vk::CommandPool commandPool,
     vma::Allocator allocator,
     TextureManager &textureManager,
+    MaterialManager &materialManager,
     LightManager &lightManager,
     const std::filesystem::path &modelPath
   );
@@ -83,6 +78,7 @@ private:
 
   void processMaterials(
     TextureManager &textureManager,
+    MaterialManager &materialManager,
     const aiScene *scene,
     const std::filesystem::path &modelParent
   );
@@ -103,7 +99,7 @@ private:
   std::string m_name;
   Transform m_transform;
   std::vector<Submesh> m_submeshes;
-  std::vector<Material> m_materials;
+  std::vector<uint32_t> m_materialBindings;
   std::vector<vk::UniqueCommandBuffer> m_commandBuffers;
 
   vk::Device m_device = nullptr;

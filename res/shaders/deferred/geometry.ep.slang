@@ -3,9 +3,7 @@ struct VSInput
     [[vk::location(0)]] float3 Pos;
     [[vk::location(1)]] float3 Normal;
     [[vk::location(3)]] float2 TexCoord;
-    [[vk::location(4)]] float4 Color;
-    [[vk::location(5)]] uint AlbedoIdx;
-    [[vk::location(6)]] uint NormalIdx;
+    [[vk::location(4)]] uint MatIdx;
 };
 
 struct VSOutput
@@ -14,9 +12,7 @@ struct VSOutput
     [[vk::location(0)]] float3 WorldPos;
     [[vk::location(1)]] float3 Normal;
     [[vk::location(3)]] float2 TexCoord;
-    [[vk::location(4)]] float4 Color;
-    [[vk::location(5)]] uint AlbedoIdx;
-    [[vk::location(6)]] uint NormalIdx;
+    [[vk::location(4)]] uint MatIdx;
 }
 
 struct UBO {
@@ -25,8 +21,19 @@ struct UBO {
   float4x4 invViewProj;
   uint32_t displayDebugTarget;
 }
+
+struct Material {
+  int4 textureIds;
+  float4 diffuseColor;
+}
+
+struct MaterialsUbo {
+  Material materials[512];
+}
+
 [[vk::binding(0, 0)]] ConstantBuffer<UBO> ubo;
 [[vk::binding(1, 0)]] Sampler2D textures[];
+[[vk::binding(2, 0)]] ConstantBuffer<MaterialsUbo> matUbo;
 
 struct FSOutput
 {
@@ -43,9 +50,7 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
     out.WorldPos = worldPos.xyz;
     out.Normal = input.Normal;
     out.TexCoord = input.TexCoord;
-    out.Color = input.Color;
-    out.AlbedoIdx = input.AlbedoIdx;
-    out.NormalIdx = input.NormalIdx;
+    out.MatIdx = input.MatIdx;
     return out;
 }
 
@@ -53,9 +58,10 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
 FSOutput fragmentMain(VSOutput input)
 {
     FSOutput out;
-    float3 albedo = textures[NonUniformResourceIndex(input.AlbedoIdx)].Sample(input.TexCoord).rgb;
-    if (input.AlbedoIdx == 99) {
-      albedo = input.Color.rgb;
+    Material mat = matUbo.materials[input.MatIdx];
+    float3 albedo = textures[NonUniformResourceIndex(mat.textureIds.x)].Sample(input.TexCoord).rgb;
+    if (mat.textureIds.x == 99) {
+      albedo = mat.diffuseColor.rgb;
     }
 
     out.Albedo = float4(albedo, 1.0);
@@ -68,11 +74,12 @@ FSOutput fragmentMain(VSOutput input)
     float2 st2 = ddy(input.TexCoord);
 
     float3 T = normalize(Q1 * st2.y - Q2 * st1.y);
+    T = normalize(T - N * dot(N, T));
     float3 B = normalize(cross(N, T));
     float3x3 TBN = float3x3(T, B, N);
 
-    float3 normal = textures[NonUniformResourceIndex(input.NormalIdx)].Sample(input.TexCoord).rgb;
-    if (input.NormalIdx == 99) {
+    float3 normal = textures[NonUniformResourceIndex(mat.textureIds.y)].Sample(input.TexCoord).rgb;
+    if (mat.textureIds.y == 99) {
       normal = float3(0.5, 0.5, 1.0);
     }
 

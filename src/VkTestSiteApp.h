@@ -35,6 +35,7 @@
 #include "Ubo.h"
 #include "Camera.h"
 #include "TextureManager.h"
+#include "MaterialManager.h"
 #include "Pipeline.h"
 #include "Light.h"
 #include "StagingBuffer.h"
@@ -86,6 +87,7 @@ private:
   bool m_modelLoaded = false;
   std::unique_ptr<TextureManager> m_texManager;
   std::unique_ptr<LightManager> m_lightManager;
+  std::unique_ptr<MaterialManager> m_materialManager;
 
   vk::Queue m_transferQueue;
   std::unique_ptr<TransferThread> m_transferThread;

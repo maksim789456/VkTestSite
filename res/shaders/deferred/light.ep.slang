@@ -76,13 +76,13 @@ float4 fragmentMain(VSOutput input, uniform uint pushLightCount) : SV_Target
           color.rgb = TurboColormap(length(L));
           break;
         case 2:
-          color.rgb = albedo.rgb;
+          color.rgb = abs(fragPos) * 0.1;
           break;
         case 3:
         case 4:
         case 5:
         case 6:
-          color.rgb = normal * 0.5 + 0.5;
+          color.rgb = normal;
           break;
       }
       return float4(color, 1.0);
