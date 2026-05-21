@@ -49,6 +49,10 @@
     {
       "name": "libxcrypt",
       "version": "4.5.2.1"
+    },
+    {
+      "name": "libsystemd",
+      "version": "260.1"
     }
   ]
 }
