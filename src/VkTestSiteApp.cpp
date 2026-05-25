@@ -76,62 +76,74 @@ void VkTestSiteApp::initVk() {
   createCommandBuffers();
   createSyncObjects();
   const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
-  m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), 128 * 1024 * 1024); // 64 MB
-  m_transferThread = std::make_unique<TransferThread>(m_context->device(), m_context->transferQueue(), indices.transfer, *m_stagingBuffer);
-  m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_context->device(), m_context->allocator(), *m_stagingBuffer, *m_transferThread);
+  m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), 128 * 1024 * 1024);
+  // 64 MB
+  m_transferThread = std::make_unique<TransferThread>(m_context->device(), m_context->transferQueue(), indices.transfer,
+                                                      *m_stagingBuffer);
+  m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_context->device(), m_context->allocator(),
+                                                            *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
     m_context->device(), m_context->graphicsQueue(), m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
 
-  m_camera = std::make_unique<Camera>(m_swapchain.extent);
-  auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
-    const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
-    if (ImGui::GetIO().WantCaptureKeyboard)
-      return;
-    me->m_camera->keyboardCallback(key, action, mods);
-  };
-  auto mouseCallback = [](GLFWwindow *window, double xpos, double ypos) {
-    const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
-    if (ImGui::GetIO().WantCaptureMouse)
-      return;
-    me->m_camera->mouseCallback(window, xpos, ypos);
-  };
-  glfwSetWindowUserPointer(m_window, this);
-  glfwSetKeyCallback(m_window, keyCallback);
-  glfwSetCursorPosCallback(m_window, mouseCallback);
+  m_camera = std::make_unique<Camera>(m_swapchain.extent); {
+    ZoneScopedN("Setup window callbacks");
+    auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
+      const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
+      if (ImGui::GetIO().WantCaptureKeyboard)
+        return;
+      me->m_camera->keyboardCallback(key, action, mods);
+    };
+    auto mouseCallback = [](GLFWwindow *window, double xpos, double ypos) {
+      const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
+      if (ImGui::GetIO().WantCaptureMouse)
+        return;
+      me->m_camera->mouseCallback(window, xpos, ypos);
+    };
+    glfwSetWindowUserPointer(m_window, this);
+    glfwSetKeyCallback(m_window, keyCallback);
+    glfwSetCursorPosCallback(m_window, mouseCallback);
+  }
 
 #ifndef NDEBUG
-  const auto gpdctd = reinterpret_cast<PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT>(vkGetInstanceProcAddr(
-    m_context->instance(), "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"));
-  const auto gct = reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(vkGetDeviceProcAddr(
-    m_context->device(), "vkGetCalibratedTimestampsEXT"));
-  m_tracyCmdBuffer = m_context->device().allocateCommandBuffers(
-    vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
-  m_vkContext = tracy::CreateVkContext(m_context->physicalDevice(), m_context->device(), m_context->graphicsQueue(), m_tracyCmdBuffer, gpdctd, gct);
-  const std::string contextName = "Graphics Queue";
-  m_vkContext->Name(contextName.data(), contextName.size());
+  {
+    ZoneScopedN("Setup tracy vk context");
+    const auto gpdctd = reinterpret_cast<PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT>(vkGetInstanceProcAddr(
+      m_context->instance(), "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"));
+    const auto gct = reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(vkGetDeviceProcAddr(
+      m_context->device(), "vkGetCalibratedTimestampsEXT"));
+    m_tracyCmdBuffer = m_context->device().allocateCommandBuffers(
+      vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
+    m_vkContext = tracy::CreateVkContext(m_context->physicalDevice(), m_context->device(), m_context->graphicsQueue(),
+                                         m_tracyCmdBuffer, gpdctd, gct);
+    const std::string contextName = "Graphics Queue";
+    m_vkContext->Name(contextName.data(), contextName.size());
+  }
 #endif
 
-  ImGui_ImplGlfw_InitForVulkan(m_window, true);
-  ImGui_ImplVulkan_InitInfo vkInitInfo = {};
-  vkInitInfo.ApiVersion = m_contextConfig.apiVersion;
-  vkInitInfo.Instance = m_context->instance();
-  vkInitInfo.PhysicalDevice = m_context->physicalDevice();
-  vkInitInfo.Device = m_context->device();
-  vkInitInfo.QueueFamily = indices.graphics;
-  vkInitInfo.Queue = m_context->graphicsQueue();
-  vkInitInfo.RenderPass = m_renderPass;
-  vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
-  vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-  vkInitInfo.Subpass = 1;
-  vkInitInfo.DescriptorPoolSize = 100;
-  vkInitInfo.CheckVkResultFn = [](const VkResult err) {
-    if (err != VK_SUCCESS)
-      spdlog::error(std::format("Imgui Vk Error: {}",
-                                vk::to_string(static_cast<vk::Result>(err))));
-  };
-  if (!ImGui_ImplVulkan_Init(&vkInitInfo)) {
-    spdlog::error("Failed to initialize Imgui Vulkan render");
-    abort();
+  {
+    ZoneScopedN("Setup ImGui Render");
+    ImGui_ImplGlfw_InitForVulkan(m_window, true);
+    ImGui_ImplVulkan_InitInfo vkInitInfo = {};
+    vkInitInfo.ApiVersion = m_contextConfig.apiVersion;
+    vkInitInfo.Instance = m_context->instance();
+    vkInitInfo.PhysicalDevice = m_context->physicalDevice();
+    vkInitInfo.Device = m_context->device();
+    vkInitInfo.QueueFamily = indices.graphics;
+    vkInitInfo.Queue = m_context->graphicsQueue();
+    vkInitInfo.RenderPass = m_renderPass;
+    vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
+    vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    vkInitInfo.Subpass = 1;
+    vkInitInfo.DescriptorPoolSize = 100;
+    vkInitInfo.CheckVkResultFn = [](const VkResult err) {
+      if (err != VK_SUCCESS)
+        spdlog::error(std::format("Imgui Vk Error: {}",
+                                  vk::to_string(static_cast<vk::Result>(err))));
+    };
+    if (!ImGui_ImplVulkan_Init(&vkInitInfo)) {
+      spdlog::error("Failed to initialize Imgui Vulkan render");
+      abort();
+    }
   }
 
   const auto imguiCmdsInfo = vk::CommandBufferAllocateInfo(
@@ -304,7 +316,7 @@ void VkTestSiteApp::createFramebuffers() {
 void VkTestSiteApp::createUniformBuffers() {
   ZoneScoped;
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
-    m_uniform = std::make_unique<UniformBuffer<UniformBufferObject>>(
+    m_uniform = std::make_unique<UniformBuffer<UniformBufferObject> >(
       m_context->allocator(),
       m_swapchain.imageViews.size(),
       vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
@@ -439,7 +451,8 @@ void VkTestSiteApp::mainLoop() {
       if (path != nullptr) {
         auto pathStr = std::string(path);
         m_model = std::make_unique<Model>(
-          m_context->device(), m_context->graphicsQueue(), m_commandPool, m_context->allocator(), *m_texManager, *m_lightManager, pathStr);
+          m_context->device(), m_context->graphicsQueue(), m_commandPool, m_context->allocator(), *m_texManager,
+          *m_lightManager, pathStr);
         m_model->createCommandBuffers(m_context->device(), m_commandPool, m_swapchain.imageViews.size());
         m_modelLoaded = true;
       }
@@ -548,9 +561,10 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     m_renderFinished[m_currentFrame]);
   m_context->graphicsQueue().submit(submitInfo, m_inFlight[m_currentFrame]);
 
-  executeSingleTimeCommands(m_context->device(), m_context->graphicsQueue(), m_commandPool, [&](const vk::CommandBuffer cmd) {
-    //m_vkContext->Collect(cmd);
-  });
+  executeSingleTimeCommands(m_context->device(), m_context->graphicsQueue(), m_commandPool,
+                            [&](const vk::CommandBuffer cmd) {
+                              //m_vkContext->Collect(cmd);
+                            });
 
   const auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain.swapchain, imageIndex);
   vk::Result presentResult;

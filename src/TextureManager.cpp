@@ -9,6 +9,7 @@ TextureManager::TextureManager(
   const uint32_t shaderBinding
 ): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_descriptorSet(&descriptorSet),
    m_workerPool(&workerPool), m_shaderBinding(shaderBinding) {
+  ZoneScoped;
   m_sampler = createSamplerUnique(device);
 }
 
