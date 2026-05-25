@@ -18,6 +18,11 @@
 #include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
 #include "tinyfiledialogs/tinyfiledialogs.h"
 
+#define VMA_DEBUG_LOG_FORMAT(format, ...) do { \
+printf((format), __VA_ARGS__); \
+printf("\n"); \
+} while(false)
+
 #include "utils.cpp"
 #include <string>
 #include <iostream>
@@ -40,6 +45,7 @@
 #include "StagingBuffer.h"
 #include "TextureWorkersPool.h"
 #include "TransferThread.h"
+#include "core/VkContext.h"
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
@@ -57,18 +63,10 @@ private:
   tracy::VkCtx *m_vkContext = nullptr;
   vk::CommandBuffer m_tracyCmdBuffer;
 
-  vk::detail::DynamicLoader m_loader;
-  vk::Instance m_instance;
-  vma::Allocator m_allocator = nullptr;
-#ifndef NDEBUG
-  vk::DebugUtilsMessengerEXT m_debugMessenger;
-#endif
-  vk::UniqueSurfaceKHR m_surface;
-  vk::PhysicalDevice m_physicalDevice;
+  std::unique_ptr<vkts::VkContext> m_context;
+  vkts::VkContextConfig m_contextConfig;
   vk::SampleCountFlagBits m_msaaSamples = vk::SampleCountFlagBits::e1;
-  vk::Device m_device;
-  vk::Queue m_graphicsQueue;
-  vk::Queue m_presentQueue;
+
   Swapchain m_swapchain;
   vk::RenderPass m_renderPass;
   vk::Pipeline m_geometryPipeline;
@@ -87,7 +85,6 @@ private:
   std::unique_ptr<TextureManager> m_texManager;
   std::unique_ptr<LightManager> m_lightManager;
 
-  vk::Queue m_transferQueue;
   std::unique_ptr<TransferThread> m_transferThread;
   std::unique_ptr<StagingBuffer> m_stagingBuffer;
   std::unique_ptr<TextureWorkerPool> m_textureWorkerPool;
@@ -107,9 +104,6 @@ private:
 
   void initWindow();
   void initVk();
-  void createInstance();
-  void createLogicalDevice();
-  void createQueues();
   void createRenderPass();
   void createPipeline();
   void createColorObjets();

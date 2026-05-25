@@ -28,7 +28,7 @@ void VkTestSiteApp::run() {
   initVk();
   mainLoop();
 
-  m_device.waitIdle();
+  m_context->device().waitIdle();
   ImGui_ImplVulkan_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   cleanup();
@@ -48,46 +48,21 @@ void VkTestSiteApp::initWindow() {
 
 void VkTestSiteApp::initVk() {
   ZoneScoped;
-  m_loader = {};
-  const auto vkGetInstanceProcAddr = m_loader.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
-  VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
-  createInstance();
+  m_contextConfig = {
+    .requiredDeviceExtensions = DEVICE_EXTENSIONS,
+    .requiredValidationLayers = LAYERS,
+  };
 
-  VkSurfaceKHR surface_tmp;
-  glfwCreateWindowSurface(m_instance, m_window, nullptr, &surface_tmp);
-  m_surface = vk::UniqueSurfaceKHR(surface_tmp, m_instance);
-  const auto deviceTmp = pickPhysicalDevice(m_instance, m_surface.get(), DEVICE_EXTENSIONS);
-  if (!deviceTmp) {
-    abort();
-  }
-  m_physicalDevice = *deviceTmp;
-  const auto props = m_physicalDevice.getProperties();
-  spdlog::info(std::format("Physical device: {}", std::string(props.deviceName)));
-  m_msaaSamples = findMaxMsaaSamples(m_physicalDevice);
-  createLogicalDevice();
-  createQueues();
+  m_context = std::make_unique<vkts::VkContext>();
+  m_context->init(m_contextConfig, m_window);
+  m_msaaSamples = findMaxMsaaSamples(m_context->physicalDevice());
 
-  VmaAllocatorCreateInfo allocatorInfo = {};
-  allocatorInfo.flags = {};
-  allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
-  allocatorInfo.physicalDevice = m_physicalDevice;
-  allocatorInfo.device = m_device;
-  allocatorInfo.instance = m_instance;
-  VmaAllocator vmaAllocator;
-  auto allocCreateResult = vmaCreateAllocator(&allocatorInfo, &vmaAllocator);
-  if (allocCreateResult != VK_SUCCESS) {
-    spdlog::error(std::format("vmaCreateAllocator failed with error code: {}",
-                              vk::to_string(static_cast<vk::Result>(allocCreateResult))));
-    throw std::runtime_error("Failed to create VMA allocator");
-  }
-  m_allocator = vma::Allocator(vmaAllocator);
-
-  m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
+  m_swapchain = Swapchain(m_context->surface(), m_context->device(), m_context->physicalDevice(), m_window);
   createRenderPass();
   createUniformBuffers();
-  m_descriptorPool = DescriptorPool(m_device);
+  m_descriptorPool = DescriptorPool(m_context->device());
   m_lightManager = std::make_unique<LightManager>(
-    m_allocator, m_swapchain.imageViews.size());
+    m_context->allocator(), m_swapchain.imageViews.size());
   createCommandPool();
   createColorObjets();
   createDepthObjets();
@@ -96,16 +71,16 @@ void VkTestSiteApp::initVk() {
   const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
     m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
   );
-  m_lightingCommandBuffers = m_device.allocateCommandBuffersUnique(lightCmdsInfo);
+  m_lightingCommandBuffers = m_context->device().allocateCommandBuffersUnique(lightCmdsInfo);
   createFramebuffers();
   createCommandBuffers();
   createSyncObjects();
-  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
-  m_stagingBuffer = std::make_unique<StagingBuffer>(m_device, m_allocator, 128 * 1024 * 1024); // 64 MB
-  m_transferThread = std::make_unique<TransferThread>(m_device, m_transferQueue, indices.transfer, *m_stagingBuffer);
-  m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_device, m_allocator, *m_stagingBuffer, *m_transferThread);
+  const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
+  m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), 128 * 1024 * 1024); // 64 MB
+  m_transferThread = std::make_unique<TransferThread>(m_context->device(), m_context->transferQueue(), indices.transfer, *m_stagingBuffer);
+  m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_context->device(), m_context->allocator(), *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
-    m_device, m_graphicsQueue, m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
+    m_context->device(), m_context->graphicsQueue(), m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
 
   m_camera = std::make_unique<Camera>(m_swapchain.extent);
   auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
@@ -126,24 +101,24 @@ void VkTestSiteApp::initVk() {
 
 #ifndef NDEBUG
   const auto gpdctd = reinterpret_cast<PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT>(vkGetInstanceProcAddr(
-    m_instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"));
+    m_context->instance(), "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT"));
   const auto gct = reinterpret_cast<PFN_vkGetCalibratedTimestampsEXT>(vkGetDeviceProcAddr(
-    m_device, "vkGetCalibratedTimestampsEXT"));
-  m_tracyCmdBuffer = m_device.allocateCommandBuffers(
+    m_context->device(), "vkGetCalibratedTimestampsEXT"));
+  m_tracyCmdBuffer = m_context->device().allocateCommandBuffers(
     vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary, 1))[0];
-  m_vkContext = tracy::CreateVkContext(m_physicalDevice, m_device, m_graphicsQueue, m_tracyCmdBuffer, gpdctd, gct);
+  m_vkContext = tracy::CreateVkContext(m_context->physicalDevice(), m_context->device(), m_context->graphicsQueue(), m_tracyCmdBuffer, gpdctd, gct);
   const std::string contextName = "Graphics Queue";
   m_vkContext->Name(contextName.data(), contextName.size());
 #endif
 
   ImGui_ImplGlfw_InitForVulkan(m_window, true);
   ImGui_ImplVulkan_InitInfo vkInitInfo = {};
-  vkInitInfo.ApiVersion = VK_API_VERSION_1_3;
-  vkInitInfo.Instance = m_instance;
-  vkInitInfo.PhysicalDevice = m_physicalDevice;
-  vkInitInfo.Device = m_device;
+  vkInitInfo.ApiVersion = m_contextConfig.apiVersion;
+  vkInitInfo.Instance = m_context->instance();
+  vkInitInfo.PhysicalDevice = m_context->physicalDevice();
+  vkInitInfo.Device = m_context->device();
   vkInitInfo.QueueFamily = indices.graphics;
-  vkInitInfo.Queue = m_graphicsQueue;
+  vkInitInfo.Queue = m_context->graphicsQueue();
   vkInitInfo.RenderPass = m_renderPass;
   vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
   vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
@@ -162,124 +137,7 @@ void VkTestSiteApp::initVk() {
   const auto imguiCmdsInfo = vk::CommandBufferAllocateInfo(
     m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
   );
-  m_imguiCommandBuffers = m_device.allocateCommandBuffersUnique(imguiCmdsInfo);
-}
-
-void VkTestSiteApp::createInstance() {
-  ZoneScoped;
-
-  constexpr vk::ApplicationInfo app_info(
-    "VK Test Site", 1,
-    "Some VK bullshit", 1,
-    VK_API_VERSION_1_3
-  );
-
-  uint32_t glfw_extension_count;
-  const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
-
-  std::vector<std::string> required_extensions;
-  const std::vector<std::string> required_layers;
-
-  for (uint32_t i = 0; i < glfw_extension_count; ++i) {
-    required_extensions.emplace_back(glfw_extensions[i]);
-  }
-
-#ifndef NDEBUG
-  required_extensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
-
-  const auto enabled_extensions = gatherExtensions(required_extensions
-#ifndef NDEBUG
-                                                   , vk::enumerateInstanceExtensionProperties()
-#endif
-  );
-  const auto enabled_layers = gatherLayers(required_layers
-#ifndef NDEBUG
-                                           , vk::enumerateInstanceLayerProperties()
-#endif
-  );
-
-  //vk::InstanceCreateFlagBits::eEnumeratePortabilityKHR
-  auto create_info = makeInstanceCreateInfoChain({}, app_info,
-                                                 enabled_layers, enabled_extensions);
-  m_instance = vk::createInstance(create_info.get<vk::InstanceCreateInfo>());
-  VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
-
-#ifndef NDEBUG
-  m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(create_info.get<vk::DebugUtilsMessengerCreateInfoEXT>());
-#endif
-}
-
-void VkTestSiteApp::createQueues() {
-  ZoneScoped;
-  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
-  m_graphicsQueue = m_device.getQueue(indices.graphics, 0);
-  m_presentQueue = m_device.getQueue(indices.present, 0);
-  m_transferQueue = m_device.getQueue(indices.transfer, indices.isTransferQueueSeparated() ? 0 : 1);
-}
-
-void VkTestSiteApp::createLogicalDevice() {
-  ZoneScoped;
-  auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
-
-  std::vector<vk::DeviceQueueCreateInfo> queue_create_infos;
-  std::vector<std::vector<float> > queuePrioritiesStorage;
-  std::set queue_families = {indices.graphics, indices.present, indices.transfer};
-
-  for (uint32_t queue_family: queue_families) {
-    uint32_t count = 1;
-    if (queue_family == indices.graphics && !indices.isTransferQueueSeparated()) {
-      count = 2;
-    }
-
-    queuePrioritiesStorage.emplace_back(count, 1.0f);
-    auto &priorities = queuePrioritiesStorage.back();
-
-    vk::DeviceQueueCreateInfo queue_create_info{};
-    queue_create_info
-        .setQueueFamilyIndex(queue_family)
-        .setQueueCount(count)
-        .setPQueuePriorities(priorities.data());
-    queue_create_infos.push_back(queue_create_info);
-  }
-
-  vk::PhysicalDeviceFeatures device_features{};
-  vk::PhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
-  vk::PhysicalDeviceHostQueryResetFeatures hostQueryResetFeatures{};
-  vk::PhysicalDeviceTimelineSemaphoreFeatures timeline_semaphore_features{};
-  vk::PhysicalDeviceVulkan13Features features13{};
-
-  hostQueryResetFeatures.setHostQueryReset(true);
-  timeline_semaphore_features
-      .setTimelineSemaphore(true)
-      .setPNext(&hostQueryResetFeatures);
-  descriptor_indexing_features
-      .setDescriptorBindingPartiallyBound(true)
-      .setDescriptorBindingSampledImageUpdateAfterBind(true)
-      .setShaderSampledImageArrayNonUniformIndexing(true)
-      .setRuntimeDescriptorArray(true)
-      .setDescriptorBindingVariableDescriptorCount(true)
-      .setPNext(&timeline_semaphore_features);
-
-  features13
-      .setSynchronization2(true)
-      .setPNext(&descriptor_indexing_features);
-
-  device_features
-      .setSamplerAnisotropy(true)
-      .setSampleRateShading(true);
-
-  vk::DeviceCreateInfo device_create_info(
-    {},
-    queue_create_infos,
-    LAYERS,
-    DEVICE_EXTENSIONS,
-    &device_features
-  );
-  device_create_info.setPNext(&features13);
-
-  m_device = m_physicalDevice.createDevice(device_create_info);
-  VULKAN_HPP_DEFAULT_DISPATCHER.init(m_device);
+  m_imguiCommandBuffers = m_context->device().allocateCommandBuffersUnique(imguiCmdsInfo);
 }
 
 void VkTestSiteApp::createRenderPass() {
@@ -346,13 +204,13 @@ void VkTestSiteApp::createRenderPass() {
   std::vector subpasses = {subpass0, subpass1};
   const auto renderPassInfo = vk::RenderPassCreateInfo({}, attachments, subpasses, dependencies);
 
-  m_renderPass = m_device.createRenderPass(renderPassInfo);
+  m_renderPass = m_context->device().createRenderPass(renderPassInfo);
 }
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
   m_geometryPipeline = PipelineBuilder(
-        m_device,
+        m_context->device(),
         m_renderPass,
         m_geometryDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/geometry.ep.slang.spv",
@@ -369,7 +227,7 @@ void VkTestSiteApp::createPipeline() {
       .buildGraphics();
 
   m_lightingPipeline = PipelineBuilder(
-        m_device,
+        m_context->device(),
         m_renderPass,
         m_lightingDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/light.ep.slang.spv",
@@ -383,7 +241,7 @@ void VkTestSiteApp::createPipeline() {
 
 void VkTestSiteApp::createColorObjets() {
   m_albedo = std::make_unique<Texture>(
-    m_device, m_allocator,
+    m_context->device(), m_context->allocator(),
     m_swapchain.extent.width, m_swapchain.extent.height, 1,
     vk::Format::eR8G8B8A8Unorm,
     vk::SampleCountFlagBits::e1,
@@ -392,7 +250,7 @@ void VkTestSiteApp::createColorObjets() {
     false, "Albedo G-Buffer"
   );
   m_normal = std::make_unique<Texture>(
-    m_device, m_allocator,
+    m_context->device(), m_context->allocator(),
     m_swapchain.extent.width, m_swapchain.extent.height, 1,
     vk::Format::eR16G16B16A16Sfloat,
     vk::SampleCountFlagBits::e1,
@@ -406,7 +264,7 @@ void VkTestSiteApp::createDepthObjets() {
   constexpr auto depthFormat = vk::Format::eD32Sfloat;
 
   m_depth = std::make_unique<Texture>(
-    m_device, m_allocator,
+    m_context->device(), m_context->allocator(),
     m_swapchain.extent.width, m_swapchain.extent.height, 1,
     depthFormat,
     vk::SampleCountFlagBits::e1,
@@ -416,7 +274,7 @@ void VkTestSiteApp::createDepthObjets() {
   );
 
   transitionImageLayout(
-    m_device, m_graphicsQueue, m_commandPool,
+    m_context->device(), m_context->graphicsQueue(), m_commandPool,
     m_depth->getImage(),
     depthFormat,
     vk::ImageLayout::eUndefined,
@@ -439,7 +297,7 @@ void VkTestSiteApp::createFramebuffers() {
       {}, m_renderPass, attachments,
       m_swapchain.extent.width, m_swapchain.extent.height, 1
     );
-    m_framebuffers[i] = m_device.createFramebuffer(framebufferInfo);
+    m_framebuffers[i] = m_context->device().createFramebuffer(framebufferInfo);
   }
 }
 
@@ -447,7 +305,7 @@ void VkTestSiteApp::createUniformBuffers() {
   ZoneScoped;
   for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
     m_uniform = std::make_unique<UniformBuffer<UniformBufferObject>>(
-      m_allocator,
+      m_context->allocator(),
       m_swapchain.imageViews.size(),
       vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
       0
@@ -469,7 +327,7 @@ void VkTestSiteApp::createDescriptorSet() {
   };
 
   m_geometryDescriptorSet = DescriptorSet(
-    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
       m_uniform->getDescriptorLayout(),
       DescriptorLayout{
@@ -487,7 +345,7 @@ void VkTestSiteApp::createDescriptorSet() {
     });
 
   m_lightingDescriptorSet = DescriptorSet(
-    m_device, m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
     {
       m_uniform->getDescriptorLayout(),
       lightsDescriptor,
@@ -531,25 +389,25 @@ void VkTestSiteApp::createDescriptorSet() {
 
 void VkTestSiteApp::createCommandPool() {
   ZoneScoped;
-  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
+  const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
 
   const auto poolInfo = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, indices.graphics);
-  m_commandPool = m_device.createCommandPool(poolInfo);
+  m_commandPool = m_context->device().createCommandPool(poolInfo);
 }
 
 void VkTestSiteApp::createCommandBuffers() {
   ZoneScoped;
   const auto commandBufInfo = vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary,
                                                             m_swapchain.imageViews.size());
-  m_commandBuffers = m_device.allocateCommandBuffers(commandBufInfo);
+  m_commandBuffers = m_context->device().allocateCommandBuffers(commandBufInfo);
 }
 
 void VkTestSiteApp::createSyncObjects() {
   constexpr auto fenceInfo = vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled);
   for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
-    m_inFlight.push_back(m_device.createFence(fenceInfo));
-    m_imageAvailable.push_back(m_device.createSemaphore(vk::SemaphoreCreateInfo()));
-    m_renderFinished.push_back(m_device.createSemaphore(vk::SemaphoreCreateInfo()));
+    m_inFlight.push_back(m_context->device().createFence(fenceInfo));
+    m_imageAvailable.push_back(m_context->device().createSemaphore(vk::SemaphoreCreateInfo()));
+    m_renderFinished.push_back(m_context->device().createSemaphore(vk::SemaphoreCreateInfo()));
   }
 }
 
@@ -581,8 +439,8 @@ void VkTestSiteApp::mainLoop() {
       if (path != nullptr) {
         auto pathStr = std::string(path);
         m_model = std::make_unique<Model>(
-          m_device, m_graphicsQueue, m_commandPool, m_allocator, *m_texManager, *m_lightManager, pathStr);
-        m_model->createCommandBuffers(m_device, m_commandPool, m_swapchain.imageViews.size());
+          m_context->device(), m_context->graphicsQueue(), m_commandPool, m_context->allocator(), *m_texManager, *m_lightManager, pathStr);
+        m_model->createCommandBuffers(m_context->device(), m_commandPool, m_swapchain.imageViews.size());
         m_modelLoaded = true;
       }
     }
@@ -593,12 +451,12 @@ void VkTestSiteApp::mainLoop() {
 
     if (m_modelLoaded && ImGui::Button("Dump VMA stats")) {
       char *statsString = nullptr;
-      vmaBuildStatsString(m_allocator, &statsString, true); {
+      vmaBuildStatsString(m_context->allocator(), &statsString, true); {
         std::ofstream outStats{"VmaStats.json"};
         outStats << statsString;
         spdlog::info("VMA stats json saved at VmaStats.json file");
       }
-      vmaFreeStatsString(m_allocator, statsString);
+      vmaFreeStatsString(m_context->allocator(), statsString);
     }
 
     ImGui::Separator();
@@ -663,12 +521,12 @@ void VkTestSiteApp::mainLoop() {
 
 void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   ZoneScoped;
-  auto _ = m_device.waitForFences(m_inFlight[m_currentFrame], true, UINT64_MAX);
-  m_device.resetFences(m_inFlight[m_currentFrame]);
+  auto _ = m_context->device().waitForFences(m_inFlight[m_currentFrame], true, UINT64_MAX);
+  m_context->device().resetFences(m_inFlight[m_currentFrame]);
 
   uint32_t imageIndex;
   try {
-    const auto acquireResult = m_device.acquireNextImageKHR(
+    const auto acquireResult = m_context->device().acquireNextImageKHR(
       m_swapchain.swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
     imageIndex = acquireResult.value;
   } catch (vk::OutOfDateKHRError &) {
@@ -688,16 +546,16 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     pipelineStageFlags,
     m_commandBuffers[imageIndex],
     m_renderFinished[m_currentFrame]);
-  m_graphicsQueue.submit(submitInfo, m_inFlight[m_currentFrame]);
+  m_context->graphicsQueue().submit(submitInfo, m_inFlight[m_currentFrame]);
 
-  executeSingleTimeCommands(m_device, m_graphicsQueue, m_commandPool, [&](const vk::CommandBuffer cmd) {
+  executeSingleTimeCommands(m_context->device(), m_context->graphicsQueue(), m_commandPool, [&](const vk::CommandBuffer cmd) {
     //m_vkContext->Collect(cmd);
   });
 
   const auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain.swapchain, imageIndex);
   vk::Result presentResult;
   try {
-    presentResult = m_presentQueue.presentKHR(presentInfo);
+    presentResult = m_context->presentQueue().presentKHR(presentInfo);
   } catch (vk::OutOfDateKHRError &) {
     presentResult = vk::Result::eErrorOutOfDateKHR;
   } catch (vk::SystemError &) {
@@ -709,7 +567,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     return;
   }
 
-  m_presentQueue.waitIdle();
+  m_context->presentQueue().waitIdle();
 
   m_currentFrame = imageIndex;
 }
@@ -807,13 +665,13 @@ void VkTestSiteApp::recreateSwapchain() {
     glfwWaitEvents();
   }
 
-  m_device.waitIdle();
+  m_context->device().waitIdle();
   cleanupSwapchain();
 
-  m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
+  m_swapchain = Swapchain(m_context->surface(), m_context->device(), m_context->physicalDevice(), m_window);
   createRenderPass();
   createUniformBuffers();
-  m_descriptorPool = DescriptorPool(m_device);
+  m_descriptorPool = DescriptorPool(m_context->device());
   createColorObjets();
   createDepthObjets();
   createDescriptorSet();
@@ -825,20 +683,20 @@ void VkTestSiteApp::recreateSwapchain() {
 
 void VkTestSiteApp::cleanupSwapchain() {
   m_uniform.reset();
-  m_geometryDescriptorSet.destroy(m_device);
-  m_lightingDescriptorSet.destroy(m_device);
-  m_descriptorPool.destroy(m_device);
-  m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
+  m_geometryDescriptorSet.destroy(m_context->device());
+  m_lightingDescriptorSet.destroy(m_context->device());
+  m_descriptorPool.destroy(m_context->device());
+  m_context->device().freeCommandBuffers(m_commandPool, m_commandBuffers);
   m_depth.reset();
   m_albedo.reset();
   m_normal.reset();
   for (const auto framebuffer: m_framebuffers) {
-    m_device.destroyFramebuffer(framebuffer);
+    m_context->device().destroyFramebuffer(framebuffer);
   }
-  m_device.destroyPipeline(m_geometryPipeline);
-  m_device.destroyPipeline(m_lightingPipeline);
-  m_device.destroyRenderPass(m_renderPass);
-  m_swapchain.destroy(m_device);
+  m_context->device().destroyPipeline(m_geometryPipeline);
+  m_context->device().destroyPipeline(m_lightingPipeline);
+  m_context->device().destroyRenderPass(m_renderPass);
+  m_swapchain.destroy(m_context->device());
 }
 
 void VkTestSiteApp::cleanup() {
@@ -848,9 +706,9 @@ void VkTestSiteApp::cleanup() {
 #endif
 
   for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
-    m_device.destroyFence(m_inFlight[i]);
-    m_device.destroySemaphore(m_imageAvailable[i]);
-    m_device.destroySemaphore(m_renderFinished[i]);
+    m_context->device().destroyFence(m_inFlight[i]);
+    m_context->device().destroySemaphore(m_imageAvailable[i]);
+    m_context->device().destroySemaphore(m_renderFinished[i]);
   }
 
   cleanupSwapchain();
@@ -864,12 +722,6 @@ void VkTestSiteApp::cleanup() {
   m_stagingBuffer.reset();
   m_imguiCommandBuffers.clear();
   m_lightingCommandBuffers.clear();
-  m_device.destroyCommandPool(m_commandPool);
-  vmaDestroyAllocator(m_allocator);
-  m_device.destroy();
-  m_instance.destroySurfaceKHR(m_surface.release());
-#ifndef NDEBUG
-  m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger);
-#endif
-  m_instance.destroy();
+  m_context->device().destroyCommandPool(m_commandPool);
+  m_context->destroy();
 }
