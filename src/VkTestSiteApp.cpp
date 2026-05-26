@@ -683,33 +683,30 @@ void VkTestSiteApp::recreateSwapchain() {
   cleanupSwapchain();
 
   m_swapchain = Swapchain(m_context->surface(), m_context->device(), m_context->physicalDevice(), m_window);
-  createRenderPass();
-  createUniformBuffers();
-  m_descriptorPool = DescriptorPool(m_context->device());
   createColorObjets();
   createDepthObjets();
-  createDescriptorSet();
-  m_texManager->updateDS(m_geometryDescriptorSet);
-  createPipeline();
   createFramebuffers();
-  createCommandBuffers();
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 2, 0,
+    vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 3, 0,
+    vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 4, 0,
+    vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
 }
 
 void VkTestSiteApp::cleanupSwapchain() {
-  m_uniform.reset();
-  m_geometryDescriptorSet.destroy(m_context->device());
-  m_lightingDescriptorSet.destroy(m_context->device());
-  m_descriptorPool.destroy(m_context->device());
-  m_context->device().freeCommandBuffers(m_commandPool, m_commandBuffers);
   m_depth.reset();
   m_albedo.reset();
   m_normal.reset();
   for (const auto framebuffer: m_framebuffers) {
     m_context->device().destroyFramebuffer(framebuffer);
   }
-  m_context->device().destroyPipeline(m_geometryPipeline);
-  m_context->device().destroyPipeline(m_lightingPipeline);
-  m_context->device().destroyRenderPass(m_renderPass);
   m_swapchain.destroy(m_context->device());
 }
 
@@ -725,7 +722,17 @@ void VkTestSiteApp::cleanup() {
     m_context->device().destroySemaphore(m_renderFinished[i]);
   }
 
+  m_uniform.reset();
+  m_geometryDescriptorSet.destroy(m_context->device());
+  m_lightingDescriptorSet.destroy(m_context->device());
+  m_descriptorPool.destroy(m_context->device());
+  m_context->device().freeCommandBuffers(m_commandPool, m_commandBuffers);
+
   cleanupSwapchain();
+
+  m_context->device().destroyPipeline(m_geometryPipeline);
+  m_context->device().destroyPipeline(m_lightingPipeline);
+  m_context->device().destroyRenderPass(m_renderPass);
 
   if (m_modelLoaded)
     m_model.reset();
