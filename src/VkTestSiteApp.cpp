@@ -537,16 +537,11 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   auto _ = m_context->device().waitForFences(m_inFlight[m_currentFrame], true, UINT64_MAX);
   m_context->device().resetFences(m_inFlight[m_currentFrame]);
 
-  uint32_t imageIndex;
-  try {
-    const auto acquireResult = m_context->device().acquireNextImageKHR(
-      m_swapchain->swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
-    imageIndex = acquireResult.value;
-  } catch (vk::OutOfDateKHRError &) {
+  auto [isSwapchainDirty, imageIndex] =
+      m_swapchain->acquireNextImageKHR(m_imageAvailable[m_currentFrame]);
+  if (isSwapchainDirty) {
     recreateSwapchain();
     return;
-  } catch (vk::SystemError &) {
-    throw std::runtime_error("Failed to acquire swapchain image!");
   }
 
   m_camera->onUpdate(deltaTime);
@@ -561,22 +556,14 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     m_renderFinished[m_currentFrame]);
   m_context->graphicsQueue().submit(submitInfo, m_inFlight[m_currentFrame]);
 
-  executeSingleTimeCommands(m_context->device(), m_context->graphicsQueue(), m_commandPool,
-                            [&](const vk::CommandBuffer cmd) {
-                              //m_vkContext->Collect(cmd);
-                            });
+  executeSingleTimeCommands(
+    m_context->device(), m_context->graphicsQueue(), m_commandPool,
+    [&](const vk::CommandBuffer cmd) {
+      //m_vkContext->Collect(cmd);
+    });
 
-  const auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain->swapchain, imageIndex);
-  vk::Result presentResult;
-  try {
-    presentResult = m_context->presentQueue().presentKHR(presentInfo);
-  } catch (vk::OutOfDateKHRError &) {
-    presentResult = vk::Result::eErrorOutOfDateKHR;
-  } catch (vk::SystemError &) {
-    throw std::runtime_error("Failed to present swapchain image!");
-  }
-
-  if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
+  isSwapchainDirty = m_swapchain->present(m_renderFinished[m_currentFrame]);
+  if (isSwapchainDirty) {
     recreateSwapchain();
     return;
   }
@@ -679,6 +666,7 @@ void VkTestSiteApp::recreateSwapchain() {
     glfwWaitEvents();
   }
 
+  spdlog::debug("Recreating swapchain");
   m_context->device().waitIdle();
   cleanupSwapchain();
 

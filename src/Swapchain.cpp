@@ -64,7 +64,7 @@ std::vector<vk::ImageView> create_swapchain_image_views(
   return imageViews;
 }
 
-Swapchain::Swapchain(const vkts::VkContext &context) {
+Swapchain::Swapchain(const vkts::VkContext &context) : m_context(context) {
   ZoneScoped;
   auto indices = QueueFamilyIndices(context.surface(), context.physicalDevice());
   auto format_khr = get_swapchain_surface_format(context.surface(), context.physicalDevice());
@@ -108,6 +108,43 @@ Swapchain::Swapchain(const vkts::VkContext &context) {
   swapchain = context.device().createSwapchainKHR(info);
   images = context.device().getSwapchainImagesKHR(swapchain);
   imageViews = create_swapchain_image_views(context.device(), images, format);
+}
+
+std::pair<bool, uint32_t> Swapchain::acquireNextImageKHR(
+  const vk::Semaphore semaphore,
+  const vk::Fence fence
+) {
+  ZoneScoped;
+
+  try {
+    const auto acquireResult = m_context.device().acquireNextImageKHR(
+      swapchain, UINT64_MAX, semaphore, fence);
+    imageIndex = acquireResult.value;
+  } catch (vk::OutOfDateKHRError &) {
+    return {true, -1};
+  } catch (vk::SystemError &) {
+    throw std::runtime_error("Failed to acquire swapchain image!");
+  }
+
+  return {false, imageIndex};
+}
+
+bool Swapchain::present(vk::Semaphore semaphore) {
+  const auto presentInfo = vk::PresentInfoKHR(semaphore, swapchain, imageIndex);
+  vk::Result presentResult;
+  try {
+    presentResult = m_context.presentQueue().presentKHR(presentInfo);
+  } catch (vk::OutOfDateKHRError &) {
+    presentResult = vk::Result::eErrorOutOfDateKHR;
+  } catch (vk::SystemError &) {
+    throw std::runtime_error("Failed to present swapchain image!");
+  }
+
+  if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
+    return true;
+  }
+
+  return false;
 }
 
 void Swapchain::cmdSetViewport(const vk::CommandBuffer cmdBuffer) const {
