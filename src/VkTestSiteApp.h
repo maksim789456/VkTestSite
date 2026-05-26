@@ -67,7 +67,7 @@ private:
   vkts::VkContextConfig m_contextConfig;
   vk::SampleCountFlagBits m_msaaSamples = vk::SampleCountFlagBits::e1;
 
-  Swapchain m_swapchain;
+  std::unique_ptr<Swapchain> m_swapchain;
   vk::RenderPass m_renderPass;
   vk::Pipeline m_geometryPipeline;
   vk::Pipeline m_lightingPipeline;

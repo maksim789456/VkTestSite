@@ -64,23 +64,15 @@ std::vector<vk::ImageView> create_swapchain_image_views(
   return imageViews;
 }
 
-Swapchain::Swapchain(): format() {
-}
-
-Swapchain::Swapchain(
-  const vk::SurfaceKHR &surface,
-  const vk::Device &device,
-  const vk::PhysicalDevice &physical_device,
-  GLFWwindow *window
-) {
+Swapchain::Swapchain(const vkts::VkContext &context) {
   ZoneScoped;
-  auto indices = QueueFamilyIndices(surface, physical_device);
-  auto format_khr = get_swapchain_surface_format(surface, physical_device);
+  auto indices = QueueFamilyIndices(context.surface(), context.physicalDevice());
+  auto format_khr = get_swapchain_surface_format(context.surface(), context.physicalDevice());
   this->format = format_khr.format;
   auto present_mode = vk::PresentModeKHR::eFifo;
-  this->extent = get_swapchain_extent(window, surface, physical_device);
+  this->extent = get_swapchain_extent(&context.window(), context.surface(), context.physicalDevice());
 
-  auto capabilities = physical_device.getSurfaceCapabilitiesKHR(surface);
+  auto capabilities = context.physicalDevice().getSurfaceCapabilitiesKHR(context.surface());
 
   auto image_count = capabilities.minImageCount + 1;
   if (capabilities.maxImageCount != 0 && image_count > capabilities.maxImageCount) {
@@ -97,8 +89,8 @@ Swapchain::Swapchain(
     sharing_mode = vk::SharingMode::eExclusive;
   }
 
-  vk::SwapchainCreateInfoKHR info = vk::SwapchainCreateInfoKHR{}
-      .setSurface(surface)
+  const auto info = vk::SwapchainCreateInfoKHR{}
+      .setSurface(context.surface())
       .setMinImageCount(image_count)
       .setImageFormat(format_khr.format)
       .setImageColorSpace(format_khr.colorSpace)
@@ -113,9 +105,9 @@ Swapchain::Swapchain(
       .setClipped(true)
       .setOldSwapchain(nullptr);
 
-  swapchain = device.createSwapchainKHR(info);
-  images = device.getSwapchainImagesKHR(swapchain);
-  imageViews = create_swapchain_image_views(device, images, format);
+  swapchain = context.device().createSwapchainKHR(info);
+  images = context.device().getSwapchainImagesKHR(swapchain);
+  imageViews = create_swapchain_image_views(context.device(), images, format);
 }
 
 void Swapchain::cmdSetViewport(const vk::CommandBuffer cmdBuffer) const {

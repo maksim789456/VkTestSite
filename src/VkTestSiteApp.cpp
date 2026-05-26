@@ -57,19 +57,19 @@ void VkTestSiteApp::initVk() {
   m_context->init(m_contextConfig, m_window);
   m_msaaSamples = findMaxMsaaSamples(m_context->physicalDevice());
 
-  m_swapchain = Swapchain(m_context->surface(), m_context->device(), m_context->physicalDevice(), m_window);
+  m_swapchain = std::make_unique<Swapchain>(*m_context);
   createRenderPass();
   createUniformBuffers();
   m_descriptorPool = DescriptorPool(m_context->device());
   m_lightManager = std::make_unique<LightManager>(
-    m_context->allocator(), m_swapchain.imageViews.size());
+    m_context->allocator(), m_swapchain->imageViews.size());
   createCommandPool();
   createColorObjets();
   createDepthObjets();
   createDescriptorSet();
   createPipeline();
   const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
-    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
+    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain->imageViews.size()
   );
   m_lightingCommandBuffers = m_context->device().allocateCommandBuffersUnique(lightCmdsInfo);
   createFramebuffers();
@@ -85,7 +85,7 @@ void VkTestSiteApp::initVk() {
   m_texManager = std::make_unique<TextureManager>(
     m_context->device(), m_context->graphicsQueue(), m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
 
-  m_camera = std::make_unique<Camera>(m_swapchain.extent); {
+  m_camera = std::make_unique<Camera>(m_swapchain->extent); {
     ZoneScopedN("Setup window callbacks");
     auto keyCallback = [](GLFWwindow *window, int key, int scancode, int action, int mods) {
       const auto me = static_cast<VkTestSiteApp *>(glfwGetWindowUserPointer(window));
@@ -147,7 +147,7 @@ void VkTestSiteApp::initVk() {
   }
 
   const auto imguiCmdsInfo = vk::CommandBufferAllocateInfo(
-    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain.imageViews.size()
+    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain->imageViews.size()
   );
   m_imguiCommandBuffers = m_context->device().allocateCommandBuffersUnique(imguiCmdsInfo);
 }
@@ -171,7 +171,7 @@ void VkTestSiteApp::createRenderPass() {
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
       vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal),
     vk::AttachmentDescription( // Final color (swapchain)
-      {}, m_swapchain.format, vk::SampleCountFlagBits::e1,
+      {}, m_swapchain->format, vk::SampleCountFlagBits::e1,
       vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
       vk::AttachmentLoadOp::eDontCare, vk::AttachmentStoreOp::eDontCare,
       vk::ImageLayout::eUndefined, vk::ImageLayout::ePresentSrcKHR)
@@ -254,7 +254,7 @@ void VkTestSiteApp::createPipeline() {
 void VkTestSiteApp::createColorObjets() {
   m_albedo = std::make_unique<Texture>(
     m_context->device(), m_context->allocator(),
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    m_swapchain->extent.width, m_swapchain->extent.height, 1,
     vk::Format::eR8G8B8A8Unorm,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
@@ -263,7 +263,7 @@ void VkTestSiteApp::createColorObjets() {
   );
   m_normal = std::make_unique<Texture>(
     m_context->device(), m_context->allocator(),
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    m_swapchain->extent.width, m_swapchain->extent.height, 1,
     vk::Format::eR16G16B16A16Sfloat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eColor,
@@ -277,7 +277,7 @@ void VkTestSiteApp::createDepthObjets() {
 
   m_depth = std::make_unique<Texture>(
     m_context->device(), m_context->allocator(),
-    m_swapchain.extent.width, m_swapchain.extent.height, 1,
+    m_swapchain->extent.width, m_swapchain->extent.height, 1,
     depthFormat,
     vk::SampleCountFlagBits::e1,
     vk::ImageAspectFlagBits::eDepth,
@@ -296,18 +296,18 @@ void VkTestSiteApp::createDepthObjets() {
 
 void VkTestSiteApp::createFramebuffers() {
   ZoneScoped;
-  m_framebuffers.resize(m_swapchain.imageViews.size());
-  for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
+  m_framebuffers.resize(m_swapchain->imageViews.size());
+  for (size_t i = 0; i < m_swapchain->imageViews.size(); ++i) {
     std::vector attachments = {
       m_depth->getImageView(),
       m_albedo->getImageView(),
       m_normal->getImageView(),
-      m_swapchain.imageViews[i]
+      m_swapchain->imageViews[i]
     };
 
     auto framebufferInfo = vk::FramebufferCreateInfo(
       {}, m_renderPass, attachments,
-      m_swapchain.extent.width, m_swapchain.extent.height, 1
+      m_swapchain->extent.width, m_swapchain->extent.height, 1
     );
     m_framebuffers[i] = m_context->device().createFramebuffer(framebufferInfo);
   }
@@ -315,10 +315,10 @@ void VkTestSiteApp::createFramebuffers() {
 
 void VkTestSiteApp::createUniformBuffers() {
   ZoneScoped;
-  for (size_t i = 0; i < m_swapchain.imageViews.size(); ++i) {
+  for (size_t i = 0; i < m_swapchain->imageViews.size(); ++i) {
     m_uniform = std::make_unique<UniformBuffer<UniformBufferObject> >(
       m_context->allocator(),
-      m_swapchain.imageViews.size(),
+      m_swapchain->imageViews.size(),
       vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
       0
     );
@@ -339,7 +339,7 @@ void VkTestSiteApp::createDescriptorSet() {
   };
 
   m_geometryDescriptorSet = DescriptorSet(
-    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain->imageViews.size(),
     {
       m_uniform->getDescriptorLayout(),
       DescriptorLayout{
@@ -357,7 +357,7 @@ void VkTestSiteApp::createDescriptorSet() {
     });
 
   m_lightingDescriptorSet = DescriptorSet(
-    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain.imageViews.size(),
+    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain->imageViews.size(),
     {
       m_uniform->getDescriptorLayout(),
       lightsDescriptor,
@@ -410,13 +410,13 @@ void VkTestSiteApp::createCommandPool() {
 void VkTestSiteApp::createCommandBuffers() {
   ZoneScoped;
   const auto commandBufInfo = vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary,
-                                                            m_swapchain.imageViews.size());
+                                                            m_swapchain->imageViews.size());
   m_commandBuffers = m_context->device().allocateCommandBuffers(commandBufInfo);
 }
 
 void VkTestSiteApp::createSyncObjects() {
   constexpr auto fenceInfo = vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled);
-  for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
+  for (int i = 0; i < m_swapchain->imageViews.size(); ++i) {
     m_inFlight.push_back(m_context->device().createFence(fenceInfo));
     m_imageAvailable.push_back(m_context->device().createSemaphore(vk::SemaphoreCreateInfo()));
     m_renderFinished.push_back(m_context->device().createSemaphore(vk::SemaphoreCreateInfo()));
@@ -453,7 +453,7 @@ void VkTestSiteApp::mainLoop() {
         m_model = std::make_unique<Model>(
           m_context->device(), m_context->graphicsQueue(), m_commandPool, m_context->allocator(), *m_texManager,
           *m_lightManager, pathStr);
-        m_model->createCommandBuffers(m_context->device(), m_commandPool, m_swapchain.imageViews.size());
+        m_model->createCommandBuffers(m_context->device(), m_commandPool, m_swapchain->imageViews.size());
         m_modelLoaded = true;
       }
     }
@@ -540,7 +540,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   uint32_t imageIndex;
   try {
     const auto acquireResult = m_context->device().acquireNextImageKHR(
-      m_swapchain.swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
+      m_swapchain->swapchain, UINT64_MAX, m_imageAvailable[m_currentFrame], nullptr);
     imageIndex = acquireResult.value;
   } catch (vk::OutOfDateKHRError &) {
     recreateSwapchain();
@@ -566,7 +566,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
                               //m_vkContext->Collect(cmd);
                             });
 
-  const auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain.swapchain, imageIndex);
+  const auto presentInfo = vk::PresentInfoKHR(m_renderFinished[m_currentFrame], m_swapchain->swapchain, imageIndex);
   vk::Result presentResult;
   try {
     presentResult = m_context->presentQueue().presentKHR(presentInfo);
@@ -603,7 +603,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   commandBuffer.reset();
   commandBuffer.begin(vk::CommandBufferBeginInfo());
 
-  const auto renderArea = vk::Rect2D({}, m_swapchain.extent);
+  const auto renderArea = vk::Rect2D({}, m_swapchain->extent);
   auto colorClearValue = m_modelLoaded
                            ? vk::ClearValue(vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f))
                            : vk::ClearValue(vk::ClearColorValue(0.53f, 0.81f, 0.92f, 1.0f));
@@ -621,7 +621,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
         m_framebuffers[imageIndex],
         m_renderPass,
         m_geometryPipeline,
-        m_swapchain,
+        *m_swapchain,
         m_geometryDescriptorSet,
         0,
         imageIndex
@@ -640,8 +640,8 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
     lightCmd.reset();
     lightCmd.begin(lightBeginInfo); {
       //TracyVkZone(m_vkContext, lightCmd, "Light Pass");
-      m_swapchain.cmdSetViewport(lightCmd);
-      m_swapchain.cmdSetScissor(lightCmd);
+      m_swapchain->cmdSetViewport(lightCmd);
+      m_swapchain->cmdSetScissor(lightCmd);
       lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
       m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
       auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
@@ -682,7 +682,7 @@ void VkTestSiteApp::recreateSwapchain() {
   m_context->device().waitIdle();
   cleanupSwapchain();
 
-  m_swapchain = Swapchain(m_context->surface(), m_context->device(), m_context->physicalDevice(), m_window);
+  m_swapchain = std::make_unique<Swapchain>(*m_context);
   createColorObjets();
   createDepthObjets();
   createFramebuffers();
@@ -707,7 +707,7 @@ void VkTestSiteApp::cleanupSwapchain() {
   for (const auto framebuffer: m_framebuffers) {
     m_context->device().destroyFramebuffer(framebuffer);
   }
-  m_swapchain.destroy(m_context->device());
+  m_swapchain->destroy(m_context->device());
 }
 
 void VkTestSiteApp::cleanup() {
@@ -716,7 +716,7 @@ void VkTestSiteApp::cleanup() {
   TracyVkDestroy(m_vkContext);
 #endif
 
-  for (int i = 0; i < m_swapchain.imageViews.size(); ++i) {
+  for (int i = 0; i < m_swapchain->imageViews.size(); ++i) {
     m_context->device().destroyFence(m_inFlight[i]);
     m_context->device().destroySemaphore(m_imageAvailable[i]);
     m_context->device().destroySemaphore(m_renderFinished[i]);

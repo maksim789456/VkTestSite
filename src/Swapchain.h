@@ -1,23 +1,16 @@
 #pragma once
 
-#include <vulkan/vulkan.hpp>
-#include <GLFW/glfw3.h>
+#ifndef SWAPCHAIN_H
+#define SWAPCHAIN_H
 
 #include "utils.cpp"
 #include "QueueFamilyIndices.cpp"
 #include <vector>
-
-#ifndef SWAPCHAIN_H
-#define SWAPCHAIN_H
+#include "core/VkContext.h"
 
 class Swapchain {
 public:
-  Swapchain();
-  Swapchain(
-    const vk::SurfaceKHR &surface,
-    const vk::Device &device,
-    const vk::PhysicalDevice &physical_device,
-    GLFWwindow *window);
+  Swapchain(const vkts::VkContext& context);
   void cmdSetViewport(vk::CommandBuffer cmdBuffer) const;
   void cmdSetScissor(vk::CommandBuffer cmdBuffer) const;
   void destroy(const vk::Device &device);
