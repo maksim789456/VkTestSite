@@ -7,7 +7,7 @@
 #include <tracy/Tracy.hpp>
 #include <spdlog/spdlog.h>
 
-#include "Swapchain.h"
+#include "QueueFamilyIndices.cpp"
 #include "utils.cpp"
 #include "version.h"
 
@@ -50,7 +50,7 @@ namespace vkts {
     [[nodiscard]] vk::Queue &graphicsQueue() const { return *m_graphicsQueue; }
     [[nodiscard]] vk::Queue &transferQueue() const { return *m_transferQueue; }
     [[nodiscard]] vk::Queue &presentQueue() const { return *m_presentQueue; }
-    // [[nodiscard]] Swapchain &swapchain() const { return *m_swapchain; }
+    [[nodiscard]] GLFWwindow &window() const { return *m_window; }
 
     [[nodiscard]] bool hasValidation() const { return m_enableValidation; }
     [[nodiscard]] bool isDebug() const { return m_enableDebug; }
@@ -66,7 +66,7 @@ namespace vkts {
 
     void createAllocator(const VkContextConfig &config);
 
-    // std::unique_ptr<Swapchain> m_swapchain;
+    GLFWwindow* m_window = nullptr;
 
     vk::detail::DynamicLoader m_loader;
     vk::UniqueInstance m_instance;

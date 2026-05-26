@@ -5,6 +5,7 @@ void vkts::VkContext::init(
   GLFWwindow *window
 ) {
   ZoneScoped;
+  m_window = window;
   m_enableValidation = config.enableValidation;
   m_enableDebug = config.enableDebug;
 
