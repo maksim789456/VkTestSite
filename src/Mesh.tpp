@@ -9,10 +9,10 @@ Mesh<VertexType, IndexType>::Mesh(
   const std::vector<VertexType> &vertices,
   const std::vector<IndexType> &indices,
   const bool useStagingBuffer) : m_useStaging(useStagingBuffer) {
-  spdlog::info("Create mesh");
   m_indicesCount = indices.size();
   m_verticesCount = vertices.size();
-  const auto verticesSize = vertices.size() * sizeof(VertexType);
+  spdlog::info("Create mesh (vert: {}; indices: {})", m_verticesCount, m_indicesCount);
+  const auto verticesSize = m_verticesCount * sizeof(VertexType);
 
   if (useStagingBuffer) {
     auto [stagingBuffer, stagingBufferAlloc] = createBufferUnique(
