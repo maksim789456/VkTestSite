@@ -25,6 +25,7 @@ public:
 
 private:
   bool m_isCompute = false;
+  std::string m_name;
   std::vector<uint32_t> m_spv;
   vk::UniqueShaderModule m_module;
   std::unique_ptr<spv_reflect::ShaderModule> m_spvReflectModule;

@@ -5,7 +5,7 @@ void ShaderModule::load(
   const std::string &path
 ) {
   ZoneScoped;
-  auto filename = std::filesystem::path(path).filename();
+  m_name = std::filesystem::path(path).filename();
   auto file = std::ifstream(path, std::ios::binary | std::ios::ate);
   if (file.fail() || !file.is_open()) {
     spdlog::error("Failed to open shader source file");
@@ -24,13 +24,15 @@ void ShaderModule::load(
   this->m_spv = spv;
   const auto info = vk::ShaderModuleCreateInfo({}, spv.size() * sizeof(uint32_t), spv.data());
   m_module = device.createShaderModuleUnique(info);
-  setObjectName(device, m_module.get(), std::format("Shader {}", filename.string()));
+  spdlog::info("Loading shader {}", m_name);
+  setObjectName(device, m_module.get(), std::format("Shader {}", m_name));
 }
 
 void ShaderModule::reflect(
   const vk::Device &device
 ) {
   ZoneScoped;
+  spdlog::info("Reflect shader {}", m_name);
   m_spvReflectModule = std::make_unique<spv_reflect::ShaderModule>(m_spv);
   if (m_spvReflectModule->GetResult() != SPV_REFLECT_RESULT_SUCCESS) {
     spdlog::error("Failed to reflect shader module");
@@ -47,16 +49,19 @@ void ShaderModule::reflect(
       computePipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eCompute, m_module.get(), ep->name);
       m_isCompute = true;
+      spdlog::info("\t({}, ep: {}) -> compute", i, ep->name);
       return;
     }
 
     if (ep->shader_stage & SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) {
       vertexPipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eVertex, m_module.get(), ep->name);
+      spdlog::info("\t({}, ep: {}) -> vertex", i, ep->name);
     }
     if (ep->shader_stage & SPV_REFLECT_SHADER_STAGE_FRAGMENT_BIT) {
       fragmentPipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eFragment, m_module.get(), ep->name);
+      spdlog::info("\t({}, ep: {}) -> fragment", i, ep->name);
     }
   }
 }
