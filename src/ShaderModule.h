@@ -10,7 +10,15 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
+
+#include "DescriptorSet.h"
 #include "utils.cpp"
+
+struct DescriptorSetLayoutData {
+  uint32_t setNumber;
+  vk::DescriptorSetLayoutCreateInfo createInfo;
+  std::vector<vk::DescriptorSetLayoutBinding> bindings;
+};
 
 class ShaderModule {
 public:
@@ -20,15 +28,19 @@ public:
 
   ShaderModule() = default;
   void load(const vk::Device &device, const std::string &path);
+
+  void reflectDS();
+
   void reflect(const vk::Device &device);
-  [[nodiscard]] bool isCompute() const {return m_isCompute;}
+  [[nodiscard]] bool isCompute() const {return static_cast<bool>(m_stageFlags & vk::ShaderStageFlagBits::eCompute);}
 
 private:
-  bool m_isCompute = false;
   std::string m_name;
   std::vector<uint32_t> m_spv;
   vk::UniqueShaderModule m_module;
+  vk::ShaderStageFlags m_stageFlags;
   std::unique_ptr<spv_reflect::ShaderModule> m_spvReflectModule;
+  std::vector<DescriptorLayout> m_layouts = {};
 };
 
 

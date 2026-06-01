@@ -28,6 +28,42 @@ void ShaderModule::load(
   setObjectName(device, m_module.get(), std::format("Shader {}", m_name));
 }
 
+void ShaderModule::reflectDS() {
+  ZoneScoped;
+  uint32_t count = 0;
+  auto result = m_spvReflectModule->EnumerateDescriptorSets(&count, nullptr);
+  assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+  std::vector<SpvReflectDescriptorSet *> sets(count);
+  result = m_spvReflectModule->EnumerateDescriptorSets(&count, sets.data());
+  assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+  spdlog::info("contains {} descriptor sets", sets.size());
+  if (sets.size() > 1) {
+    spdlog::warn("WARN: Shader {} use more that one DS, reflect only covers first DS!", m_name);
+  }
+  const SpvReflectDescriptorSet &reflSet = *sets[0];
+
+  m_layouts.resize(reflSet.binding_count);
+  for (int iBinding = 0; iBinding < reflSet.binding_count; ++iBinding) {
+    const auto &reflBinding = *reflSet.bindings[iBinding];
+    auto &layout = m_layouts[iBinding];
+    layout.shaderBinding = reflBinding.binding;
+    layout.type = static_cast<vk::DescriptorType>(reflBinding.descriptor_type);
+    layout.count = 1;
+    for (uint32_t iDim = 0; iDim < reflBinding.array.dims_count; ++iDim) {
+      layout.count *= reflBinding.array.dims[iDim];
+    }
+    layout.stage = m_stageFlags;
+  }
+
+  spdlog::info("Descriptor set 0, num {}, {} bindings", reflSet.set, reflSet.binding_count);
+  for (const auto & layout : m_layouts) {
+    spdlog::info("\t[{}] count: {}, type: {}, stage: {}",
+                 layout.shaderBinding, layout.count, vk::to_string(layout.type), vk::to_string(layout.stage));
+  }
+}
+
 void ShaderModule::reflect(
   const vk::Device &device
 ) {
@@ -48,7 +84,7 @@ void ShaderModule::reflect(
     if (ep->shader_stage & SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT) {
       computePipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eCompute, m_module.get(), ep->name);
-      m_isCompute = true;
+      m_stageFlags = vk::ShaderStageFlagBits::eCompute;
       spdlog::info("\t({}, ep: {}) -> compute", i, ep->name);
       return;
     }
@@ -56,12 +92,16 @@ void ShaderModule::reflect(
     if (ep->shader_stage & SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) {
       vertexPipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eVertex, m_module.get(), ep->name);
+      m_stageFlags |= vk::ShaderStageFlagBits::eVertex;
       spdlog::info("\t({}, ep: {}) -> vertex", i, ep->name);
     }
     if (ep->shader_stage & SPV_REFLECT_SHADER_STAGE_FRAGMENT_BIT) {
       fragmentPipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eFragment, m_module.get(), ep->name);
+      m_stageFlags |= vk::ShaderStageFlagBits::eFragment;
       spdlog::info("\t({}, ep: {}) -> fragment", i, ep->name);
     }
   }
+
+  reflectDS();
 }
