@@ -135,7 +135,7 @@ void vkts::VkContext::createLogicalDevice(const VkContextConfig &config) {
   vk::DeviceCreateInfo device_create_info(
     {},
     deviceQueueCreateInfos,
-    config.requiredValidationLayers,
+    nullptr,
     config.requiredDeviceExtensions,
     &deviceFeatures
   );
