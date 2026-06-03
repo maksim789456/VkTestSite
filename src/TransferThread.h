@@ -7,6 +7,7 @@
 
 #include "StagingBuffer.h"
 #include "utils.cpp"
+#include "spdlog/mdc.h"
 
 // TODO: More universal job struct to copy into buffer
 struct TextureUploadJob {
@@ -77,6 +78,7 @@ private:
 
   void threadLoop() {
     tracy::SetThreadName("VK Transfer Thread");
+    spdlog::mdc::put("", "VK Transfer Thread");
     while (!m_stop.load()) {
       if (TextureUploadJob firstJob{}; m_queue.wait_dequeue_timed(firstJob, m_maxBatchWait)) {
         ZoneScoped;
