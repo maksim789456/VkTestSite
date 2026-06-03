@@ -42,10 +42,9 @@ void DescriptorSet::setup_layout(
     );
   }
 
-  dslFlags =
-      layoutBindingsAllFlags & vk::DescriptorBindingFlagBits::eUpdateAfterBind
-        ? dslFlags | vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool
-        : dslFlags;
+  if (layoutBindingsAllFlags & vk::DescriptorBindingFlagBits::eUpdateAfterBind) {
+    dslFlags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
+  }
 
   auto dslInfo = vk::DescriptorSetLayoutCreateInfo(dslFlags, layoutBindings);
   const auto flagsInfo = vk::DescriptorSetLayoutBindingFlagsCreateInfo(layoutBindingsFlags);
@@ -83,15 +82,15 @@ void DescriptorSet::create(
     m_descriptorSetWrites.clear();
     const auto &descriptorSet = !m_isPushDescriptor ? m_descriptorSets[i] : nullptr;
     for (const auto &layout: m_descriptorLayouts) {
-      if (layout.type == vk::DescriptorType::eUniformBuffer ||
-          layout.type == vk::DescriptorType::eStorageBuffer) {
+      if (layout.type == vk::DescriptorType::eUniformBuffer
+        || layout.type == vk::DescriptorType::eStorageBuffer) {
         auto writeInfo = vk::WriteDescriptorSet(
           descriptorSet, layout.shaderBinding, {}, layout.count, layout.type,
           {}, &layout.bufferInfos.at(i));
         m_descriptorSetWrites.push_back(writeInfo);
-      } else if (layout.type == vk::DescriptorType::eCombinedImageSampler ||
-                 layout.type == vk::DescriptorType::eInputAttachment || layout.type ==
-                 vk::DescriptorType::eStorageImage) {
+      } else if (layout.type == vk::DescriptorType::eCombinedImageSampler
+        || layout.type == vk::DescriptorType::eInputAttachment
+        || layout.type == vk::DescriptorType::eStorageImage) {
         try {
           for (int y = 0; y < layout.count; y++) {
             auto writeInfo = vk::WriteDescriptorSet(
