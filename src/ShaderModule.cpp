@@ -64,6 +64,29 @@ void ShaderModule::reflectDS() {
   }
 }
 
+void ShaderModule::reflectPS(const char* ep, vk::ShaderStageFlags stage)
+{
+  ZoneScoped;
+  uint32_t count = 0;
+  auto result = m_spvReflectModule->EnumerateEntryPointPushConstantBlocks(ep, &count, nullptr);
+  assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+  std::vector<SpvReflectBlockVariable *> pcs(count);
+  result = m_spvReflectModule->EnumerateEntryPointPushConstantBlocks(ep, &count, pcs.data());
+  assert(result == SPV_REFLECT_RESULT_SUCCESS);
+
+  for (auto* pc : pcs)
+  {
+    spdlog::info("Push const block: {} on {}", pc->name ? pc->name : "<unnamed>", ep);
+    for (uint32_t i = 0; i < pc->member_count; i++)
+    {
+      auto& m = pc->members[i];
+      spdlog::info("\tmember: {}, offset: {}, size: {}", m.name, m.offset, m.size);
+      m_pushConstantRanges.push_back(vk::PushConstantRange(stage, m.offset, m.size));
+    }
+  }
+}
+
 void ShaderModule::reflect(
   const vk::Device &device
 ) {
@@ -86,6 +109,7 @@ void ShaderModule::reflect(
         {}, vk::ShaderStageFlagBits::eCompute, m_module.get(), ep->name);
       m_stageFlags = vk::ShaderStageFlagBits::eCompute;
       spdlog::info("\t({}, ep: {}) -> compute", i, ep->name);
+      reflectPS(ep->name, m_stageFlags);
       return;
     }
 
@@ -94,12 +118,14 @@ void ShaderModule::reflect(
         {}, vk::ShaderStageFlagBits::eVertex, m_module.get(), ep->name);
       m_stageFlags |= vk::ShaderStageFlagBits::eVertex;
       spdlog::info("\t({}, ep: {}) -> vertex", i, ep->name);
+      reflectPS(ep->name, vk::ShaderStageFlagBits::eVertex);
     }
     if (ep->shader_stage & SPV_REFLECT_SHADER_STAGE_FRAGMENT_BIT) {
       fragmentPipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eFragment, m_module.get(), ep->name);
       m_stageFlags |= vk::ShaderStageFlagBits::eFragment;
       spdlog::info("\t({}, ep: {}) -> fragment", i, ep->name);
+      reflectPS(ep->name, vk::ShaderStageFlagBits::eFragment);
     }
   }
 
