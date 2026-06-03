@@ -1,6 +1,7 @@
 #include "VkTestSiteApp.h"
 #include "TracyLogSink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/mdc.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
@@ -12,6 +13,8 @@ int main() {
 
   const auto logger = std::make_shared<spdlog::logger>("def_logger", sinks.begin(), sinks.end());
   spdlog::set_default_logger(logger);
+  spdlog::mdc::put("", "Main");
+  spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%&] [%^%l%$] %v");
 
   VkTestSiteApp app{};
 

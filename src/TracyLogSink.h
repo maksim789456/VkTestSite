@@ -5,6 +5,8 @@
 
 #include <tracy/Tracy.hpp>
 #include "spdlog/sinks/base_sink.h"
+#include "spdlog/details/null_mutex.h"
+#include <mutex>
 
 template<typename Mutex>
 class tracy_sink final : public spdlog::sinks::base_sink<Mutex> {
@@ -35,9 +37,6 @@ private:
     }
   }
 };
-
-#include "spdlog/details/null_mutex.h"
-#include <mutex>
 
 using tracy_sink_mt = tracy_sink<std::mutex>;
 using tracy_sink_st = tracy_sink<spdlog::details::null_mutex>;
