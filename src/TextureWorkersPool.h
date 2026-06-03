@@ -5,6 +5,7 @@
 #include "concurrentqueue/blockingconcurrentqueue.h"
 #include "concurrentqueue/concurrentqueue.h"
 #include <stb_image.h>
+#include "spdlog/mdc.h"
 
 #include <ktx.h>
 #include <ktxvulkan.h>
@@ -98,7 +99,9 @@ private:
   moodycamel::ConcurrentQueue<TextureLoadDone> m_doneQueue;
 
   void threadLoop(const uint32_t threadIdx) {
-    tracy::SetThreadNameWithHint(std::format("Texture Worker {}", threadIdx).c_str(), UINT8_MAX);
+    const auto threadName = std::format("Texture Worker {}", threadIdx);
+    tracy::SetThreadNameWithHint(threadName.c_str(), UINT8_MAX);
+    spdlog::mdc::put("", threadName);
     while (true) {
       TextureLoadJob job{};
       m_queue.wait_dequeue(job);
