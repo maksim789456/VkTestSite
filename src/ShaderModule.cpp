@@ -82,7 +82,7 @@ void ShaderModule::reflectPS(const char* ep, vk::ShaderStageFlags stage)
     {
       auto& m = pc->members[i];
       spdlog::info("\tmember: {}, offset: {}, size: {}", m.name, m.offset, m.size);
-      m_pushConstantRanges.push_back(vk::PushConstantRange(stage, m.offset, m.size));
+      m_pushConstantRanges.emplace_back(stage, m.offset, m.size);
     }
   }
 }
