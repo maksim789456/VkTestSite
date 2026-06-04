@@ -32,7 +32,7 @@ printf("\n"); \
 
 #include "QueueFamilyIndices.cpp"
 #include "Swapchain.h"
-#include "ShaderModule.h"
+#include "pipeline/ShaderModule.h"
 #include "Vertex.h"
 #include "DescriptorPool.h"
 #include "DescriptorSet.h"
@@ -40,7 +40,7 @@ printf("\n"); \
 #include "Ubo.h"
 #include "Camera.h"
 #include "TextureManager.h"
-#include "Pipeline.h"
+#include "pipeline/Pipeline.h"
 #include "Light.h"
 #include "StagingBuffer.h"
 #include "TextureWorkersPool.h"
