@@ -14,6 +14,7 @@
 #include "DescriptorSet.h"
 #include "utils.cpp"
 
+#define SPV_WORD sizeof(uint32_t)
 struct DescriptorSetLayoutData {
   uint32_t setNumber;
   vk::DescriptorSetLayoutCreateInfo createInfo;
@@ -32,10 +33,12 @@ public:
   void reflectDS();
   void reflectPS(const char* ep, vk::ShaderStageFlags stage);
 
-  void reflect(const vk::Device &device);
+  void reflect();
   [[nodiscard]] bool isCompute() const {return static_cast<bool>(m_stageFlags & vk::ShaderStageFlagBits::eCompute);}
 
 private:
+  void loadSpv(const std::string &path);
+
   std::string m_name;
   std::vector<uint32_t> m_spv;
   vk::UniqueShaderModule m_module;

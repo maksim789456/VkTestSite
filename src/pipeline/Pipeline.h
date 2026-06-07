@@ -16,7 +16,7 @@ public:
   ): m_device(device), m_renderPass(renderPass), m_pipelineLayout(pipelineLayout), m_name(name) {
     m_shaderModule = std::make_unique<ShaderModule>();
     m_shaderModule->load(m_device, path);
-    m_shaderModule->reflect(m_device);
+    m_shaderModule->reflect();
   }
 
   PipelineBuilder &withBindingDescriptions(
