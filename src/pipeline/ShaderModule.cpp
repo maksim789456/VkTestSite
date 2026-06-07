@@ -6,26 +6,36 @@ void ShaderModule::load(
 ) {
   ZoneScoped;
   m_name = std::filesystem::path(path).filename();
-  auto file = std::ifstream(path, std::ios::binary | std::ios::ate);
+  spdlog::info("Loading shader {}", m_name);
+  loadSpv(path);
+
+  const auto info = vk::ShaderModuleCreateInfo({}, m_spv.size() * sizeof(uint32_t), m_spv.data());
+  m_module = device.createShaderModuleUnique(info);
+  setObjectName(device, m_module.get(), std::format("Shader {}", m_name));
+}
+
+void ShaderModule::loadSpv(const std::string &path) {
+  ZoneScoped;
+  std::ifstream file(path, std::ios::binary | std::ios::ate);
   if (file.fail() || !file.is_open()) {
-    spdlog::error("Failed to open shader source file");
+    spdlog::error("Failed to open shader file: {}", path);
     abort();
   }
 
   const auto fileSize = static_cast<uint32_t>(file.tellg());
-  const auto bufferSize = fileSize / sizeof(uint32_t);
-  std::vector<uint32_t> spv(bufferSize);
+  if (fileSize <= 0 || (fileSize % SPV_WORD) != 0) {
+    spdlog::error("Invalid shader file size: {}", path);
+    abort();
+  }
+  m_spv.resize(fileSize / SPV_WORD);
 
-  file.seekg(0);
-  auto *fileData = reinterpret_cast<char *>(spv.data());
-  file.read(fileData, fileSize);
+  file.seekg(0, std::ios::beg);
+  if (!file.read(reinterpret_cast<char *>(m_spv.data()), fileSize)) {
+    spdlog::error("Failed to read shader file: {}", path);
+    abort();
+  }
+
   file.close();
-
-  this->m_spv = spv;
-  const auto info = vk::ShaderModuleCreateInfo({}, spv.size() * sizeof(uint32_t), spv.data());
-  m_module = device.createShaderModuleUnique(info);
-  spdlog::info("Loading shader {}", m_name);
-  setObjectName(device, m_module.get(), std::format("Shader {}", m_name));
 }
 
 void ShaderModule::reflectDS() {
@@ -87,9 +97,7 @@ void ShaderModule::reflectPS(const char* ep, vk::ShaderStageFlags stage)
   }
 }
 
-void ShaderModule::reflect(
-  const vk::Device &device
-) {
+void ShaderModule::reflect() {
   ZoneScoped;
   spdlog::info("Reflect shader {}", m_name);
   m_spvReflectModule = std::make_unique<spv_reflect::ShaderModule>(m_spv);
