@@ -10,13 +10,13 @@ public:
   PipelineBuilder(
     const vk::Device device,
     const vk::RenderPass renderPass,
-    const vk::PipelineLayout pipelineLayout,
     const std::string &path,
     const std::string &name = "Pipeline"
-  ): m_device(device), m_renderPass(renderPass), m_pipelineLayout(pipelineLayout), m_name(name) {
+  ): m_name(name), m_device(device), m_renderPass(renderPass) {
     m_shaderModule = std::make_unique<ShaderModule>();
     m_shaderModule->load(m_device, path);
     m_shaderModule->reflect();
+    m_pipelineLayout = m_shaderModule->buildLayout(m_device);
   }
 
   PipelineBuilder &withBindingDescriptions(
@@ -77,6 +77,8 @@ public:
                                      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
     return colorAttachment;
   }
+
+  [[nodiscard]] vk::PipelineLayout getPipelineLayout() const {return m_pipelineLayout;}
 
   vk::Pipeline buildGraphics();
   vk::Pipeline buildCompute();
