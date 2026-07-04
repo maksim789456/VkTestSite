@@ -10,15 +10,18 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
+#include <map>
 
 #include "DescriptorSet.h"
 #include "utils.cpp"
 
 #define SPV_WORD sizeof(uint32_t)
-struct DescriptorSetLayoutData {
-  uint32_t setNumber;
-  vk::DescriptorSetLayoutCreateInfo createInfo;
-  std::vector<vk::DescriptorSetLayoutBinding> bindings;
+
+struct DescriptorKey {
+  uint32_t set;
+  uint32_t binding;
+
+  auto operator<=>(const DescriptorKey &) const noexcept = default;
 };
 
 class ShaderModule {
@@ -30,10 +33,11 @@ public:
   ShaderModule() = default;
   void load(const vk::Device &device, const std::string &path);
 
-  void reflectDS();
+  void reflectDS(const char* ep, vk::ShaderStageFlags stage);
   void reflectPS(const char* ep, vk::ShaderStageFlags stage);
 
   void reflect();
+  vk::PipelineLayout buildLayout(const vk::Device &device);
   [[nodiscard]] bool isCompute() const {return static_cast<bool>(m_stageFlags & vk::ShaderStageFlagBits::eCompute);}
 
 private:
@@ -44,8 +48,12 @@ private:
   vk::UniqueShaderModule m_module;
   vk::ShaderStageFlags m_stageFlags;
   std::unique_ptr<spv_reflect::ShaderModule> m_spvReflectModule;
-  std::vector<DescriptorLayout> m_layouts = {};
+
+  std::map<DescriptorKey, DescriptorLayout> m_layouts = {};
+  //std::vector<DescriptorLayout> m_layouts = {};
   std::vector<vk::PushConstantRange> m_pushConstantRanges = {};
+  vk::PipelineLayout m_pipelineLayout;
+  vk::DescriptorSetLayout m_descriptorSetLayout;
 };
 
 

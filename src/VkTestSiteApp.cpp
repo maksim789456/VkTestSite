@@ -224,7 +224,7 @@ void VkTestSiteApp::createPipeline() {
   m_geometryPipeline = PipelineBuilder(
         m_context->device(),
         m_renderPass,
-        m_geometryDescriptorSet.getPipelineLayout(),
+        //m_geometryDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/geometry.ep.slang.spv",
         "Geometry Pass Pipeline"
       )
@@ -241,7 +241,7 @@ void VkTestSiteApp::createPipeline() {
   m_lightingPipeline = PipelineBuilder(
         m_context->device(),
         m_renderPass,
-        m_lightingDescriptorSet.getPipelineLayout(),
+        //m_lightingDescriptorSet.getPipelineLayout(),
         "../res/shaders/deferred/light.ep.slang.spv",
         "Lighting Pass Pipeline"
       )
