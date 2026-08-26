@@ -12,7 +12,7 @@
       "name": "imgui",
       "default-features": false,
       "features": [
-        "glfw-binding", 
+        "glfw-binding",
         "vulkan-binding"
       ]
     },
@@ -32,7 +32,7 @@
   "overrides": [
     {
       "name": "vulkan-memory-allocator",
-      "version": "3.1.0"
+      "version": "3.3.0"
     },
     {
       "name": "fmt",
@@ -44,7 +44,7 @@
     },
     {
       "name": "assimp",
-      "version": "6.0.2"
+      "version": "6.0.4"
     },
     {
       "name": "libxcrypt",
