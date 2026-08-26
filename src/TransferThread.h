@@ -3,7 +3,7 @@
 
 #include <deque>
 #include <vulkan/vulkan.hpp>
-#include "concurrentqueue/blockingconcurrentqueue.h"
+#include <concurrentqueue/moodycamel/blockingconcurrentqueue.h>
 
 #include "StagingBuffer.h"
 #include "utils.cpp"

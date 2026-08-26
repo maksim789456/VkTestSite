@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
+#include <vulkan-memory-allocator-hpp/vk_mem_alloc_raii.hpp>
 #include <tracy/Tracy.hpp>
 #include <assimp/scene.h>
 #include <glm/ext/matrix_float4x4.hpp>
@@ -308,7 +308,7 @@ static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4 &m) {
   );
 }
 
-static std::pair<vma::UniqueImage, vma::UniqueAllocation> createImageUnique(
+static std::pair<vma::UniqueAllocation, vma::UniqueImage> createImageUnique(
   const vma::Allocator allocator,
   const uint32_t width, const uint32_t height,
   const uint32_t mipLevels,

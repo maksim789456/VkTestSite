@@ -34,7 +34,7 @@ public:
     m_bufferInfos.resize(imageCount);
 
     for (int i = 0; i < imageCount; ++i) {
-      std::tie(m_ssboBuffers[i], m_ssboAllocations[i]) = createBufferUnique(
+      std::tie(m_ssboAllocations[i], m_ssboBuffers[i]) = createBufferUnique(
         allocator, bufferSize, vk::BufferUsageFlagBits::eStorageBuffer,
         vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 

@@ -15,7 +15,7 @@ Mesh<VertexType, IndexType>::Mesh(
   const auto verticesSize = m_verticesCount * sizeof(VertexType);
 
   if (useStagingBuffer) {
-    auto [stagingBuffer, stagingBufferAlloc] = createBufferUnique(
+    auto [stagingBufferAlloc, stagingBuffer] = createBufferUnique(
       allocator,
       verticesSize,
       vk::BufferUsageFlagBits::eTransferSrc,
@@ -24,7 +24,7 @@ Mesh<VertexType, IndexType>::Mesh(
 
     fillBuffer(allocator, stagingBufferAlloc.get(), verticesSize, vertices);
 
-    std::tie(m_verticesBuffer, m_verticesBufferAlloc) = createBufferUnique(
+    std::tie(m_verticesBufferAlloc, m_verticesBuffer) = createBufferUnique(
       allocator,
       verticesSize,
       vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer,
@@ -33,7 +33,7 @@ Mesh<VertexType, IndexType>::Mesh(
 
     copyBuffer(device, graphicsQueue, commandPool, stagingBuffer.get(), m_verticesBuffer.get(), verticesSize);
   } else {
-    std::tie(m_verticesBuffer, m_verticesBufferAlloc) = createBufferUnique(
+    std::tie(m_verticesBufferAlloc, m_verticesBuffer) = createBufferUnique(
       allocator,
       verticesSize,
       vk::BufferUsageFlagBits::eVertexBuffer,
@@ -46,7 +46,7 @@ Mesh<VertexType, IndexType>::Mesh(
 
   const auto indicesSize = indices.size() * sizeof(IndexType);
   if (useStagingBuffer) {
-    auto [stagingBuffer, stagingBufferAlloc] = createBufferUnique(
+    auto [stagingBufferAlloc, stagingBuffer] = createBufferUnique(
       allocator,
       indicesSize,
       vk::BufferUsageFlagBits::eTransferSrc,
@@ -56,7 +56,7 @@ Mesh<VertexType, IndexType>::Mesh(
 
     fillBuffer(allocator, stagingBufferAlloc.get(), indicesSize, indices);
 
-    std::tie(m_indicesBuffer, m_indicesBufferAlloc) = createBufferUnique(
+    std::tie(m_indicesBufferAlloc, m_indicesBuffer) = createBufferUnique(
       allocator,
       indicesSize,
       vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer,
@@ -65,7 +65,7 @@ Mesh<VertexType, IndexType>::Mesh(
 
     copyBuffer(device, graphicsQueue, commandPool, stagingBuffer.get(), m_indicesBuffer.get(), indicesSize);
   } else {
-    std::tie(m_indicesBuffer, m_indicesBufferAlloc) = createBufferUnique(
+    std::tie(m_indicesBufferAlloc, m_indicesBuffer) = createBufferUnique(
       allocator,
       indicesSize,
       vk::BufferUsageFlagBits::eIndexBuffer,
