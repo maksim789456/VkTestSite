@@ -43,7 +43,7 @@ public:
     const vk::DeviceSize bufferSize
   ): m_device(device), m_allocator(allocator), m_bufferSize(bufferSize) {
     ZoneScoped;
-    std::tie(m_buffer, m_bufferAlloc) = createBufferUnique(
+    std::tie(m_bufferAlloc, m_buffer) = createBufferUnique(
       allocator,
       bufferSize,
       vk::BufferUsageFlagBits::eTransferSrc,

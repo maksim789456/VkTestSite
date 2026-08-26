@@ -79,7 +79,7 @@ inline Texture::Texture(
   const std::string &name
 ): width(width), height(height), mipLevels(mipLevels) {
   ZoneScoped;
-  std::tie(m_image, m_imageAlloc) = createImageUnique(
+  std::tie(m_imageAlloc, m_image) = createImageUnique(
     allocator,
     width, height, mipLevels,
     samples, format, vk::ImageTiling::eOptimal,
