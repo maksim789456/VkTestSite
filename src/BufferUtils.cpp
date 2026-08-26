@@ -1,13 +1,12 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
 #include "utils.cpp"
 
 #include <ranges>
 #include <vector>
 
-static std::pair<vk::Buffer, vma::Allocation> createBuffer(
+static std::pair<vma::Allocation, vk::Buffer> createBuffer(
   const vma::Allocator allocator,
   const vk::DeviceSize size,
   const vk::BufferUsageFlags bufferUsage,
@@ -23,7 +22,7 @@ static std::pair<vk::Buffer, vma::Allocation> createBuffer(
   return pair;
 }
 
-static std::pair<vma::UniqueBuffer, vma::UniqueAllocation> createBufferUnique(
+static std::pair<vma::UniqueAllocation, vma::UniqueBuffer> createBufferUnique(
   const vma::Allocator allocator,
   const vk::DeviceSize size,
   const vk::BufferUsageFlags bufferUsage,

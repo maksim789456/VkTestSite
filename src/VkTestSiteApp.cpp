@@ -130,10 +130,12 @@ void VkTestSiteApp::initVk() {
     vkInitInfo.Device = m_context->device();
     vkInitInfo.QueueFamily = indices.graphics;
     vkInitInfo.Queue = m_context->graphicsQueue();
-    vkInitInfo.RenderPass = m_renderPass;
+    vkInitInfo.PipelineInfoMain = {
+      .RenderPass = m_renderPass,
+      .Subpass = 1,
+      .MSAASamples = VK_SAMPLE_COUNT_1_BIT
+    };
     vkInitInfo.MinImageCount = vkInitInfo.ImageCount = MAX_FRAME_IN_FLIGHT;
-    vkInitInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    vkInitInfo.Subpass = 1;
     vkInitInfo.DescriptorPoolSize = 100;
     vkInitInfo.CheckVkResultFn = [](const VkResult err) {
       if (err != VK_SUCCESS)

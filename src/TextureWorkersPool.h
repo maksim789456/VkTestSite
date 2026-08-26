@@ -2,8 +2,8 @@
 #define TEXTUREWORKERSPOOL_H
 
 #include <vulkan/vulkan.hpp>
-#include "concurrentqueue/blockingconcurrentqueue.h"
-#include "concurrentqueue/concurrentqueue.h"
+#include <concurrentqueue/moodycamel/blockingconcurrentqueue.h>
+#include <concurrentqueue/moodycamel/concurrentqueue.h>
 #include <stb_image.h>
 #include "spdlog/mdc.h"
 
