@@ -86,12 +86,15 @@ void ShaderModule::reflectPS(const char *ep, vk::ShaderStageFlags stage) {
   assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
   for (auto *pc: pcs) {
-    spdlog::info("Push const block: {} on {}", pc->name ? pc->name : "<unnamed>", ep);
-    for (uint32_t i = 0; i < pc->member_count; i++) {
-      auto &m = pc->members[i];
-      spdlog::info("\tmember: {}, offset: {}, size: {}", m.name, m.offset, m.size);
-      m_pushConstantRanges.emplace_back(stage, m.offset, m.size);
-    }
+    spdlog::info(
+      "Push const block: {} on {}, offset={}, size={}, padded_size={}",
+      pc->name ? pc->name : "<unnamed>",
+      ep,
+      pc->offset,
+      pc->size,
+      pc->padded_size
+    );
+    m_pushConstantRanges.emplace_back(stage, pc->offset, pc->size);
   }
 }
 
