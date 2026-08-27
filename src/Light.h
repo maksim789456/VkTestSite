@@ -18,7 +18,7 @@ struct alignas(16) LightData {
   glm::vec4 info; // .x/.y = inner/outer cone angle (for spotlights), .z = linear attenuation, .w = exp attenuation
 };
 
-struct alignas(16) LightPushConsts {
+struct LightPushConsts {
   uint32_t lightCount;
 };
 
