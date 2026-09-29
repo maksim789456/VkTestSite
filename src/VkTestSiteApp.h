@@ -69,7 +69,9 @@ private:
 
   std::unique_ptr<Swapchain> m_swapchain;
   vk::RenderPass m_renderPass;
+  std::unique_ptr<ShaderModule> m_geometryShader;
   vk::Pipeline m_geometryPipeline;
+  std::unique_ptr<ShaderModule> m_lightingShader;
   vk::Pipeline m_lightingPipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
@@ -110,7 +112,8 @@ private:
   void createDepthObjets();
   void createFramebuffers();
   void createUniformBuffers();
-  void createDescriptorSet();
+
+  void createDS();
   void createCommandPool();
   void createCommandBuffers();
   void createSyncObjects();

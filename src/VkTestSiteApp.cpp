@@ -66,8 +66,8 @@ void VkTestSiteApp::initVk() {
   createCommandPool();
   createColorObjets();
   createDepthObjets();
-  createDescriptorSet();
   createPipeline();
+  createDS();
   const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
     m_commandPool, vk::CommandBufferLevel::eSecondary, MAX_FRAME_IN_FLIGHT
   );
@@ -223,11 +223,17 @@ void VkTestSiteApp::createRenderPass() {
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
+  m_geometryShader = std::make_unique<ShaderModule>(
+    m_context->device(),
+    "../res/shaders/deferred/geometry.ep.slang.spv"
+  );
+  m_geometryDescriptorSet = DescriptorSet(
+    m_context->device(), m_descriptorPool.getDescriptorPool(), MAX_FRAME_IN_FLIGHT, *m_geometryShader);
   m_geometryPipeline = PipelineBuilder(
         m_context->device(),
         m_renderPass,
-        //m_geometryDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/geometry.ep.slang.spv",
+        *m_geometryShader,
+        m_geometryDescriptorSet.getPipelineLayout(),
         "Geometry Pass Pipeline"
       )
       .withBindingDescriptions({Vertex::GetBindingDescription()})
@@ -240,11 +246,17 @@ void VkTestSiteApp::createPipeline() {
       .withSubpass(0)
       .buildGraphics();
 
+  m_lightingShader = std::make_unique<ShaderModule>(
+    m_context->device(),
+    "../res/shaders/deferred/light.ep.slang.spv"
+  );
+  m_lightingDescriptorSet = DescriptorSet(
+    m_context->device(), m_descriptorPool.getDescriptorPool(), MAX_FRAME_IN_FLIGHT, *m_lightingShader);
   m_lightingPipeline = PipelineBuilder(
         m_context->device(),
         m_renderPass,
-        //m_lightingDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/light.ep.slang.spv",
+        *m_lightingShader,
+        m_lightingDescriptorSet.getPipelineLayout(),
         "Lighting Pass Pipeline"
       )
       .depthStencil(false, false, vk::CompareOp::eAlways)
@@ -327,78 +339,26 @@ void VkTestSiteApp::createUniformBuffers() {
   }
 }
 
-void VkTestSiteApp::createDescriptorSet() {
+void VkTestSiteApp::createDS() {
   ZoneScoped;
 
-  const auto lightsDescriptor = DescriptorLayout{
-    .type = vk::DescriptorType::eStorageBuffer,
-    .stage = vk::ShaderStageFlagBits::eFragment,
-    .bindingFlags = {},
-    .shaderBinding = 1,
-    .count = 1,
-    .imageInfos = {},
-    .bufferInfos = m_lightManager->getBufferInfos()
-  };
+  m_geometryDescriptorSet.updateBuffers(m_context->device(), 0, m_uniform->getBufferInfos());
+  m_lightingDescriptorSet.updateBuffers(m_context->device(), 0, m_uniform->getBufferInfos());
+  m_lightingDescriptorSet.updateBuffers(m_context->device(), 1, m_lightManager->getBufferInfos(),
+                                  vk::DescriptorType::eStorageBuffer);
 
-  m_geometryDescriptorSet = DescriptorSet(
-    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain->imageViews.size(),
-    {
-      m_uniform->getDescriptorLayout(),
-      DescriptorLayout{
-        .type = vk::DescriptorType::eCombinedImageSampler,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound |
-                        vk::DescriptorBindingFlagBits::eUpdateAfterBind,
-        .shaderBinding = 1,
-        .count = MAX_TEXTURE_PER_DESCRIPTOR,
-        .imageInfos = {},
-        .bufferInfos = {}
-      }
-    }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
-    });
-
-  m_lightingDescriptorSet = DescriptorSet(
-    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain->imageViews.size(),
-    {
-      m_uniform->getDescriptorLayout(),
-      lightsDescriptor,
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 2,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 3,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 4,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-    }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eFragment, 0, sizeof(LightPushConsts)) // Lights count
-    });
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 2, 0,
+    vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 3, 0,
+    vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 4, 0,
+    vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
 }
 
 void VkTestSiteApp::createCommandPool() {
@@ -558,11 +518,11 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     m_renderFinished[m_currentFrame]);
   m_context->graphicsQueue().submit(submitInfo, m_inFlight[m_currentFrame]);
 
-  executeSingleTimeCommands(
+  /*executeSingleTimeCommands(
     m_context->device(), m_context->graphicsQueue(), m_commandPool,
     [&](const vk::CommandBuffer cmd) {
       //m_vkContext->Collect(cmd);
-    });
+    });*/
 
   isSwapchainDirty = m_swapchain->present(m_renderFinished[m_currentFrame]);
   if (isSwapchainDirty) {
