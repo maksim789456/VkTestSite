@@ -1,6 +1,6 @@
 #include "ShaderModule.h"
 
-void ShaderModule::load(
+ShaderModule::ShaderModule(
   const vk::Device &device,
   const std::string &path
 ) {
@@ -12,6 +12,8 @@ void ShaderModule::load(
   const auto info = vk::ShaderModuleCreateInfo({}, m_spv.size() * sizeof(uint32_t), m_spv.data());
   m_module = device.createShaderModuleUnique(info);
   setObjectName(device, m_module.get(), std::format("Shader {}", m_name));
+
+  reflect();
 }
 
 void ShaderModule::loadSpv(const std::string &path) {
@@ -146,36 +148,4 @@ void ShaderModule::reflect() {
                  layout.first.binding, layout.first.set, layout.second.count, vk::to_string(layout.second.type),
                  vk::to_string(layout.second.stage));
   }
-}
-
-vk::PipelineLayout ShaderModule::buildLayout(
-  const vk::Device &device
-) {
-  auto layoutBindingsFlags = std::vector<vk::DescriptorBindingFlags>();
-  auto layoutBindingsAllFlags = vk::DescriptorBindingFlags{};
-  auto layoutBindings = std::vector<vk::DescriptorSetLayoutBinding>();
-  for (const auto &layout: m_layouts) {
-    layoutBindingsAllFlags |= layout.second.bindingFlags;
-    layoutBindingsFlags.emplace_back(layout.second.bindingFlags);
-    layoutBindings.emplace_back(
-      layout.second.shaderBinding, layout.second.type, layout.second.count, layout.second.stage
-    );
-  }
-
-  auto dslFlags = vk::DescriptorSetLayoutCreateFlags();
-  if (layoutBindingsAllFlags & vk::DescriptorBindingFlagBits::eUpdateAfterBind) {
-    dslFlags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
-  }
-
-  auto dslInfo = vk::DescriptorSetLayoutCreateInfo(dslFlags, layoutBindings);
-  const auto flagsInfo = vk::DescriptorSetLayoutBindingFlagsCreateInfo(layoutBindingsFlags);
-  dslInfo.pNext = &flagsInfo;
-  m_descriptorSetLayout = device.createDescriptorSetLayout(dslInfo);
-  setObjectName(device, m_descriptorSetLayout, std::format("{} layout", m_name));
-
-  const auto plInfo = vk::PipelineLayoutCreateInfo({}, m_descriptorSetLayout, m_pushConstantRanges);
-  m_pipelineLayout = device.createPipelineLayout(plInfo);
-  setObjectName(device, m_pipelineLayout, std::format("{} pipeline layout", m_name));
-
-  return m_pipelineLayout;
 }
