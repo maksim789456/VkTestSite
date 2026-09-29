@@ -20,7 +20,7 @@ public:
   ~UniformBuffer() = default;
 
   [[nodiscard]] const vk::DescriptorBufferInfo &getBufferInfo(const uint32_t imageIdx) const { return buffersInfo[imageIdx]; };
-  [[nodiscard]] const DescriptorLayout& getDescriptorLayout() const { return dsLayout; };
+  [[nodiscard]] const std::vector<vk::DescriptorBufferInfo> &getBufferInfos() const { return buffersInfo; };
 
   void map(const uint32_t imageIdx, const UBO &ubo);
 
