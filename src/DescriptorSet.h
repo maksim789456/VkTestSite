@@ -3,11 +3,13 @@
 
 #include <vulkan/vulkan.hpp>
 
+#include "pipeline/ShaderModule.h"
 #include "DescriptorLayout.h"
 #include "utils.cpp"
 
-  std::vector<vk::DescriptorImageInfo> imageInfos;
-  std::vector<vk::DescriptorBufferInfo> bufferInfos;
+enum DescriptorSetSource {
+  Manual,
+  Shader
 };
 
 class DescriptorSet {
@@ -24,11 +26,27 @@ public:
     vk::DescriptorSetLayoutCreateFlags dslFlags = {}
   );
 
+  DescriptorSet(
+    const vk::Device &device,
+    const vk::DescriptorPool &descriptorPool,
+    uint32_t descriptorSetCount,
+    ShaderModule &shader,
+    const std::string &name = "Descriptor Set",
+    vk::DescriptorSetLayoutCreateFlags dslFlags = {}
+  );
+
   void bind(
     const vk::CommandBuffer &commandBuffer,
     uint32_t currentFrameIdx,
     const std::vector<uint32_t> &dynamicOffsets,
-    const vk::PipelineBindPoint bindPoint = vk::PipelineBindPoint::eGraphics
+    vk::PipelineBindPoint bindPoint = vk::PipelineBindPoint::eGraphics
+  ) const;
+
+  void updateBuffers(
+    const vk::Device &device,
+    uint32_t shaderBinding,
+    const std::vector<vk::DescriptorBufferInfo> &bufferInfos,
+    vk::DescriptorType type = vk::DescriptorType::eUniformBuffer
   ) const;
 
   void updateTexture(
@@ -36,7 +54,7 @@ public:
     uint32_t shaderBinding,
     uint32_t textureIndex,
     const vk::DescriptorImageInfo &imageInfo,
-    const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler
+    vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler
   ) const;
 
   [[nodiscard]] const vk::PipelineLayout &getPipelineLayout() const;
@@ -48,6 +66,7 @@ private:
   std::vector<DescriptorLayout> m_descriptorLayouts;
   //std::vector<vk::DescriptorSetLayoutBinding> m_layoutsBindings;
   bool m_isPushDescriptor = false;
+  DescriptorSetSource m_source = Manual;
 
   vk::PipelineLayout m_pipelineLayout;
   vk::DescriptorSetLayout m_descriptorSetLayout;
