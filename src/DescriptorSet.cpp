@@ -8,10 +8,22 @@ DescriptorSet::DescriptorSet(
   const std::vector<vk::PushConstantRange> &push_consts,
   const std::string &name,
   vk::DescriptorSetLayoutCreateFlags dslFlags
-) {
-  m_descriptorSetCount = descriptorSetCount;
+) : m_descriptorSetCount(descriptorSetCount) {
   m_isPushDescriptor = static_cast<bool>(dslFlags & vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor);
   setup_layout(device, layouts, push_consts, name, dslFlags);
+  create(device, descriptorPool, name);
+}
+
+DescriptorSet::DescriptorSet(
+  const vk::Device &device,
+  const vk::DescriptorPool &descriptorPool,
+  const uint32_t descriptorSetCount,
+  ShaderModule &shader,
+  const std::string &name,
+  vk::DescriptorSetLayoutCreateFlags dslFlags
+) : m_descriptorSetCount(descriptorSetCount), m_source(Shader) {
+  const auto layouts = std::views::values(shader.getDSLayouts());
+  setup_layout(device, std::vector(layouts.begin(), layouts.end()), shader.getDSPushConsts(), name, dslFlags);
   create(device, descriptorPool, name);
 }
 
@@ -78,19 +90,23 @@ void DescriptorSet::create(
     }
   }
 
+  // Don't initial fill DS if it created from ShaderModule, we don't need writes
+  if (m_source == Shader)
+    return;
+
   for (uint32_t i = 0; i < m_descriptorSetCount; i++) {
     m_descriptorSetWrites.clear();
     const auto &descriptorSet = !m_isPushDescriptor ? m_descriptorSets[i] : nullptr;
     for (const auto &layout: m_descriptorLayouts) {
       if (layout.type == vk::DescriptorType::eUniformBuffer
-        || layout.type == vk::DescriptorType::eStorageBuffer) {
+          || layout.type == vk::DescriptorType::eStorageBuffer) {
         auto writeInfo = vk::WriteDescriptorSet(
           descriptorSet, layout.shaderBinding, {}, layout.count, layout.type,
           {}, &layout.bufferInfos.at(i));
         m_descriptorSetWrites.push_back(writeInfo);
       } else if (layout.type == vk::DescriptorType::eCombinedImageSampler
-        || layout.type == vk::DescriptorType::eInputAttachment
-        || layout.type == vk::DescriptorType::eStorageImage) {
+                 || layout.type == vk::DescriptorType::eInputAttachment
+                 || layout.type == vk::DescriptorType::eStorageImage) {
         try {
           for (int y = 0; y < layout.count; y++) {
             auto writeInfo = vk::WriteDescriptorSet(
@@ -133,6 +149,26 @@ void DescriptorSet::bind(
       dynamicOffsets
     );
   }
+}
+
+void DescriptorSet::updateBuffers(
+  const vk::Device &device,
+  uint32_t shaderBinding,
+  const std::vector<vk::DescriptorBufferInfo> &bufferInfos,
+  vk::DescriptorType type
+) const {
+  auto writes = std::vector<vk::WriteDescriptorSet>{};
+  for (int i = 0; i < m_descriptorSets.size(); ++i) {
+    const auto ds = m_descriptorSets[i];
+    auto write = vk::WriteDescriptorSet(
+      ds,
+      shaderBinding,
+      {}, 1, type,
+      {}, &bufferInfos.at(i));
+    writes.push_back(write);
+  }
+
+  device.updateDescriptorSets(writes, {});
 }
 
 void DescriptorSet::updateTexture(
