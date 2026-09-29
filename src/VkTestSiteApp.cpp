@@ -4,6 +4,7 @@
 #define WINDOW_HEIGHT 720
 #define MAX_FRAME_IN_FLIGHT 3
 #define MAX_MATERIAL_PER_DESCRIPTOR 64
+#define STAGING_BUFFER_SIZE 128 * 1024 * 1024 // 128 MB
 
 const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -66,8 +67,8 @@ void VkTestSiteApp::initVk() {
   createCommandPool();
   createColorObjets();
   createDepthObjets();
-  createDescriptorSet();
   createPipeline();
+  fillDS();
   const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
     m_commandPool, vk::CommandBufferLevel::eSecondary, MAX_FRAME_IN_FLIGHT
   );
@@ -76,8 +77,7 @@ void VkTestSiteApp::initVk() {
   createCommandBuffers();
   createSyncObjects();
   const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
-  m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), 128 * 1024 * 1024);
-  // 64 MB
+  m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), STAGING_BUFFER_SIZE);
   m_transferThread = std::make_unique<TransferThread>(m_context->device(), m_context->transferQueue(), indices.transfer,
                                                       *m_stagingBuffer);
   m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_context->device(), m_context->allocator(),
@@ -223,11 +223,17 @@ void VkTestSiteApp::createRenderPass() {
 
 void VkTestSiteApp::createPipeline() {
   ZoneScoped;
+  m_geometryShader = std::make_unique<ShaderModule>(
+    m_context->device(),
+    "../res/shaders/deferred/geometry.ep.slang.spv"
+  );
+  m_geometryDescriptorSet = DescriptorSet(
+    m_context->device(), m_descriptorPool.getDescriptorPool(), MAX_FRAME_IN_FLIGHT, *m_geometryShader);
   m_geometryPipeline = PipelineBuilder(
         m_context->device(),
         m_renderPass,
-        //m_geometryDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/geometry.ep.slang.spv",
+        *m_geometryShader,
+        m_geometryDescriptorSet.getPipelineLayout(),
         "Geometry Pass Pipeline"
       )
       .withBindingDescriptions({Vertex::GetBindingDescription()})
@@ -240,11 +246,17 @@ void VkTestSiteApp::createPipeline() {
       .withSubpass(0)
       .buildGraphics();
 
+  m_lightingShader = std::make_unique<ShaderModule>(
+    m_context->device(),
+    "../res/shaders/deferred/light.ep.slang.spv"
+  );
+  m_lightingDescriptorSet = DescriptorSet(
+    m_context->device(), m_descriptorPool.getDescriptorPool(), MAX_FRAME_IN_FLIGHT, *m_lightingShader);
   m_lightingPipeline = PipelineBuilder(
         m_context->device(),
         m_renderPass,
-        //m_lightingDescriptorSet.getPipelineLayout(),
-        "../res/shaders/deferred/light.ep.slang.spv",
+        *m_lightingShader,
+        m_lightingDescriptorSet.getPipelineLayout(),
         "Lighting Pass Pipeline"
       )
       .depthStencil(false, false, vk::CompareOp::eAlways)
@@ -317,88 +329,34 @@ void VkTestSiteApp::createFramebuffers() {
 
 void VkTestSiteApp::createUniformBuffers() {
   ZoneScoped;
-  for (size_t i = 0; i < MAX_FRAME_IN_FLIGHT; ++i) {
-    m_uniform = std::make_unique<UniformBuffer<UniformBufferObject> >(
-      m_context->allocator(),
-      MAX_FRAME_IN_FLIGHT,
-      vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-      0
-    );
-  }
+  m_uniform = std::make_unique<UniformBuffer<UniformBufferObject> >(
+    m_context->allocator(),
+    MAX_FRAME_IN_FLIGHT,
+    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+    0
+  );
 }
 
-void VkTestSiteApp::createDescriptorSet() {
+void VkTestSiteApp::fillDS() {
   ZoneScoped;
 
-  const auto lightsDescriptor = DescriptorLayout{
-    .type = vk::DescriptorType::eStorageBuffer,
-    .stage = vk::ShaderStageFlagBits::eFragment,
-    .bindingFlags = {},
-    .shaderBinding = 1,
-    .count = 1,
-    .imageInfos = {},
-    .bufferInfos = m_lightManager->getBufferInfos()
-  };
+  m_geometryDescriptorSet.updateBuffers(m_context->device(), 0, m_uniform->getBufferInfos());
+  m_lightingDescriptorSet.updateBuffers(m_context->device(), 0, m_uniform->getBufferInfos());
+  m_lightingDescriptorSet.updateBuffers(m_context->device(), 1, m_lightManager->getBufferInfos(),
+                                        vk::DescriptorType::eStorageBuffer);
 
-  m_geometryDescriptorSet = DescriptorSet(
-    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain->imageViews.size(),
-    {
-      m_uniform->getDescriptorLayout(),
-      DescriptorLayout{
-        .type = vk::DescriptorType::eCombinedImageSampler,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound |
-                        vk::DescriptorBindingFlagBits::eUpdateAfterBind,
-        .shaderBinding = 1,
-        .count = MAX_TEXTURE_PER_DESCRIPTOR,
-        .imageInfos = {},
-        .bufferInfos = {}
-      }
-    }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eVertex, 0, sizeof(ModelPushConsts))
-    });
-
-  m_lightingDescriptorSet = DescriptorSet(
-    m_context->device(), m_descriptorPool.getDescriptorPool(), m_swapchain->imageViews.size(),
-    {
-      m_uniform->getDescriptorLayout(),
-      lightsDescriptor,
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 2,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 3,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-      DescriptorLayout{
-        .type = vk::DescriptorType::eInputAttachment,
-        .stage = vk::ShaderStageFlagBits::eFragment,
-        .bindingFlags = {},
-        .shaderBinding = 4,
-        .count = 1,
-        .imageInfos = {
-          vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal)
-        },
-        .bufferInfos = {}
-      },
-    }, {
-      vk::PushConstantRange(vk::ShaderStageFlagBits::eFragment, 0, sizeof(LightPushConsts)) // Lights count
-    });
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 2, 0,
+    vk::DescriptorImageInfo({}, m_depth->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 3, 0,
+    vk::DescriptorImageInfo({}, m_albedo->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
+  m_lightingDescriptorSet.updateTexture(
+    m_context->device(), 4, 0,
+    vk::DescriptorImageInfo({}, m_normal->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal),
+    vk::DescriptorType::eInputAttachment);
 }
 
 void VkTestSiteApp::createCommandPool() {
@@ -558,11 +516,11 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
     m_renderFinished[m_currentFrame]);
   m_context->graphicsQueue().submit(submitInfo, m_inFlight[m_currentFrame]);
 
-  executeSingleTimeCommands(
+  /*executeSingleTimeCommands(
     m_context->device(), m_context->graphicsQueue(), m_commandPool,
     [&](const vk::CommandBuffer cmd) {
       //m_vkContext->Collect(cmd);
-    });
+    });*/
 
   isSwapchainDirty = m_swapchain->present(m_renderFinished[m_currentFrame]);
   if (isSwapchainDirty) {
@@ -723,6 +681,8 @@ void VkTestSiteApp::cleanup() {
 
   m_context->device().destroyPipeline(m_geometryPipeline);
   m_context->device().destroyPipeline(m_lightingPipeline);
+  m_geometryShader.reset();
+  m_lightingShader.reset();
   m_context->device().destroyRenderPass(m_renderPass);
 
   if (m_modelLoaded)
