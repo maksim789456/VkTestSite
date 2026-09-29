@@ -4,6 +4,7 @@
 #define WINDOW_HEIGHT 720
 #define MAX_FRAME_IN_FLIGHT 3
 #define MAX_MATERIAL_PER_DESCRIPTOR 64
+#define STAGING_BUFFER_SIZE 128 * 1024 * 1024 // 128 MB
 
 const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -67,7 +68,7 @@ void VkTestSiteApp::initVk() {
   createColorObjets();
   createDepthObjets();
   createPipeline();
-  createDS();
+  fillDS();
   const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
     m_commandPool, vk::CommandBufferLevel::eSecondary, MAX_FRAME_IN_FLIGHT
   );
@@ -76,8 +77,7 @@ void VkTestSiteApp::initVk() {
   createCommandBuffers();
   createSyncObjects();
   const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
-  m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), 128 * 1024 * 1024);
-  // 64 MB
+  m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), STAGING_BUFFER_SIZE);
   m_transferThread = std::make_unique<TransferThread>(m_context->device(), m_context->transferQueue(), indices.transfer,
                                                       *m_stagingBuffer);
   m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_context->device(), m_context->allocator(),
@@ -329,23 +329,21 @@ void VkTestSiteApp::createFramebuffers() {
 
 void VkTestSiteApp::createUniformBuffers() {
   ZoneScoped;
-  for (size_t i = 0; i < MAX_FRAME_IN_FLIGHT; ++i) {
-    m_uniform = std::make_unique<UniformBuffer<UniformBufferObject> >(
-      m_context->allocator(),
-      MAX_FRAME_IN_FLIGHT,
-      vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-      0
-    );
-  }
+  m_uniform = std::make_unique<UniformBuffer<UniformBufferObject> >(
+    m_context->allocator(),
+    MAX_FRAME_IN_FLIGHT,
+    vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+    0
+  );
 }
 
-void VkTestSiteApp::createDS() {
+void VkTestSiteApp::fillDS() {
   ZoneScoped;
 
   m_geometryDescriptorSet.updateBuffers(m_context->device(), 0, m_uniform->getBufferInfos());
   m_lightingDescriptorSet.updateBuffers(m_context->device(), 0, m_uniform->getBufferInfos());
   m_lightingDescriptorSet.updateBuffers(m_context->device(), 1, m_lightManager->getBufferInfos(),
-                                  vk::DescriptorType::eStorageBuffer);
+                                        vk::DescriptorType::eStorageBuffer);
 
   m_lightingDescriptorSet.updateTexture(
     m_context->device(), 2, 0,
@@ -683,6 +681,8 @@ void VkTestSiteApp::cleanup() {
 
   m_context->device().destroyPipeline(m_geometryPipeline);
   m_context->device().destroyPipeline(m_lightingPipeline);
+  m_geometryShader.reset();
+  m_lightingShader.reset();
   m_context->device().destroyRenderPass(m_renderPass);
 
   if (m_modelLoaded)
