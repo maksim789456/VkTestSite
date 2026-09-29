@@ -2,7 +2,7 @@
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
-#define MAX_FRAME_IN_FLIGHT 2 //0..2 -> 3 frames
+#define MAX_FRAME_IN_FLIGHT 3
 #define MAX_MATERIAL_PER_DESCRIPTOR 64
 
 const std::vector DEVICE_EXTENSIONS = {
@@ -62,14 +62,14 @@ void VkTestSiteApp::initVk() {
   createUniformBuffers();
   m_descriptorPool = DescriptorPool(m_context->device());
   m_lightManager = std::make_unique<LightManager>(
-    m_context->allocator(), m_swapchain->imageViews.size());
+    m_context->allocator(), MAX_FRAME_IN_FLIGHT);
   createCommandPool();
   createColorObjets();
   createDepthObjets();
   createDescriptorSet();
   createPipeline();
   const auto lightCmdsInfo = vk::CommandBufferAllocateInfo(
-    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain->imageViews.size()
+    m_commandPool, vk::CommandBufferLevel::eSecondary, MAX_FRAME_IN_FLIGHT
   );
   m_lightingCommandBuffers = m_context->device().allocateCommandBuffersUnique(lightCmdsInfo);
   createFramebuffers();
@@ -149,7 +149,7 @@ void VkTestSiteApp::initVk() {
   }
 
   const auto imguiCmdsInfo = vk::CommandBufferAllocateInfo(
-    m_commandPool, vk::CommandBufferLevel::eSecondary, m_swapchain->imageViews.size()
+    m_commandPool, vk::CommandBufferLevel::eSecondary, MAX_FRAME_IN_FLIGHT
   );
   m_imguiCommandBuffers = m_context->device().allocateCommandBuffersUnique(imguiCmdsInfo);
 }
@@ -317,10 +317,10 @@ void VkTestSiteApp::createFramebuffers() {
 
 void VkTestSiteApp::createUniformBuffers() {
   ZoneScoped;
-  for (size_t i = 0; i < m_swapchain->imageViews.size(); ++i) {
+  for (size_t i = 0; i < MAX_FRAME_IN_FLIGHT; ++i) {
     m_uniform = std::make_unique<UniformBuffer<UniformBufferObject> >(
       m_context->allocator(),
-      m_swapchain->imageViews.size(),
+      MAX_FRAME_IN_FLIGHT,
       vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
       0
     );
@@ -412,13 +412,13 @@ void VkTestSiteApp::createCommandPool() {
 void VkTestSiteApp::createCommandBuffers() {
   ZoneScoped;
   const auto commandBufInfo = vk::CommandBufferAllocateInfo(m_commandPool, vk::CommandBufferLevel::ePrimary,
-                                                            m_swapchain->imageViews.size());
+                                                            MAX_FRAME_IN_FLIGHT);
   m_commandBuffers = m_context->device().allocateCommandBuffers(commandBufInfo);
 }
 
 void VkTestSiteApp::createSyncObjects() {
   constexpr auto fenceInfo = vk::FenceCreateInfo(vk::FenceCreateFlagBits::eSignaled);
-  for (int i = 0; i < m_swapchain->imageViews.size(); ++i) {
+  for (int i = 0; i < MAX_FRAME_IN_FLIGHT; ++i) {
     m_inFlight.push_back(m_context->device().createFence(fenceInfo));
     m_imageAvailable.push_back(m_context->device().createSemaphore(vk::SemaphoreCreateInfo()));
     m_renderFinished.push_back(m_context->device().createSemaphore(vk::SemaphoreCreateInfo()));
@@ -455,7 +455,7 @@ void VkTestSiteApp::mainLoop() {
         m_model = std::make_unique<Model>(
           m_context->device(), m_context->graphicsQueue(), m_commandPool, m_context->allocator(), *m_texManager,
           *m_lightManager, pathStr);
-        m_model->createCommandBuffers(m_context->device(), m_commandPool, m_swapchain->imageViews.size());
+        m_model->createCommandBuffers(m_context->device(), m_commandPool, MAX_FRAME_IN_FLIGHT);
         m_modelLoaded = true;
       }
     }
@@ -547,14 +547,14 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   }
 
   m_camera->onUpdate(deltaTime);
-  updateUniformBuffer(imageIndex);
-  recordCommandBuffer(draw_data, m_commandBuffers[imageIndex], imageIndex);
+  updateUniformBuffer(m_currentFrame);
+  recordCommandBuffer(draw_data, m_commandBuffers[m_currentFrame], m_currentFrame, imageIndex);
 
   vk::PipelineStageFlags pipelineStageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
   const auto submitInfo = vk::SubmitInfo(
     m_imageAvailable[m_currentFrame],
     pipelineStageFlags,
-    m_commandBuffers[imageIndex],
+    m_commandBuffers[m_currentFrame],
     m_renderFinished[m_currentFrame]);
   m_context->graphicsQueue().submit(submitInfo, m_inFlight[m_currentFrame]);
 
@@ -572,7 +572,7 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
 
   m_context->presentQueue().waitIdle();
 
-  m_currentFrame = imageIndex;
+  m_currentFrame = (m_currentFrame + 1) % MAX_FRAME_IN_FLIGHT;
 }
 
 void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
@@ -587,7 +587,7 @@ void VkTestSiteApp::updateUniformBuffer(uint32_t imageIndex) {
 }
 
 void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::CommandBuffer &commandBuffer,
-                                        uint32_t imageIndex) {
+                                        uint32_t localImageIdx, uint32_t presentImageIdx) {
   ZoneScoped;
   commandBuffer.reset();
   commandBuffer.begin(vk::CommandBufferBeginInfo());
@@ -600,20 +600,21 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   auto normalClearValue = vk::ClearValue(vk::ClearColorValue(0.5f, 0.5f, 1.0f, 1.0f));
   auto depthClearValue = vk::ClearValue(vk::ClearDepthStencilValue(0.0f, 0));
   auto clearValues = {depthClearValue, albedoClearValue, normalClearValue, colorClearValue};
-  const auto beginInfo = vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[imageIndex], renderArea, clearValues);
+  const auto beginInfo =
+      vk::RenderPassBeginInfo(m_renderPass, m_framebuffers[presentImageIdx], renderArea, clearValues);
 
   commandBuffer.beginRenderPass(beginInfo, vk::SubpassContents::eSecondaryCommandBuffers); {
     // Model temp render
     if (m_modelLoaded) {
       auto modelCmd = m_model->cmdDraw(
         *m_vkContext,
-        m_framebuffers[imageIndex],
+        m_framebuffers[presentImageIdx],
         m_renderPass,
         m_geometryPipeline,
         *m_swapchain,
         m_geometryDescriptorSet,
         0,
-        imageIndex
+        localImageIdx
       );
 
       commandBuffer.executeCommands(modelCmd);
@@ -621,8 +622,8 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
   }
   commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers); {
     //Light subpass
-    auto lightCmd = m_lightingCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
+    auto lightCmd = m_lightingCommandBuffers[localImageIdx].get();
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[presentImageIdx]);
     auto lightBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
@@ -632,7 +633,7 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       m_swapchain->cmdSetViewport(lightCmd);
       m_swapchain->cmdSetScissor(lightCmd);
       lightCmd.bindPipeline(vk::PipelineBindPoint::eGraphics, m_lightingPipeline);
-      m_lightingDescriptorSet.bind(lightCmd, imageIndex, {});
+      m_lightingDescriptorSet.bind(lightCmd, localImageIdx, {});
       auto lightPush = LightPushConsts{.lightCount = m_lightManager->getCount()};
       lightCmd.pushConstants(m_lightingDescriptorSet.getPipelineLayout(), vk::ShaderStageFlagBits::eFragment, 0,
                              sizeof(lightPush), &lightPush);
@@ -642,8 +643,8 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
     commandBuffer.executeCommands(lightCmd);
   } {
     // ImGUI Secondary Cmd record -> exec
-    auto imguiCmd = m_imguiCommandBuffers[imageIndex].get();
-    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[imageIndex]);
+    auto imguiCmd = m_imguiCommandBuffers[localImageIdx].get();
+    auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[presentImageIdx]);
     auto imguiBeginInfo = vk::CommandBufferBeginInfo(
       vk::CommandBufferUsageFlagBits::eRenderPassContinue | vk::CommandBufferUsageFlagBits::eSimultaneousUse,
       &inheritanceInfo);
@@ -706,7 +707,7 @@ void VkTestSiteApp::cleanup() {
   TracyVkDestroy(m_vkContext);
 #endif
 
-  for (int i = 0; i < m_swapchain->imageViews.size(); ++i) {
+  for (int i = 0; i < MAX_FRAME_IN_FLIGHT; ++i) {
     m_context->device().destroyFence(m_inFlight[i]);
     m_context->device().destroySemaphore(m_imageAvailable[i]);
     m_context->device().destroySemaphore(m_renderFinished[i]);
