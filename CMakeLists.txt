@@ -23,6 +23,7 @@ target_include_directories(VkTestSite PRIVATE "${CMAKE_SOURCE_DIR}/src")
 target_include_directories(VkTestSite PRIVATE
         ${CMAKE_BINARY_DIR}/generated
 )
+include(CMake/Shaders.cmake)
 
 include(CMake/Dependencies.cmake)
 
