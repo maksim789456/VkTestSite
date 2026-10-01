@@ -405,8 +405,9 @@ void VkTestSiteApp::mainLoop() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
+#ifndef NDEBUG
     ImGui::ShowDemoWindow();
+#endif
     ImGui::Begin("Test menu");
     ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_Once);
     const auto cameraPos = m_camera->getViewPos();
@@ -428,6 +429,7 @@ void VkTestSiteApp::mainLoop() {
       m_modelLoaded = false;
     }
 
+#ifndef NDEBUG
     if (m_modelLoaded && ImGui::Button("Dump VMA stats")) {
       char *statsString = nullptr;
       vmaBuildStatsString(m_context->allocator(), &statsString, true); {
@@ -437,6 +439,7 @@ void VkTestSiteApp::mainLoop() {
       }
       vmaFreeStatsString(m_context->allocator(), statsString);
     }
+#endif
 
     ImGui::Separator();
     ImGui::Text("Select G-Buffer Debug Output");
