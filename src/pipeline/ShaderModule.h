@@ -32,12 +32,16 @@ public:
 
   ShaderModule(const vk::Device &device, const std::string &path);
 
+  ShaderModule(const vk::Device &device, const std::string &name, const uint32_t *spv, size_t spvSizeInBytes);
+
   [[nodiscard]] bool isCompute() const {return static_cast<bool>(m_stageFlags & vk::ShaderStageFlagBits::eCompute);}
 
   [[nodiscard]] std::map<DescriptorKey, DescriptorLayout> getDSLayouts() const {return m_layouts;}
   [[nodiscard]] std::vector<vk::PushConstantRange> getDSPushConsts() const {return m_pushConstantRanges;}
 private:
   void loadSpv(const std::string &path);
+
+  void makeModule(const vk::Device &device);
 
   void reflectDS(const char* ep, vk::ShaderStageFlags stage);
   void reflectPS(const char* ep, vk::ShaderStageFlags stage);

@@ -9,10 +9,20 @@ ShaderModule::ShaderModule(
   spdlog::info("Loading shader {}", m_name);
   loadSpv(path);
 
-  const auto info = vk::ShaderModuleCreateInfo({}, m_spv.size() * sizeof(uint32_t), m_spv.data());
-  m_module = device.createShaderModuleUnique(info);
-  setObjectName(device, m_module.get(), std::format("Shader {}", m_name));
+  makeModule(device);
+  reflect();
+}
 
+ShaderModule::ShaderModule(
+  const vk::Device &device,
+  const std::string &name,
+  const uint32_t *spv,
+  const size_t spvSizeInBytes
+): m_name(name) {
+  m_spv.assign(spv, spv + spvSizeInBytes / SPV_WORD);
+  spdlog::info("Loading shader {}", m_name);
+
+  makeModule(device);
   reflect();
 }
 
@@ -38,6 +48,12 @@ void ShaderModule::loadSpv(const std::string &path) {
   }
 
   file.close();
+}
+
+void ShaderModule::makeModule(const vk::Device &device) {
+  const auto info = vk::ShaderModuleCreateInfo({}, m_spv.size() * sizeof(uint32_t), m_spv.data());
+  m_module = device.createShaderModuleUnique(info);
+  setObjectName(device, m_module.get(), std::format("Shader {}", m_name));
 }
 
 void ShaderModule::reflectDS(const char *ep, vk::ShaderStageFlags stage) {
