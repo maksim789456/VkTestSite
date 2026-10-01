@@ -37,9 +37,9 @@ struct FSOutput
 [shader("vertex")]
 VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
 {
-    float4 worldPos = mul(pushModel, float4(input.Pos, 1.0));
+    float4 worldPos = mul(float4(input.Pos, 1.0), pushModel);
     VSOutput out;
-    out.Pos = mul(ubo.viewProj, worldPos);
+    out.Pos = mul(worldPos, ubo.viewProj);
     out.WorldPos = worldPos.xyz;
     out.Normal = input.Normal;
     out.TexCoord = input.TexCoord;
