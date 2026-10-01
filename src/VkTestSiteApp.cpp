@@ -225,7 +225,10 @@ void VkTestSiteApp::createPipeline() {
   ZoneScoped;
   m_geometryShader = std::make_unique<ShaderModule>(
     m_context->device(),
-    "../res/shaders/deferred/geometry.ep.slang.spv"
+    // "../res/shaders/deferred/geometry.ep.slang.spv"
+    "geometry.ep.slang",
+    geometry_ep_slang,
+    geometry_ep_slang_sizeInBytes
   );
   m_geometryDescriptorSet = DescriptorSet(
     m_context->device(), m_descriptorPool.getDescriptorPool(), MAX_FRAME_IN_FLIGHT, *m_geometryShader);
@@ -248,7 +251,10 @@ void VkTestSiteApp::createPipeline() {
 
   m_lightingShader = std::make_unique<ShaderModule>(
     m_context->device(),
-    "../res/shaders/deferred/light.ep.slang.spv"
+    // "../res/shaders/deferred/light.ep.slang.spv",
+    "light.ep.slang.spv",
+    light_ep_slang,
+    light_ep_slang_sizeInBytes
   );
   m_lightingDescriptorSet = DescriptorSet(
     m_context->device(), m_descriptorPool.getDescriptorPool(), MAX_FRAME_IN_FLIGHT, *m_lightingShader);

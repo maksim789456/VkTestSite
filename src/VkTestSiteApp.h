@@ -47,6 +47,9 @@ printf("\n"); \
 #include "TransferThread.h"
 #include "core/VkContext.h"
 
+#include "../_autogen/geometry.ep.slang.h"
+#include "../_autogen/light.ep.slang.h"
+
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
   glm::mat4 viewProj;
