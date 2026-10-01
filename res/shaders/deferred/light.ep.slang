@@ -56,7 +56,7 @@ float4 fragmentMain(VSOutput input, uniform uint pushLightCount) : SV_Target
     float depth = depthInput.SubpassLoad().r;
     float4 ndc = float4(input.UV * 2.0f - 1.0f, depth, 1.0);
 
-    float4 worldPosH = mul(ubo.invViewProj, ndc);
+    float4 worldPosH = mul(ndc, ubo.invViewProj);
     float3 fragPos = worldPosH.xyz / worldPosH.w;
 
     float3 normal = normalize(normalInput.SubpassLoad().rgb);
