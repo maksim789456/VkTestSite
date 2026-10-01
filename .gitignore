@@ -2,3 +2,4 @@
 /cmake-build-*/
 **/*.spv
 lib/*
+_autogen/
