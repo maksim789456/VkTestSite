@@ -636,7 +636,10 @@ void VkTestSiteApp::recreateSwapchain() {
     glfwWaitEvents();
   }
 
-  spdlog::debug("Recreating swapchain");
+  spdlog::debug("Recreating swapchain ({}x{} -> {}x{})",
+                m_swapchain->extent.width, m_swapchain->extent.height,
+                width, height
+  );
   m_context->device().waitIdle();
   cleanupSwapchain();
 

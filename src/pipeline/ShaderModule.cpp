@@ -104,7 +104,7 @@ void ShaderModule::reflectPS(const char *ep, vk::ShaderStageFlags stage) {
   assert(result == SPV_REFLECT_RESULT_SUCCESS);
 
   for (auto *pc: pcs) {
-    spdlog::info(
+    spdlog::debug(
       "Push const block: {} on {}, offset={}, size={}, padded_size={}",
       pc->name ? pc->name : "<unnamed>",
       ep,
@@ -135,7 +135,7 @@ void ShaderModule::reflect() {
       computePipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eCompute, m_module.get(), ep->name);
       m_stageFlags = vk::ShaderStageFlagBits::eCompute;
-      spdlog::info("\t({}, ep: {}) -> compute", i, ep->name);
+      spdlog::debug("\t({}, ep: {}) -> compute", i, ep->name);
       reflectPS(ep->name, m_stageFlags);
       reflectDS(ep->name, m_stageFlags);
       return;
@@ -145,7 +145,7 @@ void ShaderModule::reflect() {
       vertexPipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eVertex, m_module.get(), ep->name);
       m_stageFlags |= vk::ShaderStageFlagBits::eVertex;
-      spdlog::info("\t({}, ep: {}) -> vertex", i, ep->name);
+      spdlog::debug("\t({}, ep: {}) -> vertex", i, ep->name);
       reflectPS(ep->name, vk::ShaderStageFlagBits::eVertex);
       reflectDS(ep->name, vk::ShaderStageFlagBits::eVertex);
     }
@@ -153,14 +153,14 @@ void ShaderModule::reflect() {
       fragmentPipelineInfo = vk::PipelineShaderStageCreateInfo(
         {}, vk::ShaderStageFlagBits::eFragment, m_module.get(), ep->name);
       m_stageFlags |= vk::ShaderStageFlagBits::eFragment;
-      spdlog::info("\t({}, ep: {}) -> fragment", i, ep->name);
+      spdlog::debug("\t({}, ep: {}) -> fragment", i, ep->name);
       reflectPS(ep->name, vk::ShaderStageFlagBits::eFragment);
       reflectDS(ep->name, vk::ShaderStageFlagBits::eFragment);
     }
   }
 
   for (const auto &layout: m_layouts) {
-    spdlog::info("\t[{}, {}] count: {}, type: {}, stage: {}",
+    spdlog::debug("\t[{}, {}] count: {}, type: {}, stage: {}",
                  layout.first.binding, layout.first.set, layout.second.count, vk::to_string(layout.second.type),
                  vk::to_string(layout.second.stage));
   }

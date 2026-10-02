@@ -14,6 +14,11 @@ int main() {
   const auto logger = std::make_shared<spdlog::logger>("def_logger", sinks.begin(), sinks.end());
   spdlog::set_default_logger(logger);
   spdlog::mdc::put("", "Main");
+#ifdef DEBUG
+  spdlog::set_level(spdlog::level::trace);
+#else
+  spdlog::set_level(spdlog::level::info);
+#endif
   spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%&] [%^%l%$] %v");
 
   VkTestSiteApp app{};
