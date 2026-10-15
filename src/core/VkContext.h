@@ -47,6 +47,7 @@ namespace vkts {
     [[nodiscard]] vk::Device device() const { return m_device.get(); }
     [[nodiscard]] vma::Allocator allocator() const { return m_allocator.get(); }
     [[nodiscard]] vk::SurfaceKHR surface() const { return m_surface.get(); }
+    [[nodiscard]] QueueFamilyIndices *queueFamilyIndices() const {return m_queueFamilyIndices.get();}
     [[nodiscard]] vk::Queue &graphicsQueue() const { return *m_graphicsQueue; }
     [[nodiscard]] vk::Queue &transferQueue() const { return *m_transferQueue; }
     [[nodiscard]] vk::Queue &presentQueue() const { return *m_presentQueue; }
@@ -75,6 +76,7 @@ namespace vkts {
     vk::UniqueSurfaceKHR m_surface;
     vma::UniqueAllocator m_allocator;
 
+    std::unique_ptr<QueueFamilyIndices> m_queueFamilyIndices;
     std::unique_ptr<vk::Queue> m_graphicsQueue;
     std::unique_ptr<vk::Queue> m_presentQueue;
     std::unique_ptr<vk::Queue> m_transferQueue;

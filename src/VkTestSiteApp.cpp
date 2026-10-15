@@ -128,7 +128,7 @@ void VkTestSiteApp::initVk() {
     vkInitInfo.Instance = m_context->instance();
     vkInitInfo.PhysicalDevice = m_context->physicalDevice();
     vkInitInfo.Device = m_context->device();
-    vkInitInfo.QueueFamily = indices.graphics;
+    vkInitInfo.QueueFamily = *indices.graphics;
     vkInitInfo.Queue = m_context->graphicsQueue();
     vkInitInfo.PipelineInfoMain = {
       .RenderPass = m_renderPass,
