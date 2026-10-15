@@ -417,7 +417,11 @@ static void cmdTransitionImageLayout2(
   const vk::Image &image,
   const vk::ImageLayout oldLayout,
   const vk::ImageLayout newLayout,
-  const vk::ImageSubresourceRange &subresource
+  const vk::ImageSubresourceRange &subresource,
+  const uint32_t srcQueueFamilyInx = VK_QUEUE_FAMILY_IGNORED,
+  const uint32_t dstQueueFamilyInx = VK_QUEUE_FAMILY_IGNORED,
+  const bool srcRelease = false,
+  const bool dstRelease = false
 ) {
   auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
     -> std::tuple<vk::AccessFlagBits2, vk::AccessFlagBits2, vk::PipelineStageFlagBits2, vk::PipelineStageFlagBits2> {
@@ -450,12 +454,20 @@ static void cmdTransitionImageLayout2(
         }
         throw std::runtime_error("Unsupported image layout transition!");
       }();
+  if (srcRelease) {
+    srcAccessMask = vk::AccessFlagBits2::eNone;
+    srcStageMask = vk::PipelineStageFlagBits2::eNone;
+  }
+  if (dstRelease) {
+    dstAccessMask = vk::AccessFlagBits2::eNone;
+    dstStageMask = vk::PipelineStageFlagBits2::eNone;
+  }
 
   const auto barrier = vk::ImageMemoryBarrier2(
     srcStageMask, srcAccessMask,
     dstStageMask, dstAccessMask,
     oldLayout, newLayout,
-    VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+    srcQueueFamilyInx, dstQueueFamilyInx,
     image, subresource
   );
   auto dep = vk::DependencyInfo();
