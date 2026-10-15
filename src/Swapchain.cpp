@@ -66,7 +66,7 @@ std::vector<vk::ImageView> create_swapchain_image_views(
 
 Swapchain::Swapchain(const vkts::VkContext &context) : m_context(context) {
   ZoneScoped;
-  auto indices = QueueFamilyIndices(context.surface(), context.physicalDevice());
+  auto indices = *m_context.queueFamilyIndices();
   auto format_khr = get_swapchain_surface_format(context.surface(), context.physicalDevice());
   this->format = format_khr.format;
   auto present_mode = vk::PresentModeKHR::eFifo;
@@ -82,8 +82,8 @@ Swapchain::Swapchain(const vkts::VkContext &context) : m_context(context) {
   std::vector<uint32_t> queue_family_indices{};
   vk::SharingMode sharing_mode{};
   if (indices.graphics != indices.present) {
-    queue_family_indices.push_back(indices.graphics);
-    queue_family_indices.push_back(indices.present);
+    queue_family_indices.push_back(*indices.graphics);
+    queue_family_indices.push_back(*indices.present);
     sharing_mode = vk::SharingMode::eConcurrent;
   } else {
     sharing_mode = vk::SharingMode::eExclusive;

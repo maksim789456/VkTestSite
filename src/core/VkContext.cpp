@@ -20,6 +20,7 @@ void vkts::VkContext::init(
   m_surface = vk::UniqueSurfaceKHR(surface_tmp, m_instance.get());
 
   pickPhysicalDevice(config);
+  m_queueFamilyIndices = std::make_unique<QueueFamilyIndices>(m_surface.get(), m_physicalDevice);
   createLogicalDevice(config);
   createQueues();
   createAllocator(config);
@@ -83,15 +84,13 @@ void vkts::VkContext::pickPhysicalDevice(const VkContextConfig &config) {
 
 void vkts::VkContext::createLogicalDevice(const VkContextConfig &config) {
   ZoneScoped;
-  auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
-
   std::vector<vk::DeviceQueueCreateInfo> deviceQueueCreateInfos;
   std::vector<std::vector<float> > queuePrioritiesStorage;
-  std::set queueFamilies = {indices.graphics, indices.present, indices.transfer};
+  std::set queueFamilies = {*m_queueFamilyIndices->graphics, *m_queueFamilyIndices->present, *m_queueFamilyIndices->transfer};
 
   for (uint32_t queueFamilyIndex: queueFamilies) {
     uint32_t count = 1;
-    if (queueFamilyIndex == indices.graphics && !indices.isTransferQueueSeparated()) {
+    if (queueFamilyIndex == m_queueFamilyIndices->graphics && !m_queueFamilyIndices->isTransferQueueSeparated()) {
       count = 2;
     }
 
@@ -150,11 +149,15 @@ void vkts::VkContext::createLogicalDevice(const VkContextConfig &config) {
 
 void vkts::VkContext::createQueues() {
   ZoneScoped;
-  const auto indices = QueueFamilyIndices(m_surface.get(), m_physicalDevice);
-  m_graphicsQueue = std::make_unique<vk::Queue>(m_device->getQueue(indices.graphics, 0));
-  m_presentQueue = std::make_unique<vk::Queue>(m_device->getQueue(indices.present, 0));
+  const auto indices = *m_queueFamilyIndices;
+  spdlog::debug("Make queues:");
+  m_graphicsQueue = std::make_unique<vk::Queue>(m_device->getQueue(*indices.graphics, 0));
+  spdlog::debug("\tGraphics queue on family {}, index 0", *indices.graphics);
+  m_presentQueue = std::make_unique<vk::Queue>(m_device->getQueue(*indices.present, 0));
+  spdlog::debug("\tPresent queue on family {}, index 0", *indices.present);
   m_transferQueue = std::make_unique<vk::Queue>(
-    m_device->getQueue(indices.transfer, indices.isTransferQueueSeparated() ? 0 : 1));
+    m_device->getQueue(*indices.transfer, indices.isTransferQueueSeparated() ? 0 : 1));
+  spdlog::debug("\tTransfer queue on family {}, index {}", *indices.transfer, indices.isTransferQueueSeparated() ? 0 : 1);
 }
 
 void vkts::VkContext::createAllocator(const VkContextConfig &config) {
