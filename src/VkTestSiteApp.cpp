@@ -78,8 +78,8 @@ void VkTestSiteApp::initVk() {
   createSyncObjects();
   const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
   m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), STAGING_BUFFER_SIZE);
-  m_transferThread = std::make_unique<TransferThread>(m_context->device(), m_context->transferQueue(), indices.transfer,
-                                                      *m_stagingBuffer);
+  m_transferThread = std::make_unique<TransferThread>(m_context->device(), m_context->transferQueue(), *indices.transfer,
+                                                      *m_stagingBuffer, *m_context->queueFamilyIndices());
   m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_context->device(), m_context->allocator(),
                                                             *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
@@ -369,7 +369,7 @@ void VkTestSiteApp::createCommandPool() {
   ZoneScoped;
   const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
 
-  const auto poolInfo = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, indices.graphics);
+  const auto poolInfo = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, *indices.graphics);
   m_commandPool = m_context->device().createCommandPool(poolInfo);
 }
 

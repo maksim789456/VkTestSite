@@ -6,6 +6,7 @@
 #include <concurrentqueue/moodycamel/blockingconcurrentqueue.h>
 
 #include "StagingBuffer.h"
+#include "QueueFamilyIndices.cpp"
 #include "utils.cpp"
 #include "spdlog/mdc.h"
 
@@ -33,8 +34,10 @@ public:
     const vk::Device device,
     const vk::Queue transferQueue,
     const uint32_t transferQueueFamilyIndex,
-    StagingBuffer &stagingBuffer
-  ): m_device(device), m_transferQueue(transferQueue), m_stagingBuffer(stagingBuffer), m_stop(false) {
+    StagingBuffer &stagingBuffer,
+    QueueFamilyIndices &familyIndices
+  ) : m_device(device), m_transferQueue(transferQueue), m_stagingBuffer(stagingBuffer), m_stop(false),
+      m_familyIndices(familyIndices) {
     ZoneScoped;
     const auto transferPoolInfo = vk::CommandPoolCreateInfo(
       vk::CommandPoolCreateFlagBits::eResetCommandBuffer, transferQueueFamilyIndex);
@@ -75,6 +78,7 @@ private:
   std::atomic_bool m_stop;
 
   std::chrono::microseconds m_maxBatchWait = std::chrono::microseconds(2000);
+  QueueFamilyIndices &m_familyIndices;
 
   void threadLoop() {
     tracy::SetThreadName("VK Transfer Thread");
@@ -117,13 +121,26 @@ private:
         m_stagingBuffer.getBuffer(), job.dstImage,
         vk::ImageLayout::eTransferDstOptimal, job.region);
 
-      cmdTransitionImageLayout2(
-        m_cmdBuff.get(),
-        job.dstImage,
-        vk::ImageLayout::eTransferDstOptimal,
-        job.dstImageLayout,
-        job.subresourceRange
-      );
+      if (m_familyIndices.isTransferQueueSeparated()) {
+        cmdTransitionImageLayout2(
+          m_cmdBuff.get(),
+          job.dstImage,
+          vk::ImageLayout::eTransferDstOptimal,
+          job.dstImageLayout,
+          job.subresourceRange,
+          *m_familyIndices.transfer,
+          *m_familyIndices.graphics,
+          false, true
+        );
+      } else {
+        cmdTransitionImageLayout2(
+          m_cmdBuff.get(),
+          job.dstImage,
+          vk::ImageLayout::eTransferDstOptimal,
+          job.dstImageLayout,
+          job.subresourceRange
+        );
+      }
     }
 
     m_cmdBuff->end();
