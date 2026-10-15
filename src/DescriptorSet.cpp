@@ -9,6 +9,7 @@ DescriptorSet::DescriptorSet(
   const std::string &name,
   vk::DescriptorSetLayoutCreateFlags dslFlags
 ) : m_descriptorSetCount(descriptorSetCount) {
+  ZoneScoped;
   m_isPushDescriptor = static_cast<bool>(dslFlags & vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor);
   setup_layout(device, layouts, push_consts, name, dslFlags);
   create(device, descriptorPool, name);
@@ -22,6 +23,7 @@ DescriptorSet::DescriptorSet(
   const std::string &name,
   vk::DescriptorSetLayoutCreateFlags dslFlags
 ) : m_descriptorSetCount(descriptorSetCount), m_source(Shader) {
+  ZoneScoped;
   const auto layouts = std::views::values(shader.getDSLayouts());
   setup_layout(device, std::vector(layouts.begin(), layouts.end()), shader.getDSPushConsts(), name, dslFlags);
   create(device, descriptorPool, name);
@@ -41,6 +43,7 @@ void DescriptorSet::setup_layout(
   const std::string &name,
   vk::DescriptorSetLayoutCreateFlags dslFlags
 ) {
+  ZoneScoped;
   m_descriptorLayouts = layouts;
 
   auto layoutBindingsFlags = std::vector<vk::DescriptorBindingFlags>();
@@ -80,6 +83,7 @@ void DescriptorSet::create(
   const vk::DescriptorPool &descriptorPool,
   const std::string &name
 ) {
+  ZoneScoped;
   if (!m_isPushDescriptor) {
     const auto setLayouts = std::vector(m_descriptorSetCount, m_descriptorSetLayout);
     const auto info = vk::DescriptorSetAllocateInfo(descriptorPool, setLayouts);
@@ -133,6 +137,7 @@ void DescriptorSet::bind(
   const std::vector<uint32_t> &dynamicOffsets,
   const vk::PipelineBindPoint bindPoint
 ) const {
+  ZoneScoped;
   if (m_isPushDescriptor) {
     commandBuffer.pushDescriptorSetKHR(
       bindPoint,
@@ -157,6 +162,7 @@ void DescriptorSet::updateBuffers(
   const std::vector<vk::DescriptorBufferInfo> &bufferInfos,
   vk::DescriptorType type
 ) const {
+  ZoneScoped;
   auto writes = std::vector<vk::WriteDescriptorSet>{};
   for (int i = 0; i < m_descriptorSets.size(); ++i) {
     const auto ds = m_descriptorSets[i];
@@ -178,6 +184,7 @@ void DescriptorSet::updateTexture(
   const vk::DescriptorImageInfo &imageInfo,
   const vk::DescriptorType type
 ) const {
+  ZoneScoped;
   for (auto &descriptorSet: m_descriptorSets) {
     const auto write = vk::WriteDescriptorSet(
       descriptorSet,

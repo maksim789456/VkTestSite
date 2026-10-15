@@ -231,7 +231,12 @@ void VkTestSiteApp::createPipeline() {
     geometry_ep_slang_sizeInBytes
   );
   m_geometryDescriptorSet = DescriptorSet(
-    m_context->device(), m_descriptorPool.getDescriptorPool(), MAX_FRAME_IN_FLIGHT, *m_geometryShader);
+    m_context->device(),
+    m_descriptorPool.getDescriptorPool(),
+    MAX_FRAME_IN_FLIGHT,
+    *m_geometryShader,
+    "Geometry DS"
+    );
   m_geometryPipeline = PipelineBuilder(
         m_context->device(),
         m_renderPass,
