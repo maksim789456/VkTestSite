@@ -1,5 +1,7 @@
 #include "ShaderModule.h"
 
+#include "Texture.h"
+
 ShaderModule::ShaderModule(
   const vk::Device &device,
   const std::string &path
@@ -18,7 +20,7 @@ ShaderModule::ShaderModule(
   const std::string &name,
   const uint32_t *spv,
   const size_t spvSizeInBytes
-): m_name(name) {
+) : m_name(name) {
   m_spv.assign(spv, spv + spvSizeInBytes / SPV_WORD);
   spdlog::info("Loading shader {}", m_name);
 
@@ -77,15 +79,20 @@ void ShaderModule::reflectDS(const char *ep, vk::ShaderStageFlags stage) {
         .try_emplace(key, DescriptorLayout{});
     auto &layout = it->second;
 
+    const bool isRuntimeArray =
+        reflBinding->array.dims_count > 0
+        && reflBinding->array.dims[0] == SPV_REFLECT_ARRAY_DIM_RUNTIME;
+
     layout.shaderBinding = reflBinding->binding;
     layout.type = static_cast<vk::DescriptorType>(reflBinding->descriptor_type);
     layout.count = 1;
     for (uint32_t iDim = 0; iDim < reflBinding->array.dims_count; ++iDim) {
       layout.count *= reflBinding->array.dims[iDim];
     }
-    if (reflBinding->array.dims_count > 0
-        && reflBinding->array.dims[0] == SPV_REFLECT_ARRAY_DIM_RUNTIME) {
-      layout.count = 1;
+
+    // Special case for texture buffer
+    if (isRuntimeArray && layout.type == vk::DescriptorType::eCombinedImageSampler) {
+      layout.count = MAX_TEXTURE_PER_DESCRIPTOR;
       layout.bindingFlags = vk::DescriptorBindingFlagBits::ePartiallyBound
                             | vk::DescriptorBindingFlagBits::eUpdateAfterBind;
     }
@@ -161,7 +168,7 @@ void ShaderModule::reflect() {
 
   for (const auto &layout: m_layouts) {
     spdlog::debug("\t[{}, {}] count: {}, type: {}, stage: {}",
-                 layout.first.binding, layout.first.set, layout.second.count, vk::to_string(layout.second.type),
-                 vk::to_string(layout.second.stage));
+                  layout.first.binding, layout.first.set, layout.second.count, vk::to_string(layout.second.type),
+                  vk::to_string(layout.second.stage));
   }
 }
