@@ -139,7 +139,7 @@ private:
         &width,
         &height,
         &channels,
-        0
+        4
       );
       if (!origPixels) {
         throw std::runtime_error("Failed to load texture image: " + job.filepath.string());
@@ -166,18 +166,11 @@ private:
 
     auto alloc = m_stagingBuffer.allocateBlocking(targetSize); {
       ZoneScopedN("Staging texture data copy");
-      //memcpy(alloc.mapped, pixels.data(), pixels.size());
-      auto *mappedBytes = static_cast<std::uint8_t *>(alloc.mapped);
 
       if (channels == 4) {
         memcpy(alloc.mapped, origPixels, originalSize);
-      } else if (channels == 3) {
-        for (int i = 0; i < width * height; ++i) {
-          mappedBytes[i * 4 + 0] = origPixels[i * 3 + 0];
-          mappedBytes[i * 4 + 1] = origPixels[i * 3 + 1];
-          mappedBytes[i * 4 + 2] = origPixels[i * 3 + 2];
-          mappedBytes[i * 4 + 3] = 255;
-        }
+      } else {
+        spdlog::error("Texture {}: stbi_load return alt channel count {}", job.filepath.c_str(), channels);
       }
     } {
       ZoneScopedN("Free stbi ptr");
