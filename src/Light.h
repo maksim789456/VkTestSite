@@ -62,6 +62,10 @@ public:
   [[nodiscard]] std::vector<std::string> getNames() const { return m_lightsNames; }
 
   void addLight(const LightData &light, const std::string &name = "Light") {
+    if (m_lights.size() == MAX_LIGHTS) { //TODO: Move to dynamic count
+      spdlog::warn("Max lights count reached!");
+      return;
+    }
     m_lights.emplace_back(light);
     m_lightsNames.emplace_back(name);
   }

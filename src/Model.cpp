@@ -137,6 +137,7 @@ void Model::processMaterials(
 }
 
 void Model::processLight(LightManager &lightManager, const aiScene *scene) {
+  ZoneScoped;
   for (int i = 0; i < scene->mNumLights; ++i) {
     const aiLight *sceneLight = scene->mLights[i];
     LightData light{};
