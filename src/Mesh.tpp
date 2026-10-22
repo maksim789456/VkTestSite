@@ -11,7 +11,7 @@ Mesh<VertexType, IndexType>::Mesh(
   const bool useStagingBuffer) : m_useStaging(useStagingBuffer) {
   m_indicesCount = indices.size();
   m_verticesCount = vertices.size();
-  spdlog::info("Create mesh (vert: {}; indices: {})", m_verticesCount, m_indicesCount);
+  spdlog::debug("Create mesh (vert: {}; indices: {})", m_verticesCount, m_indicesCount);
   const auto verticesSize = m_verticesCount * sizeof(VertexType);
 
   if (useStagingBuffer) {
@@ -82,7 +82,9 @@ void Mesh<VertexType, IndexType>::update(
   const std::vector<VertexType> &vertices,
   const std::vector<IndexType> &indices
 ) {
-  if (m_useStaging || true) {
+  if (m_useStaging) {
     throw std::runtime_error("Cannot update device only buffers!");
   }
+
+  //TODO:
 }
