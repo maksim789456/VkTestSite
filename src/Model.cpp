@@ -55,11 +55,14 @@ Model::Model(
     modelPath.string(),
     aiProcess_Triangulate
     | aiProcess_JoinIdenticalVertices
+    | aiProcess_ImproveCacheLocality
     | aiProcess_GenNormals
     | aiProcess_CalcTangentSpace
   );
-  if (!scene)
-    throw std::runtime_error("Import of model failed");
+  if (!scene) {
+    spdlog::error("Import of model {} failed!", modelPath.string());
+    return;
+  }
 
   const auto modelParent = modelPath.parent_path();
   processMaterials(textureManager, scene, modelParent);
