@@ -48,6 +48,8 @@ private:
 
   void reflect();
 
+  static void checkResult(SpvReflectResult result, const char* what, const char* ep);
+
   std::string m_name;
   std::vector<uint32_t> m_spv;
   vk::UniqueShaderModule m_module;

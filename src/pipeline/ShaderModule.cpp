@@ -61,13 +61,12 @@ void ShaderModule::makeModule(const vk::Device &device) {
 void ShaderModule::reflectDS(const char *ep, vk::ShaderStageFlags stage) {
   ZoneScoped;
   uint32_t count = 0;
-  auto result = m_spvReflectModule->EnumerateEntryPointDescriptorBindings(ep, &count, nullptr);
-  assert(result == SPV_REFLECT_RESULT_SUCCESS);
+  checkResult(m_spvReflectModule->EnumerateEntryPointDescriptorBindings(ep, &count, nullptr),
+              "EnumerateEntryPointDescriptorBindings(count)", ep);
 
   std::vector<SpvReflectDescriptorBinding *> bindings(count);
-  result = m_spvReflectModule->EnumerateEntryPointDescriptorBindings(ep, &count, bindings.data());
-  assert(result == SPV_REFLECT_RESULT_SUCCESS);
-
+  checkResult(m_spvReflectModule->EnumerateEntryPointDescriptorBindings(ep, &count, bindings.data()),
+              "EnumerateEntryPointDescriptorBindings", ep);
 
   for (const auto *reflBinding: bindings) {
     DescriptorKey key{
@@ -103,12 +102,12 @@ void ShaderModule::reflectDS(const char *ep, vk::ShaderStageFlags stage) {
 void ShaderModule::reflectPS(const char *ep, vk::ShaderStageFlags stage) {
   ZoneScoped;
   uint32_t count = 0;
-  auto result = m_spvReflectModule->EnumerateEntryPointPushConstantBlocks(ep, &count, nullptr);
-  assert(result == SPV_REFLECT_RESULT_SUCCESS);
+  checkResult(m_spvReflectModule->EnumerateEntryPointPushConstantBlocks(ep, &count, nullptr),
+              "EnumerateEntryPointPushConstantBlocks(count)", ep);
 
   std::vector<SpvReflectBlockVariable *> pcs(count);
-  result = m_spvReflectModule->EnumerateEntryPointPushConstantBlocks(ep, &count, pcs.data());
-  assert(result == SPV_REFLECT_RESULT_SUCCESS);
+  checkResult(m_spvReflectModule->EnumerateEntryPointPushConstantBlocks(ep, &count, pcs.data()),
+              "EnumerateEntryPointPushConstantBlocks", ep);
 
   for (auto *pc: pcs) {
     spdlog::debug(
@@ -170,5 +169,13 @@ void ShaderModule::reflect() {
     spdlog::debug("\t[{}, {}] count: {}, type: {}, stage: {}",
                   layout.first.binding, layout.first.set, layout.second.count, vk::to_string(layout.second.type),
                   vk::to_string(layout.second.stage));
+  }
+}
+
+void ShaderModule::checkResult(const SpvReflectResult result, const char *what, const char *ep) {
+  if (result != SPV_REFLECT_RESULT_SUCCESS) {
+    spdlog::error("spirv-reflect {} failed for ep {} (result {})",
+                  what, ep, static_cast<int>(result));
+    abort();
   }
 }
