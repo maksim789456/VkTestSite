@@ -153,7 +153,6 @@ private:
   vma::Allocator m_allocator;
   std::vector<LightData> m_lights = {};
   std::vector<std::string> m_lightsNames = {};
-  bool m_uiOpen = true;
 
   std::vector<vma::UniqueBuffer> m_ssboBuffers = {};
   std::vector<vma::UniqueAllocation> m_ssboAllocations = {};
