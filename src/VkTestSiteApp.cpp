@@ -650,6 +650,7 @@ void VkTestSiteApp::recreateSwapchain() {
   cleanupSwapchain();
 
   m_swapchain = std::make_unique<Swapchain>(*m_context);
+  m_camera->updateViewport(m_swapchain->extent);
   createColorObjets();
   createDepthObjets();
   createFramebuffers();
