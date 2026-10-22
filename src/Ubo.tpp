@@ -17,7 +17,7 @@ UniformBuffer<UBO>::UniformBuffer(
   buffersInfo.resize(imagesCount);
 
   for (int i = 0; i < imagesCount; ++i) {
-    std::tie(buffers[i], buffersAlloc[i]) =
+    std::tie(buffersAlloc[i], buffers[i]) =
         createBufferUnique(allocator, bufferSize, vk::BufferUsageFlagBits::eUniformBuffer,
                            vma::MemoryUsage::eAuto,
                            vma::AllocationCreateFlagBits::eMapped |

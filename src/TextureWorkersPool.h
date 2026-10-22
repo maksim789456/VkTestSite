@@ -2,9 +2,10 @@
 #define TEXTUREWORKERSPOOL_H
 
 #include <vulkan/vulkan.hpp>
-#include "concurrentqueue/blockingconcurrentqueue.h"
-#include "concurrentqueue/concurrentqueue.h"
+#include <concurrentqueue/moodycamel/blockingconcurrentqueue.h>
+#include <concurrentqueue/moodycamel/concurrentqueue.h>
 #include <stb_image.h>
+#include "spdlog/mdc.h"
 
 #include <ktx.h>
 #include <ktxvulkan.h>
@@ -98,7 +99,9 @@ private:
   moodycamel::ConcurrentQueue<TextureLoadDone> m_doneQueue;
 
   void threadLoop(const uint32_t threadIdx) {
-    tracy::SetThreadNameWithHint(std::format("Texture Worker {}", threadIdx).c_str(), UINT8_MAX);
+    const auto threadName = std::format("Texture Worker {}", threadIdx);
+    tracy::SetThreadNameWithHint(threadName.c_str(), UINT8_MAX);
+    spdlog::mdc::put("", threadName);
     while (true) {
       TextureLoadJob job{};
       m_queue.wait_dequeue(job);
@@ -136,7 +139,7 @@ private:
         &width,
         &height,
         &channels,
-        0
+        4
       );
       if (!origPixels) {
         throw std::runtime_error("Failed to load texture image: " + job.filepath.string());
@@ -163,18 +166,11 @@ private:
 
     auto alloc = m_stagingBuffer.allocateBlocking(targetSize); {
       ZoneScopedN("Staging texture data copy");
-      //memcpy(alloc.mapped, pixels.data(), pixels.size());
-      auto *mappedBytes = static_cast<std::uint8_t *>(alloc.mapped);
 
       if (channels == 4) {
         memcpy(alloc.mapped, origPixels, originalSize);
-      } else if (channels == 3) {
-        for (int i = 0; i < width * height; ++i) {
-          mappedBytes[i * 4 + 0] = origPixels[i * 3 + 0];
-          mappedBytes[i * 4 + 1] = origPixels[i * 3 + 1];
-          mappedBytes[i * 4 + 2] = origPixels[i * 3 + 2];
-          mappedBytes[i * 4 + 3] = 255;
-        }
+      } else {
+        spdlog::error("Texture {}: stbi_load return alt channel count {}", job.filepath.c_str(), channels);
       }
     } {
       ZoneScopedN("Free stbi ptr");

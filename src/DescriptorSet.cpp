@@ -8,10 +8,24 @@ DescriptorSet::DescriptorSet(
   const std::vector<vk::PushConstantRange> &push_consts,
   const std::string &name,
   vk::DescriptorSetLayoutCreateFlags dslFlags
-) {
-  m_descriptorSetCount = descriptorSetCount;
+) : m_descriptorSetCount(descriptorSetCount) {
+  ZoneScoped;
   m_isPushDescriptor = static_cast<bool>(dslFlags & vk::DescriptorSetLayoutCreateFlagBits::ePushDescriptor);
   setup_layout(device, layouts, push_consts, name, dslFlags);
+  create(device, descriptorPool, name);
+}
+
+DescriptorSet::DescriptorSet(
+  const vk::Device &device,
+  const vk::DescriptorPool &descriptorPool,
+  const uint32_t descriptorSetCount,
+  ShaderModule &shader,
+  const std::string &name,
+  vk::DescriptorSetLayoutCreateFlags dslFlags
+) : m_descriptorSetCount(descriptorSetCount), m_source(Shader) {
+  ZoneScoped;
+  const auto layouts = std::views::values(shader.getDSLayouts());
+  setup_layout(device, std::vector(layouts.begin(), layouts.end()), shader.getDSPushConsts(), name, dslFlags);
   create(device, descriptorPool, name);
 }
 
@@ -29,6 +43,7 @@ void DescriptorSet::setup_layout(
   const std::string &name,
   vk::DescriptorSetLayoutCreateFlags dslFlags
 ) {
+  ZoneScoped;
   m_descriptorLayouts = layouts;
 
   auto layoutBindingsFlags = std::vector<vk::DescriptorBindingFlags>();
@@ -42,10 +57,9 @@ void DescriptorSet::setup_layout(
     );
   }
 
-  dslFlags =
-      layoutBindingsAllFlags & vk::DescriptorBindingFlagBits::eUpdateAfterBind
-        ? dslFlags | vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool
-        : dslFlags;
+  if (layoutBindingsAllFlags & vk::DescriptorBindingFlagBits::eUpdateAfterBind) {
+    dslFlags |= vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool;
+  }
 
   auto dslInfo = vk::DescriptorSetLayoutCreateInfo(dslFlags, layoutBindings);
   const auto flagsInfo = vk::DescriptorSetLayoutBindingFlagsCreateInfo(layoutBindingsFlags);
@@ -69,6 +83,7 @@ void DescriptorSet::create(
   const vk::DescriptorPool &descriptorPool,
   const std::string &name
 ) {
+  ZoneScoped;
   if (!m_isPushDescriptor) {
     const auto setLayouts = std::vector(m_descriptorSetCount, m_descriptorSetLayout);
     const auto info = vk::DescriptorSetAllocateInfo(descriptorPool, setLayouts);
@@ -79,19 +94,23 @@ void DescriptorSet::create(
     }
   }
 
+  // Don't initial fill DS if it created from ShaderModule, we don't need writes
+  if (m_source == Shader)
+    return;
+
   for (uint32_t i = 0; i < m_descriptorSetCount; i++) {
     m_descriptorSetWrites.clear();
     const auto &descriptorSet = !m_isPushDescriptor ? m_descriptorSets[i] : nullptr;
     for (const auto &layout: m_descriptorLayouts) {
-      if (layout.type == vk::DescriptorType::eUniformBuffer ||
-          layout.type == vk::DescriptorType::eStorageBuffer) {
+      if (layout.type == vk::DescriptorType::eUniformBuffer
+          || layout.type == vk::DescriptorType::eStorageBuffer) {
         auto writeInfo = vk::WriteDescriptorSet(
           descriptorSet, layout.shaderBinding, {}, layout.count, layout.type,
           {}, &layout.bufferInfos.at(i));
         m_descriptorSetWrites.push_back(writeInfo);
-      } else if (layout.type == vk::DescriptorType::eCombinedImageSampler ||
-                 layout.type == vk::DescriptorType::eInputAttachment || layout.type ==
-                 vk::DescriptorType::eStorageImage) {
+      } else if (layout.type == vk::DescriptorType::eCombinedImageSampler
+                 || layout.type == vk::DescriptorType::eInputAttachment
+                 || layout.type == vk::DescriptorType::eStorageImage) {
         try {
           for (int y = 0; y < layout.count; y++) {
             auto writeInfo = vk::WriteDescriptorSet(
@@ -118,6 +137,7 @@ void DescriptorSet::bind(
   const std::vector<uint32_t> &dynamicOffsets,
   const vk::PipelineBindPoint bindPoint
 ) const {
+  ZoneScoped;
   if (m_isPushDescriptor) {
     commandBuffer.pushDescriptorSetKHR(
       bindPoint,
@@ -136,6 +156,27 @@ void DescriptorSet::bind(
   }
 }
 
+void DescriptorSet::updateBuffers(
+  const vk::Device &device,
+  uint32_t shaderBinding,
+  const std::vector<vk::DescriptorBufferInfo> &bufferInfos,
+  vk::DescriptorType type
+) const {
+  ZoneScoped;
+  auto writes = std::vector<vk::WriteDescriptorSet>{};
+  for (int i = 0; i < m_descriptorSets.size(); ++i) {
+    const auto ds = m_descriptorSets[i];
+    auto write = vk::WriteDescriptorSet(
+      ds,
+      shaderBinding,
+      {}, 1, type,
+      {}, &bufferInfos.at(i));
+    writes.push_back(write);
+  }
+
+  device.updateDescriptorSets(writes, {});
+}
+
 void DescriptorSet::updateTexture(
   const vk::Device &device,
   const uint32_t shaderBinding,
@@ -143,6 +184,7 @@ void DescriptorSet::updateTexture(
   const vk::DescriptorImageInfo &imageInfo,
   const vk::DescriptorType type
 ) const {
+  ZoneScoped;
   for (auto &descriptorSet: m_descriptorSets) {
     const auto write = vk::WriteDescriptorSet(
       descriptorSet,

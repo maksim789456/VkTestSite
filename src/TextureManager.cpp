@@ -9,6 +9,7 @@ TextureManager::TextureManager(
   const uint32_t shaderBinding
 ): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_descriptorSet(&descriptorSet),
    m_workerPool(&workerPool), m_shaderBinding(shaderBinding) {
+  ZoneScoped;
   m_sampler = createSamplerUnique(device);
 }
 
@@ -69,6 +70,7 @@ void TextureManager::checkTextureLoading() {
 }
 
 void TextureManager::updateDS(DescriptorSet &descriptorSet) {
+  ZoneScoped;
   m_descriptorSet = &descriptorSet;
   for (const auto &slot: m_textures) {
     if (slot.second == nullptr) continue;

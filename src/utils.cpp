@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
+#include <vulkan-memory-allocator-hpp/vk_mem_alloc_raii.hpp>
 #include <tracy/Tracy.hpp>
 #include <assimp/scene.h>
 #include <glm/ext/matrix_float4x4.hpp>
@@ -15,76 +15,69 @@
 #include <spdlog/spdlog.h>
 
 std::vector<char const *> static gatherLayers(
-  std::vector<std::string> const &layers
-#ifndef NDEBUG
-  , std::vector<vk::LayerProperties> const &layerProperties
-#endif
+  std::vector<std::string> const &requiredLayers,
+  std::span<const vk::LayerProperties> const &availableLayers,
+  bool enableValidationLayer = false
 ) {
   ZoneScoped;
   std::vector<char const *> enabledLayers;
-  enabledLayers.reserve(layers.size());
+  enabledLayers.reserve(requiredLayers.size());
 
-#ifndef NDEBUG
   const auto layerAvailable = [&](const std::string_view name) {
-    return std::ranges::any_of(layerProperties, [&](const vk::LayerProperties &lp) {
+    return std::ranges::any_of(availableLayers, [&](const vk::LayerProperties &lp) {
       return std::string_view(lp.layerName.data()) == name;
     });
   };
-#endif
 
-  for (const auto &layer: layers) {
-#ifndef NDEBUG
-    assert(layerAvailable(layer));
-#endif
+  for (const auto &layer: requiredLayers) {
+    if (!layerAvailable(layer)) {
+      spdlog::error("Layer {} not available", layer);
+      abort();
+    }
     enabledLayers.push_back(layer.data());
   }
 
-#ifndef NDEBUG
-  constexpr std::string_view validationLayer = "VK_LAYER_KHRONOS_validation";
-  if (std::ranges::none_of(layers, [&](const std::string &l) { return l == validationLayer; })
-      && layerAvailable(validationLayer)) {
-    enabledLayers.push_back(validationLayer.data());
+  if (enableValidationLayer) {
+    constexpr std::string_view validationLayer = "VK_LAYER_KHRONOS_validation";
+    const bool alreadyEnabled = std::ranges::contains(requiredLayers, validationLayer);
+    if (!alreadyEnabled && layerAvailable(validationLayer)) {
+      enabledLayers.push_back(validationLayer.data());
+    }
   }
-#endif
 
   return enabledLayers;
 }
 
 std::vector<char const *> static gatherExtensions(
-  std::vector<std::string> const &extensions
-#ifndef NDEBUG
-  , std::vector<vk::ExtensionProperties> const &extensionProperties
-#endif
+  std::vector<std::string> const &requiredExtensions,
+  std::span<const vk::ExtensionProperties> const &availableExtensions,
+  bool enableDebug = false
 ) {
   ZoneScoped;
   std::vector<char const *> enabledExtensions;
-  enabledExtensions.reserve(extensions.size());
+  enabledExtensions.reserve(requiredExtensions.size());
 
-#ifndef NDEBUG
   const auto extensionAvailable = [&](const std::string_view name) {
-    return std::ranges::any_of(extensionProperties, [&](const vk::ExtensionProperties &lp) {
+    return std::ranges::any_of(availableExtensions, [&](const vk::ExtensionProperties &lp) {
       return std::string_view(lp.extensionName.data()) == name;
     });
   };
-#endif
 
-  for (const auto &extension: extensions) {
-#ifndef NDEBUG
+  for (const auto &extension: requiredExtensions) {
     if (!extensionAvailable(extension)) {
-      spdlog::error(std::format("Extension {} not available", extension));
+      spdlog::error("Extension {} not available", extension);
       abort();
     }
-#endif
     enabledExtensions.push_back(extension.data());
   }
 
-#ifndef NDEBUG
-  constexpr std::string_view debugUtilsExtension = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
-  if (std::ranges::none_of(extensions, [&](const std::string &l) { return l == debugUtilsExtension; })
-      && extensionAvailable(debugUtilsExtension)) {
-    enabledExtensions.push_back(debugUtilsExtension.data());
+  if (enableDebug) {
+    constexpr std::string_view debugUtilsExtension = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+    const bool alreadyEnabled = std::ranges::contains(requiredExtensions, debugUtilsExtension);
+    if (!alreadyEnabled && extensionAvailable(debugUtilsExtension)) {
+      enabledExtensions.push_back(debugUtilsExtension.data());
+    }
   }
-#endif
 
   return enabledExtensions;
 }
@@ -185,7 +178,7 @@ static makeInstanceCreateInfoChain(
   return instanceCreateInfo;
 }
 
-std::optional<vk::PhysicalDevice> static pickPhysicalDevice(
+std::optional<vk::PhysicalDevice> static pickPhysicalDeviceHelper(
   const vk::Instance &instance,
   const vk::SurfaceKHR &surface,
   const std::vector<const char *> &required_extensions
@@ -308,7 +301,7 @@ static glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4 &m) {
   );
 }
 
-static std::pair<vma::UniqueImage, vma::UniqueAllocation> createImageUnique(
+static std::pair<vma::UniqueAllocation, vma::UniqueImage> createImageUnique(
   const vma::Allocator allocator,
   const uint32_t width, const uint32_t height,
   const uint32_t mipLevels,
@@ -424,7 +417,11 @@ static void cmdTransitionImageLayout2(
   const vk::Image &image,
   const vk::ImageLayout oldLayout,
   const vk::ImageLayout newLayout,
-  const vk::ImageSubresourceRange &subresource
+  const vk::ImageSubresourceRange &subresource,
+  const uint32_t srcQueueFamilyInx = VK_QUEUE_FAMILY_IGNORED,
+  const uint32_t dstQueueFamilyInx = VK_QUEUE_FAMILY_IGNORED,
+  const bool srcRelease = false,
+  const bool dstRelease = false
 ) {
   auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
     -> std::tuple<vk::AccessFlagBits2, vk::AccessFlagBits2, vk::PipelineStageFlagBits2, vk::PipelineStageFlagBits2> {
@@ -457,12 +454,20 @@ static void cmdTransitionImageLayout2(
         }
         throw std::runtime_error("Unsupported image layout transition!");
       }();
+  if (srcRelease) {
+    srcAccessMask = vk::AccessFlagBits2::eNone;
+    srcStageMask = vk::PipelineStageFlagBits2::eNone;
+  }
+  if (dstRelease) {
+    dstAccessMask = vk::AccessFlagBits2::eNone;
+    dstStageMask = vk::PipelineStageFlagBits2::eNone;
+  }
 
   const auto barrier = vk::ImageMemoryBarrier2(
     srcStageMask, srcAccessMask,
     dstStageMask, dstAccessMask,
     oldLayout, newLayout,
-    VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+    srcQueueFamilyInx, dstQueueFamilyInx,
     image, subresource
   );
   auto dep = vk::DependencyInfo();

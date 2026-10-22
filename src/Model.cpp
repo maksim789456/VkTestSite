@@ -46,7 +46,7 @@ Model::Model(
   TextureManager &textureManager,
   LightManager &lightManager,
   const std::filesystem::path &modelPath
-): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_allocator(allocator) {
+) : m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_allocator(allocator) {
   ZoneScoped;
   spdlog::info(std::format("Loading model from: {}", modelPath.string()));
   Assimp::Importer importer;
@@ -137,6 +137,7 @@ void Model::processMaterials(
 }
 
 void Model::processLight(LightManager &lightManager, const aiScene *scene) {
+  ZoneScoped;
   for (int i = 0; i < scene->mNumLights; ++i) {
     const aiLight *sceneLight = scene->mLights[i];
     LightData light{};
@@ -156,18 +157,15 @@ void Model::processLight(LightManager &lightManager, const aiScene *scene) {
         break;
     }
     light.position = glm::vec4(sceneLight->mPosition.x, sceneLight->mPosition.y, sceneLight->mPosition.z, type);
-    float intensity =
-        sceneLight->mColorDiffuse.r > sceneLight->mColorDiffuse.b
-          ? sceneLight->mColorDiffuse.r > sceneLight->mColorDiffuse.g
-              ? sceneLight->mColorDiffuse.r
-              : sceneLight->mColorDiffuse.g
-          : sceneLight->mColorDiffuse.b;
+
+    auto diffuse = glm::vec3(sceneLight->mColorDiffuse.r, sceneLight->mColorDiffuse.g, sceneLight->mColorDiffuse.b);
+    float intensity = glm::max(diffuse.r, glm::max(diffuse.g, diffuse.b));
+    float safe_intensity = glm::max(intensity, 0.00001f);
 
     light.color = glm::vec4(
-      sceneLight->mColorDiffuse.r / intensity,
-      sceneLight->mColorDiffuse.g / intensity,
-      sceneLight->mColorDiffuse.b / intensity,
-      intensity / (sceneLight->mType != aiLightSource_DIRECTIONAL ? 1000.f : 100.f) //TODO: Temp fix for Candela/Lux units
+      diffuse / safe_intensity,
+      safe_intensity / (sceneLight->mType != aiLightSource_DIRECTIONAL ? 1000.f : 100.f)
+      //TODO: Temp fix for Candela/Lux units
     );
 
     light.direction = glm::vec4(sceneLight->mDirection.x, sceneLight->mDirection.y, sceneLight->mDirection.z,

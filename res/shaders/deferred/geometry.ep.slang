@@ -37,9 +37,9 @@ struct FSOutput
 [shader("vertex")]
 VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
 {
-    float4 worldPos = mul(pushModel, float4(input.Pos, 1.0));
+    float4 worldPos = mul(float4(input.Pos, 1.0), pushModel);
     VSOutput out;
-    out.Pos = mul(ubo.viewProj, worldPos);
+    out.Pos = mul(worldPos, ubo.viewProj);
     out.WorldPos = worldPos.xyz;
     out.Normal = input.Normal;
     out.TexCoord = input.TexCoord;
@@ -53,9 +53,9 @@ VSOutput vertexMain(VSInput input, uniform float4x4 pushModel)
 FSOutput fragmentMain(VSOutput input)
 {
     FSOutput out;
-    float3 albedo = textures[NonUniformResourceIndex(input.AlbedoIdx)].Sample(input.TexCoord).rgb;
-    if (input.AlbedoIdx == 99) {
-      albedo = input.Color.rgb;
+    float3 albedo = input.Color.rgb;
+    if (input.AlbedoIdx != 99) {
+      albedo = textures[NonUniformResourceIndex(input.AlbedoIdx)].Sample(input.TexCoord).rgb;
     }
 
     out.Albedo = float4(albedo, 1.0);
@@ -71,9 +71,9 @@ FSOutput fragmentMain(VSOutput input)
     float3 B = normalize(cross(N, T));
     float3x3 TBN = float3x3(T, B, N);
 
-    float3 normal = textures[NonUniformResourceIndex(input.NormalIdx)].Sample(input.TexCoord).rgb;
-    if (input.NormalIdx == 99) {
-      normal = float3(0.5, 0.5, 1.0);
+    float3 normal = float3(0.5, 0.5, 1.0);
+    if (input.NormalIdx != 99) {
+      normal = textures[NonUniformResourceIndex(input.NormalIdx)].Sample(input.TexCoord).rgb;
     }
 
     if (ubo.displayDebugTarget >= 4) {

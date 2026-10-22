@@ -18,7 +18,7 @@ struct alignas(16) LightData {
   glm::vec4 info; // .x/.y = inner/outer cone angle (for spotlights), .z = linear attenuation, .w = exp attenuation
 };
 
-struct alignas(16) LightPushConsts {
+struct LightPushConsts {
   uint32_t lightCount;
 };
 
@@ -34,7 +34,7 @@ public:
     m_bufferInfos.resize(imageCount);
 
     for (int i = 0; i < imageCount; ++i) {
-      std::tie(m_ssboBuffers[i], m_ssboAllocations[i]) = createBufferUnique(
+      std::tie(m_ssboAllocations[i], m_ssboBuffers[i]) = createBufferUnique(
         allocator, bufferSize, vk::BufferUsageFlagBits::eStorageBuffer,
         vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eMapped | vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
@@ -62,6 +62,10 @@ public:
   [[nodiscard]] std::vector<std::string> getNames() const { return m_lightsNames; }
 
   void addLight(const LightData &light, const std::string &name = "Light") {
+    if (m_lights.size() == MAX_LIGHTS) { //TODO: Move to dynamic count
+      spdlog::warn("Max lights count reached!");
+      return;
+    }
     m_lights.emplace_back(light);
     m_lightsNames.emplace_back(name);
   }
@@ -74,6 +78,10 @@ public:
 
   void map(const uint32_t imageIndex) {
     std::ranges::copy(m_lights, m_ssboMappings[imageIndex]);
+  }
+
+  void cleanup() {
+    m_lights.clear();
   }
 
   void renderImGui() {
