@@ -80,6 +80,10 @@ public:
     std::ranges::copy(m_lights, m_ssboMappings[imageIndex]);
   }
 
+  void cleanup() {
+    m_lights.clear();
+  }
+
   void renderImGui() {
     if (ImGui::Begin("Lighting")) {
       if (ImGui::Button("Add light") && m_lights.size() < MAX_LIGHTS) {
