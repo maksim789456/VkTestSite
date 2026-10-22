@@ -23,6 +23,8 @@
 #include "utils.cpp"
 #include <tracy/TracyVulkan.hpp>
 
+#define EMPTY_TEXTURE_INDEX 99
+
 struct alignas(16) ModelPushConsts {
   glm::mat4 model;
 };
@@ -36,8 +38,8 @@ struct Submesh {
 };
 
 struct Material {
-  uint32_t albedoTexIdx = 99;
-  uint32_t normalTexIdx = 99;
+  uint32_t albedoTexIdx = EMPTY_TEXTURE_INDEX;
+  uint32_t normalTexIdx = EMPTY_TEXTURE_INDEX;
   glm::vec4 diffuseColor = glm::vec4(1.0f);
 };
 

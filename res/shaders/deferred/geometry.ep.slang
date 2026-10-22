@@ -1,3 +1,5 @@
+#define EMPTY_TEXTURE_INDEX 99
+
 struct VSInput
 {
     [[vk::location(0)]] float3 Pos;
@@ -54,7 +56,7 @@ FSOutput fragmentMain(VSOutput input)
 {
     FSOutput out;
     float3 albedo = input.Color.rgb;
-    if (input.AlbedoIdx != 99) {
+    if (input.AlbedoIdx != EMPTY_TEXTURE_INDEX) {
       albedo = textures[NonUniformResourceIndex(input.AlbedoIdx)].Sample(input.TexCoord).rgb;
     }
 
@@ -72,7 +74,7 @@ FSOutput fragmentMain(VSOutput input)
     float3x3 TBN = float3x3(T, B, N);
 
     float3 normal = float3(0.5, 0.5, 1.0);
-    if (input.NormalIdx != 99) {
+    if (input.NormalIdx != EMPTY_TEXTURE_INDEX) {
       normal = textures[NonUniformResourceIndex(input.NormalIdx)].Sample(input.TexCoord).rgb;
     }
 
