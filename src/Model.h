@@ -94,7 +94,7 @@ private:
 
   std::unique_ptr<Mesh<Vertex, uint32_t> > createMesh(
     const aiMesh *mesh,
-    const aiScene *scene,
+    // const aiScene *scene,
     const glm::mat4 &transform
   );
 
