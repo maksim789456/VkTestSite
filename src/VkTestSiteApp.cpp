@@ -56,7 +56,6 @@ void VkTestSiteApp::initVk() {
 
   m_context = std::make_unique<vkts::VkContext>();
   m_context->init(m_contextConfig, m_window);
-  m_msaaSamples = findMaxMsaaSamples(m_context->physicalDevice());
 
   m_swapchain = std::make_unique<Swapchain>(*m_context);
   createRenderPass();
