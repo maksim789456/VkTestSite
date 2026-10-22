@@ -10,7 +10,11 @@
 class Camera {
 public:
   explicit Camera(const vk::Extent2D viewportSize) {
-    aspectRatio = static_cast<float>(viewportSize.width) / static_cast<float>(viewportSize.height);
+    calcAspectRatio(viewportSize);
+  }
+
+  void updateViewport(const vk::Extent2D viewportSize) {
+    calcAspectRatio(viewportSize);
   }
 
   static glm::mat4 perspectiveRZ(float fovy, float aspect, float zNear, float zFar) {
@@ -127,6 +131,10 @@ private:
 
   glm::vec4 frustumCorners;
   glm::vec4 invFrustumCorners;
+
+  void calcAspectRatio(const vk::Extent2D viewportSize) {
+    aspectRatio = static_cast<float>(viewportSize.width) / static_cast<float>(viewportSize.height);
+  }
 };
 
 #endif //CAMERA_H

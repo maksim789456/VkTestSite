@@ -815,6 +815,7 @@ void VkTestSiteApp::recreateSwapchain() {
   cleanupSwapchain();
 
   m_swapchain = Swapchain(m_surface.get(), m_device, m_physicalDevice, m_window);
+  m_camera->updateViewport(m_swapchain.extent);
   createRenderPass();
   createUniformBuffers();
   m_descriptorPool = DescriptorPool(m_device);
