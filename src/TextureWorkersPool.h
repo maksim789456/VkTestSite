@@ -147,7 +147,6 @@ private:
     }
 
     const vk::DeviceSize targetSize = width * height * 4;
-    const vk::DeviceSize originalSize = width * height * channels;
     auto mipLevels = static_cast<uint32_t>(
       std::floor(std::log2(std::max(width, height))) + 1
     );
@@ -167,11 +166,10 @@ private:
     auto alloc = m_stagingBuffer.allocateBlocking(targetSize); {
       ZoneScopedN("Staging texture data copy");
 
-      if (channels == 4) {
-        memcpy(alloc.mapped, origPixels, originalSize);
-      } else {
-        spdlog::error("Texture {}: stbi_load return alt channel count {}", job.filepath.c_str(), channels);
+      if (channels != 4) {
+        spdlog::error("Texture {} have {} channels, force load 4", job.filepath.c_str(), channels);
       }
+      memcpy(alloc.mapped, origPixels, targetSize);
     } {
       ZoneScopedN("Free stbi ptr");
       stbi_image_free(origPixels);
