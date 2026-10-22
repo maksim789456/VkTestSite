@@ -195,6 +195,7 @@ std::unique_ptr<Mesh<Vertex, uint32_t> > Model::createMesh(
   std::vector<uint32_t> indices;
 
   auto texCords = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0] : nullptr;
+  auto normalMat = glm::mat3(glm::transpose(glm::inverse(transform)));
   for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
     aiFace &face = mesh->mFaces[f];
     for (unsigned int i = 0; i < face.mNumIndices; ++i) {
@@ -205,7 +206,6 @@ std::unique_ptr<Mesh<Vertex, uint32_t> > Model::createMesh(
       auto mat = m_materials[mesh->mMaterialIndex];
 
       glm::vec4 transformedPos = transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f);
-      auto normalMat = glm::mat3(glm::transpose(glm::inverse(transform)));
       auto N = glm::normalize(normalMat * glm::vec3(normal.x, normal.y, normal.z));
 
       vertices.push_back({
