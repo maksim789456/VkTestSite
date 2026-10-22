@@ -63,7 +63,6 @@ void VkTestSiteApp::initVk() {
   m_physicalDevice = *deviceTmp;
   const auto props = m_physicalDevice.getProperties();
   spdlog::info(std::format("Physical device: {}", std::string(props.deviceName)));
-  m_msaaSamples = findMaxMsaaSamples(m_physicalDevice);
   createLogicalDevice();
   createQueues();
 

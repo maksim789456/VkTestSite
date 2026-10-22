@@ -65,7 +65,6 @@ private:
 #endif
   vk::UniqueSurfaceKHR m_surface;
   vk::PhysicalDevice m_physicalDevice;
-  vk::SampleCountFlagBits m_msaaSamples = vk::SampleCountFlagBits::e1;
   vk::Device m_device;
   vk::Queue m_graphicsQueue;
   vk::Queue m_presentQueue;
