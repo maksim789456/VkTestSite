@@ -185,6 +185,7 @@ private:
         alloc.offset, 0, 0, subresource,
         vk::Offset3D(0, 0, 0),
         vk::Extent3D(width, height, 1)),
+      .doGenerateMipmaps = mipLevels > 1
     };
     m_transferThread.pushJob(copyJob);
 

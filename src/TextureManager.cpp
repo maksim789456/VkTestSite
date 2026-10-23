@@ -59,8 +59,6 @@ void TextureManager::checkTextureLoading() {
       spdlog::warn(std::format("Try to move texture {} into occupied slot {}",
                                loadDone.job.filepath.string(), slot));
 
-//TODO: gen mipmaps
-
     m_textures[slot] = std::move(loadDone.texture);
     m_textures[slot]->createImguiView();
     m_textureDescriptors[slot] = vk::DescriptorImageInfo(

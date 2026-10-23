@@ -18,6 +18,8 @@ struct TextureUploadJob {
   vk::BufferImageCopy region;
   vk::ImageLayout srcImageLayout = vk::ImageLayout::eUndefined;
   vk::ImageLayout dstImageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+  bool doGenerateMipmaps = false;
 };
 
 /**
@@ -121,6 +123,15 @@ private:
         m_stagingBuffer.getBuffer(), job.dstImage,
         vk::ImageLayout::eTransferDstOptimal, job.region);
 
+      if (job.doGenerateMipmaps)
+        cmdGenerateMipmaps(
+          m_cmdBuff.get(),
+          job.dstImage,
+          job.region.imageExtent.width,
+          job.region.imageExtent.height,
+          job.subresourceRange.levelCount
+        );
+
       if (m_familyIndices.isTransferQueueSeparated()) {
         cmdTransitionImageLayout2(
           m_cmdBuff.get(),
@@ -131,7 +142,7 @@ private:
           *m_familyIndices.transfer,
           *m_familyIndices.graphics,
           false, true
-        );
+        ); //TODO: do another TIL2 on graphics side with srcRelease?
       } else {
         cmdTransitionImageLayout2(
           m_cmdBuff.get(),
