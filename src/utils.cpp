@@ -491,6 +491,52 @@ static void transitionImageLayout(
   });
 }
 
+static void cmdGenerateMipmaps(
+  const vk::CommandBuffer cmd,
+  const vk::Image image,
+  const uint32_t width, const uint32_t height,
+  const uint32_t mipLevels
+) {
+  auto mipWidth = width;
+  auto mipHeight = height;
+  for (int mipLevel = 1; mipLevel < mipLevels; ++mipLevel) {
+    cmdTransitionImageLayout(
+      cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+      1, {}, mipLevel - 1);
+
+    const auto srcSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel - 1, 0, 1);
+    const auto dstSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1);
+    auto blit = vk::ImageBlit(
+      srcSubResource,
+      {
+        vk::Offset3D(0, 0, 0),
+        vk::Offset3D(mipWidth, mipHeight, 1),
+      },
+      dstSubResource,
+      {
+        vk::Offset3D(0, 0, 0),
+        vk::Offset3D(mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1),
+      }
+    );
+    cmd.blitImage(
+      image, vk::ImageLayout::eTransferSrcOptimal,
+      image, vk::ImageLayout::eTransferDstOptimal,
+      blit, vk::Filter::eLinear
+    );
+
+    cmdTransitionImageLayout(
+      cmd, image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+      1, {}, mipLevel - 1);
+
+    mipWidth = mipWidth > 1 ? mipWidth / 2 : mipWidth;
+    mipHeight = mipHeight > 1 ? mipHeight / 2 : mipHeight;
+  }
+
+  cmdTransitionImageLayout(
+    cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+    1, {}, mipLevels - 1);
+}
+
 static void generateMipmaps(
   const vk::Device device,
   const vk::Queue graphicsQueue,
@@ -500,43 +546,6 @@ static void generateMipmaps(
   const uint32_t mipLevels
 ) {
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
-    auto mipWidth = width;
-    auto mipHeight = height;
-    for (int mipLevel = 1; mipLevel < mipLevels; ++mipLevel) {
-      cmdTransitionImageLayout(
-        cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-        1, {}, mipLevel - 1);
-
-      const auto srcSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel - 1, 0, 1);
-      const auto dstSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1);
-      auto blit = vk::ImageBlit(
-        srcSubResource,
-        {
-          vk::Offset3D(0, 0, 0),
-          vk::Offset3D(mipWidth, mipHeight, 1),
-        },
-        dstSubResource,
-        {
-          vk::Offset3D(0, 0, 0),
-          vk::Offset3D(mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1),
-        }
-      );
-      cmd.blitImage(
-        image, vk::ImageLayout::eTransferSrcOptimal,
-        image, vk::ImageLayout::eTransferDstOptimal,
-        blit, vk::Filter::eLinear
-      );
-
-      cmdTransitionImageLayout(
-        cmd, image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-        1, {}, mipLevel - 1);
-
-      mipWidth = mipWidth > 1 ? mipWidth / 2 : mipWidth;
-      mipHeight = mipHeight > 1 ? mipHeight / 2 : mipHeight;
-    }
-
-    cmdTransitionImageLayout(
-      cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-      1, {}, mipLevels - 1);
+    cmdGenerateMipmaps(cmd, image, width, height, mipLevels);
   });
 }
