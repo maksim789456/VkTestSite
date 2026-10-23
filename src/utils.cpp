@@ -323,15 +323,18 @@ static std::pair<vma::UniqueAllocation, vma::UniqueImage> createImageUnique(
   return allocator.createImageUnique(info, allocInfo);
 }
 
-static vk::UniqueSampler createSamplerUnique(const vk::Device device) {
+static vk::UniqueSampler createSamplerUnique(
+  const vk::Device device,
+  const bool enableAnisotropic = true
+) {
   auto info = vk::SamplerCreateInfo();
   info.setMagFilter(vk::Filter::eLinear)
       .setMinFilter(vk::Filter::eLinear)
       .setAddressModeU(vk::SamplerAddressMode::eRepeat)
       .setAddressModeV(vk::SamplerAddressMode::eRepeat)
       .setAddressModeW(vk::SamplerAddressMode::eRepeat)
-      .setAnisotropyEnable(true)
-      .setMaxAnisotropy(16.0)
+      .setAnisotropyEnable(enableAnisotropic)
+      .setMaxAnisotropy(16.0) //TODO: Req physical device for get maxSamplerAnisotropy
       .setBorderColor(vk::BorderColor::eIntOpaqueBlack)
       .setUnnormalizedCoordinates(false)
       .setCompareEnable(false)
@@ -339,7 +342,7 @@ static vk::UniqueSampler createSamplerUnique(const vk::Device device) {
       .setMipmapMode(vk::SamplerMipmapMode::eLinear)
       .setMipLodBias(0.0f)
       .setMinLod(0.0f)
-      .setMaxLod(0.0f);
+      .setMaxLod(enableAnisotropic ? VK_LOD_CLAMP_NONE : 0.0f);
   return device.createSamplerUnique(info);
 }
 
