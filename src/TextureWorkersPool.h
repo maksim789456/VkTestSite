@@ -175,16 +175,18 @@ private:
       stbi_image_free(origPixels);
     }
 
-    constexpr auto subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
     const TextureUploadJob copyJob{
       .allocation = alloc,
       .dstImage = texture->getImage(),
       .subresourceRange = vk::ImageSubresourceRange(
         vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1),
-      .region = vk::BufferImageCopy(
-        alloc.offset, 0, 0, subresource,
-        vk::Offset3D(0, 0, 0),
-        vk::Extent3D(width, height, 1)),
+      .regions = {
+        vk::BufferImageCopy(
+          alloc.offset, 0, 0,
+          vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+          vk::Offset3D(0, 0, 0),
+          vk::Extent3D(width, height, 1))
+      },
       .doGenerateMipmaps = mipLevels > 1
     };
     m_transferThread.pushJob(copyJob);
@@ -230,31 +232,42 @@ private:
       job.filepath.string()
     );
 
-    ktx_size_t offset;
-    auto result = ktxTexture_GetImageOffset(
-      ktxTexture(kTexture), 0, 0, 0, &offset
-    );
-    if (result != KTX_SUCCESS) {
-      ktxTexture_Destroy(ktxTexture(kTexture));
-      throw std::runtime_error("Failed to get KTX2 image offset");
-    }
-
-    size_t size = ktxTexture_GetImageSize(ktxTexture(kTexture), 0);
-    auto alloc = m_stagingBuffer.allocateBlocking(size); {
+    ktx_size_t mipZeroOffset, mipLastOffset;
+    ktxTexture_GetImageOffset(ktxTexture(kTexture), 0, 0, 0, &mipZeroOffset);
+    ktxTexture_GetImageOffset(ktxTexture(kTexture), mipLevels - 1, 0, 0, &mipLastOffset);
+    const auto mipLastSize = ktxTexture_GetImageSize(ktxTexture(kTexture), mipLevels - 1);
+    const auto totalSize = (mipLastOffset + mipLastSize) - mipZeroOffset;
+    const auto alloc = m_stagingBuffer.allocateBlocking(totalSize); {
       ZoneScopedN("Staging texture data copy");
-      memcpy(alloc.mapped, kTexture->pData + offset, size);
+      memcpy(alloc.mapped, kTexture->pData + mipZeroOffset, totalSize);
     }
 
-    constexpr auto subresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
+    std::vector<vk::BufferImageCopy> regions;
+    regions.reserve(mipLevels); {
+      ZoneScopedN("Prepare mipLevels regions");
+      uint32_t w = width, h = height;
+      for (int mip = 0; mip < mipLevels; ++mip) {
+        ktx_size_t currentMipOffset;
+        ktxTexture_GetImageOffset(ktxTexture(kTexture), mip, 0, 0, &currentMipOffset);
+
+        regions.emplace_back(
+          alloc.offset + (currentMipOffset - mipZeroOffset), 0, 0,
+          vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mip, 0, 1),
+          vk::Offset3D(0, 0, 0),
+          vk::Extent3D(w, h, 1)
+        );
+
+        w = std::max(1u, w >> 1);
+        h = std::max(1u, h >> 1);
+      }
+    }
+
     const TextureUploadJob copyJob{
       .allocation = alloc,
       .dstImage = texture->getImage(),
       .subresourceRange = vk::ImageSubresourceRange(
         vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1),
-      .region = vk::BufferImageCopy(
-        alloc.offset, 0, 0, subresource,
-        vk::Offset3D(0, 0, 0),
-        vk::Extent3D(width, height, 1)),
+      .regions = regions
     };
     m_transferThread.pushJob(copyJob);
 
