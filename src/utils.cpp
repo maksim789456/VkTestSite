@@ -495,7 +495,8 @@ static void cmdGenerateMipmaps(
   const vk::CommandBuffer cmd,
   const vk::Image image,
   const uint32_t width, const uint32_t height,
-  const uint32_t mipLevels
+  const uint32_t mipLevels,
+  const vk::ImageLayout finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal
 ) {
   auto mipWidth = width;
   auto mipHeight = height;
@@ -525,7 +526,7 @@ static void cmdGenerateMipmaps(
     );
 
     cmdTransitionImageLayout(
-      cmd, image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+      cmd, image, vk::ImageLayout::eTransferSrcOptimal, finalLayout,
       1, {}, mipLevel - 1);
 
     mipWidth = mipWidth > 1 ? mipWidth / 2 : mipWidth;
@@ -533,7 +534,7 @@ static void cmdGenerateMipmaps(
   }
 
   cmdTransitionImageLayout(
-    cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
+    cmd, image, vk::ImageLayout::eTransferDstOptimal, finalLayout,
     1, {}, mipLevels - 1);
 }
 
@@ -543,9 +544,10 @@ static void generateMipmaps(
   const vk::CommandPool commandPool,
   const vk::Image image,
   const uint32_t width, const uint32_t height,
-  const uint32_t mipLevels
+  const uint32_t mipLevels,
+  const vk::ImageLayout finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal
 ) {
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
-    cmdGenerateMipmaps(cmd, image, width, height, mipLevels);
+    cmdGenerateMipmaps(cmd, image, width, height, mipLevels, finalLayout);
   });
 }
