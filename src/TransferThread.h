@@ -129,7 +129,8 @@ private:
           job.dstImage,
           job.region.imageExtent.width,
           job.region.imageExtent.height,
-          job.subresourceRange.levelCount
+          job.subresourceRange.levelCount,
+          vk::ImageLayout::eTransferDstOptimal
         );
 
       if (m_familyIndices.isTransferQueueSeparated()) {
