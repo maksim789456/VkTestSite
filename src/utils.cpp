@@ -367,6 +367,8 @@ static void cmdTransitionImageLayout(
   const vk::Format format = vk::Format::eR32G32B32A32Sfloat,
   const uint32_t baseMipLevel = 0
 ) {
+  if (oldLayout == newLayout)
+    return;
   auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
     -> std::tuple<vk::AccessFlags, vk::AccessFlags, vk::PipelineStageFlags, vk::PipelineStageFlags> {
         using AF = vk::AccessFlagBits;
@@ -383,6 +385,9 @@ static void cmdTransitionImageLayout(
         }
         if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
           return {AF::eTransferWrite, AF::eShaderRead, PF::eTransfer, PF::eFragmentShader};
+        }
+        if (oldLayout == vk::ImageLayout::eTransferSrcOptimal && newLayout == vk::ImageLayout::eTransferDstOptimal) {
+          return {AF::eTransferRead, AF::eTransferWrite, PF::eTransfer, PF::eTransfer};
         }
         if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal) {
           return {
