@@ -15,7 +15,7 @@ struct TextureUploadJob {
   StagingBuffer::Allocation allocation;
   vk::Image dstImage;
   vk::ImageSubresourceRange subresourceRange;
-  vk::BufferImageCopy region;
+  std::vector<vk::BufferImageCopy> regions;
   vk::ImageLayout srcImageLayout = vk::ImageLayout::eUndefined;
   vk::ImageLayout dstImageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
@@ -121,17 +121,21 @@ private:
 
       m_cmdBuff->copyBufferToImage(
         m_stagingBuffer.getBuffer(), job.dstImage,
-        vk::ImageLayout::eTransferDstOptimal, job.region);
+        vk::ImageLayout::eTransferDstOptimal, job.regions
+      );
 
-      if (job.doGenerateMipmaps)
+      if (job.doGenerateMipmaps) {
+        // Special case: We generate mipmaps only for plain texture with 1 region
+        const auto regionZero = job.regions.front();
         cmdGenerateMipmaps(
           m_cmdBuff.get(),
           job.dstImage,
-          job.region.imageExtent.width,
-          job.region.imageExtent.height,
+          regionZero.imageExtent.width,
+          regionZero.imageExtent.height,
           job.subresourceRange.levelCount,
           vk::ImageLayout::eTransferDstOptimal
         );
+      }
 
       if (m_familyIndices.isTransferQueueSeparated()) {
         cmdTransitionImageLayout2(
