@@ -235,7 +235,7 @@ private:
         vk::ImageAspectFlagBits::eColor,
         vk::ImageUsageFlagBits::eSampled
         | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst,
-        true,
+        false,
         job.filepath.string()
       );
 
