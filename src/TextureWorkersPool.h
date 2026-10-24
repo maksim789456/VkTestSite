@@ -223,7 +223,7 @@ private:
       auto width = kTexture->baseWidth;
       auto height = kTexture->baseHeight;
       auto mipLevels = kTexture->numLevels;
-      if (kTexture->isArray || kTexture->isCubemap || kTexture->numDimensions > 1) {
+      if (kTexture->isArray || kTexture->isCubemap || kTexture->numDimensions > 2) {
         spdlog::warn("KTX texture {} it's not plain one, we cannot load it", job.filepath.string());
         return nullptr;
       }
