@@ -82,6 +82,7 @@ public:
 
   void cleanup() {
     m_lights.clear();
+    m_lightsNames.clear();
   }
 
   void renderImGui() {
