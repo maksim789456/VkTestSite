@@ -36,6 +36,9 @@ public:
     const vk::PipelineBindPoint bindPoint = vk::PipelineBindPoint::eGraphics
   ) const;
 
+  void updateBuffers(const vk::Device &device, uint32_t shaderBinding,
+                     const std::vector<vk::DescriptorBufferInfo> &bufferInfos, vk::DescriptorType type) const;
+
   void updateTexture(
     const vk::Device &device,
     uint32_t shaderBinding,
