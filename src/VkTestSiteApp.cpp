@@ -3,7 +3,7 @@
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 #define MAX_FRAME_IN_FLIGHT 3
-#define STAGING_BUFFER_SIZE 128 * 1024 * 1024 // 128 MB
+#define STAGING_BUFFER_SIZE (128 * 1024 * 1024) // 128 MB
 
 const std::vector DEVICE_EXTENSIONS = {
   VK_KHR_SWAPCHAIN_EXTENSION_NAME,
@@ -76,8 +76,10 @@ void VkTestSiteApp::initVk() {
   createSyncObjects();
   const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
   m_stagingBuffer = std::make_unique<StagingBuffer>(m_context->device(), m_context->allocator(), STAGING_BUFFER_SIZE);
-  m_transferThread = std::make_unique<TransferThread>(m_context->device(), m_context->transferQueue(), *indices.transfer,
-                                                      *m_stagingBuffer, *m_context->queueFamilyIndices());
+  m_transferThread = std::make_unique<TransferThread>(
+    m_context->device(), m_context->transferQueue(),
+    *indices.transfer,
+    *m_stagingBuffer, *m_context->queueFamilyIndices());
   m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_context->device(), m_context->allocator(),
                                                             *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
@@ -234,7 +236,7 @@ void VkTestSiteApp::createPipeline() {
     MAX_FRAME_IN_FLIGHT,
     *m_geometryShader,
     "Geometry DS"
-    );
+  );
   m_geometryPipeline = PipelineBuilder(
         m_context->device(),
         m_renderPass,
@@ -372,7 +374,8 @@ void VkTestSiteApp::createCommandPool() {
   ZoneScoped;
   const auto indices = QueueFamilyIndices(m_context->surface(), m_context->physicalDevice());
 
-  const auto poolInfo = vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, *indices.graphics);
+  const auto poolInfo =
+      vk::CommandPoolCreateInfo(vk::CommandPoolCreateFlagBits::eResetCommandBuffer, *indices.graphics);
   m_commandPool = m_context->device().createCommandPool(poolInfo);
 }
 
@@ -521,19 +524,15 @@ void VkTestSiteApp::render(ImDrawData *draw_data, float deltaTime) {
   updateUniformBuffer(m_currentFrame);
   recordCommandBuffer(draw_data, m_commandBuffers[m_currentFrame], m_currentFrame, imageIndex);
 
-  vk::PipelineStageFlags pipelineStageFlags = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-  const auto submitInfo = vk::SubmitInfo(
-    m_imageAvailable[m_currentFrame],
-    pipelineStageFlags,
-    m_commandBuffers[m_currentFrame],
-    m_renderFinished[m_currentFrame]);
-  m_context->graphicsQueue().submit(submitInfo, m_inFlight[m_currentFrame]);
+  std::vector waits{
+    vk::SemaphoreSubmitInfo(m_imageAvailable[m_currentFrame], 0, vk::PipelineStageFlagBits2::eColorAttachmentOutput)
+    // TODO: emplace one more wait for texture manager (graphics queue work)
+  };
+  const vk::CommandBufferSubmitInfo cmdInfo(m_commandBuffers[m_currentFrame]);
+  const vk::SemaphoreSubmitInfo signal(m_renderFinished[m_currentFrame], 0, vk::PipelineStageFlagBits2::eAllCommands);
 
-  /*executeSingleTimeCommands(
-    m_context->device(), m_context->graphicsQueue(), m_commandPool,
-    [&](const vk::CommandBuffer cmd) {
-      //m_vkContext->Collect(cmd);
-    });*/
+  const auto submitInfo2 = vk::SubmitInfo2({}, waits, cmdInfo, signal);
+  m_context->graphicsQueue().submit2(submitInfo2, m_inFlight[m_currentFrame]);
 
   isSwapchainDirty = m_swapchain->present(m_renderFinished[m_currentFrame]);
   if (isSwapchainDirty) {
