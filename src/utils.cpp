@@ -425,11 +425,7 @@ static void cmdTransitionImageLayout2(
   const vk::Image &image,
   const vk::ImageLayout oldLayout,
   const vk::ImageLayout newLayout,
-  const vk::ImageSubresourceRange &subresource,
-  const uint32_t srcQueueFamilyInx = VK_QUEUE_FAMILY_IGNORED,
-  const uint32_t dstQueueFamilyInx = VK_QUEUE_FAMILY_IGNORED,
-  const bool srcRelease = false,
-  const bool dstRelease = false
+  const vk::ImageSubresourceRange &subresource
 ) {
   auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
     -> std::tuple<vk::AccessFlagBits2, vk::AccessFlagBits2, vk::PipelineStageFlagBits2, vk::PipelineStageFlagBits2> {
@@ -462,20 +458,12 @@ static void cmdTransitionImageLayout2(
         }
         throw std::runtime_error("Unsupported image layout transition!");
       }();
-  if (srcRelease) {
-    srcAccessMask = vk::AccessFlagBits2::eNone;
-    srcStageMask = vk::PipelineStageFlagBits2::eNone;
-  }
-  if (dstRelease) {
-    dstAccessMask = vk::AccessFlagBits2::eNone;
-    dstStageMask = vk::PipelineStageFlagBits2::eNone;
-  }
 
   const auto barrier = vk::ImageMemoryBarrier2(
     srcStageMask, srcAccessMask,
     dstStageMask, dstAccessMask,
     oldLayout, newLayout,
-    srcQueueFamilyInx, dstQueueFamilyInx,
+    VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
     image, subresource
   );
   auto dep = vk::DependencyInfo();
@@ -497,6 +485,45 @@ static void transitionImageLayout(
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
     cmdTransitionImageLayout(cmd, image, oldLayout, newLayout, mipLevels, format, baseMipLevel);
   });
+}
+
+enum TransferOwnershipAction {
+  Release,
+  Acquire
+};
+
+static void cmdTransferImageOwnership(
+  const vk::CommandBuffer cmd,
+  const vk::Image image,
+  const vk::ImageSubresourceRange &subresource,
+  const TransferOwnershipAction action,
+  const uint32_t srcQueueFamilyIdx,
+  const uint32_t dstQueueFamilyIdx
+) {
+  auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [action]()
+    -> std::tuple<vk::AccessFlags2, vk::AccessFlags2, vk::PipelineStageFlags2, vk::PipelineStageFlags2> {
+        using AF2 = vk::AccessFlagBits2;
+        using PF2 = vk::PipelineStageFlagBits2;
+
+        if (action == Release) {
+          return {AF2::eTransferWrite, AF2::eNone, PF2::eTransfer, PF2::eNone};
+        }
+        if (action == Acquire) {
+          return {AF2::eNone, AF2::eTransferWrite | AF2::eTransferRead, PF2::eNone, PF2::eTransfer};
+        }
+        return {};
+      }();
+
+  const auto barrier = vk::ImageMemoryBarrier2(
+    srcStageMask, srcAccessMask,
+    dstStageMask, dstAccessMask,
+    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferDstOptimal,
+    srcQueueFamilyIdx, dstQueueFamilyIdx,
+    image, subresource
+  );
+  auto dep = vk::DependencyInfo();
+  dep.setImageMemoryBarriers(barrier);
+  cmd.pipelineBarrier2(dep);
 }
 
 static void cmdGenerateMipmaps(

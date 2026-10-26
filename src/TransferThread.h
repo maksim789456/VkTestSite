@@ -125,24 +125,14 @@ private:
       );
 
       if (m_familyIndices.isTransferQueueSeparated()) {
-        cmdTransitionImageLayout2(
+        cmdTransferImageOwnership(
           m_cmdBuff.get(),
           job.dstImage,
-          vk::ImageLayout::eTransferDstOptimal,
-          job.dstImageLayout,
           job.subresourceRange,
+          Release,
           *m_familyIndices.transfer,
-          *m_familyIndices.graphics,
-          false, true
-        ); //TODO: do another TIL2 on graphics side with srcRelease?
-      } else {
-        cmdTransitionImageLayout2(
-          m_cmdBuff.get(),
-          job.dstImage,
-          vk::ImageLayout::eTransferDstOptimal,
-          job.dstImageLayout,
-          job.subresourceRange
-        );
+          *m_familyIndices.graphics
+        ); //TODO: do Acquire on graphics side
       }
     }
 
