@@ -120,12 +120,14 @@ private:
 
         if (job.filepath.extension() == ".ktx" || job.filepath.extension() == ".ktx2") {
           auto texture = loadKtxTexture(job);
+          if (texture == nullptr) continue;
           m_doneQueue.enqueue({
             .job = job,
             .texture = std::move(texture)
           });
         } else {
           auto texture = loadGenericTexture(job);
+          if (texture == nullptr) continue;
           m_doneQueue.enqueue({
             .job = job,
             .texture = std::move(texture)
@@ -148,7 +150,8 @@ private:
         4
       );
       if (!origPixels) {
-        throw std::runtime_error("Failed to load texture image: " + job.filepath.string());
+        spdlog::error("Failed to load generic texture image: " + job.filepath.string());
+        return nullptr;
       }
     }
 
@@ -210,7 +213,7 @@ private:
           job.filepath.string().c_str(), KTX_TEXTURE_CREATE_LOAD_IMAGE_DATA_BIT, &kTexture);
 
         if (result != KTX_SUCCESS) {
-          throw std::runtime_error("Failed to load KTX: " + job.filepath.string());
+          throw std::runtime_error("Failed to load KTX texture: " + job.filepath.string());
         }
       }
 
