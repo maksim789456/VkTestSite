@@ -124,19 +124,6 @@ private:
         vk::ImageLayout::eTransferDstOptimal, job.regions
       );
 
-      if (job.doGenerateMipmaps) {
-        // Special case: We generate mipmaps only for plain texture with 1 region
-        const auto regionZero = job.regions.front();
-        cmdGenerateMipmaps(
-          m_cmdBuff.get(),
-          job.dstImage,
-          regionZero.imageExtent.width,
-          regionZero.imageExtent.height,
-          job.subresourceRange.levelCount,
-          vk::ImageLayout::eTransferDstOptimal
-        );
-      }
-
       if (m_familyIndices.isTransferQueueSeparated()) {
         cmdTransitionImageLayout2(
           m_cmdBuff.get(),
