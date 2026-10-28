@@ -46,10 +46,13 @@ public:
     const vma::Allocator allocator,
     StagingBuffer &stagingBuffer,
     TransferThread &transferThread,
-    const uint32_t threadCount = std::thread::hardware_concurrency() - 2
-  ) : m_device(device), m_allocator(allocator),
-      m_stagingBuffer(stagingBuffer), m_transferThread(transferThread) {
+    uint32_t threadCount = 0
+  ) : m_device(device), m_allocator(allocator), m_stagingBuffer(stagingBuffer), m_transferThread(transferThread) {
     ZoneScoped;
+    if (threadCount <= 0) {
+      const auto hardwareThreads = std::thread::hardware_concurrency();
+      threadCount = hardwareThreads > 2 ? hardwareThreads - 2 : 1;
+    }
     for (int i = 0; i < threadCount; ++i) {
       m_threads.emplace_back([this, i] { threadLoop(i); });
     }
@@ -93,7 +96,7 @@ private:
   StagingBuffer &m_stagingBuffer;
   TransferThread &m_transferThread;
 
-  std::atomic_bool m_stop;
+  std::atomic_bool m_stop = false;
   std::vector<std::thread> m_threads = {};
   moodycamel::BlockingConcurrentQueue<TextureLoadJob> m_queue;
   moodycamel::ConcurrentQueue<TextureLoadDone> m_doneQueue;
@@ -115,8 +118,10 @@ private:
         break;
       } {
         ZoneScoped;
-        if (!job.filepath.has_extension())
-          throw std::invalid_argument("Job filepath must be contains file extension");
+        if (!job.filepath.has_extension()) {
+          spdlog::error("Job filepath must be contains file extension");
+          continue;
+        }
 
         if (job.filepath.extension() == ".ktx" || job.filepath.extension() == ".ktx2") {
           auto texture = loadKtxTexture(job);
@@ -155,7 +160,7 @@ private:
       }
     }
 
-    const vk::DeviceSize targetSize = width * height * 4;
+    const vk::DeviceSize targetSize = static_cast<vk::DeviceSize>(width) * height * 4;
     auto mipLevels = static_cast<uint32_t>(
       std::floor(std::log2(std::max(width, height))) + 1
     );

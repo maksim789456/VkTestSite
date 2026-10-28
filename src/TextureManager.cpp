@@ -70,9 +70,9 @@ void TextureManager::checkTextureLoading() {
 void TextureManager::updateDS(DescriptorSet &descriptorSet) {
   ZoneScoped;
   m_descriptorSet = &descriptorSet;
-  for (const auto &slot: m_textures) {
-    if (slot.second == nullptr) continue;
-    m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot.first, m_textureDescriptors.at(slot.first));
+  for (const auto &[slot, texture]: m_textures) {
+    if (texture == nullptr) continue;
+    m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors.at(slot));
   }
 }
 

@@ -24,7 +24,7 @@ struct TextureUploadJob {
 
 /**
  * Handles asynchronous GPU uploads of staging buffer allocations to textures
- * - Pulls completed jobs from job queues (e.g., future texture loaders)
+ * - Pulls completed jobs from job queues (e.g., texture loaders and model loader)
  * - Records copy commands into a command buffer.
  * - Submits command buffer to a transfer-capable queue
  * - Uses semaphore signaling to track GPU completion of each allocation
@@ -38,8 +38,7 @@ public:
     const uint32_t transferQueueFamilyIndex,
     StagingBuffer &stagingBuffer,
     QueueFamilyIndices &familyIndices
-  ) : m_device(device), m_transferQueue(transferQueue), m_stagingBuffer(stagingBuffer), m_stop(false),
-      m_familyIndices(familyIndices) {
+  ) : m_device(device), m_transferQueue(transferQueue), m_stagingBuffer(stagingBuffer), m_familyIndices(familyIndices) {
     ZoneScoped;
     const auto transferPoolInfo = vk::CommandPoolCreateInfo(
       vk::CommandPoolCreateFlagBits::eResetCommandBuffer, transferQueueFamilyIndex);
@@ -77,7 +76,7 @@ private:
 
   moodycamel::BlockingConcurrentQueue<TextureUploadJob> m_queue;
   std::thread m_thread;
-  std::atomic_bool m_stop;
+  std::atomic_bool m_stop = false;
 
   std::chrono::microseconds m_maxBatchWait = std::chrono::microseconds(2000);
   QueueFamilyIndices &m_familyIndices;

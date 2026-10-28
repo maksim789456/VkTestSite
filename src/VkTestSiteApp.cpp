@@ -680,6 +680,7 @@ void VkTestSiteApp::cleanup() {
 #ifndef NDEBUG
   TracyVkDestroy(m_vkContext);
 #endif
+  m_context->device().waitIdle();
 
   for (int i = 0; i < MAX_FRAME_IN_FLIGHT; ++i) {
     m_context->device().destroyFence(m_inFlight[i]);
