@@ -111,6 +111,7 @@ private:
     const auto threadName = std::format("Texture Worker {}", threadIdx);
     tracy::SetThreadNameWithHint(threadName.c_str(), UINT8_MAX);
     spdlog::mdc::put("", threadName);
+
     while (true) {
       TextureLoadJob job{};
       m_queue.wait_dequeue(job);
@@ -123,7 +124,9 @@ private:
           continue;
         }
 
-        if (job.filepath.extension() == ".ktx" || job.filepath.extension() == ".ktx2") {
+        auto ext = job.filepath.extension().string();
+        std::ranges::transform(ext, ext.begin(), tolower);
+        if (ext == ".ktx" || ext == ".ktx2") {
           auto texture = loadKtxTexture(job);
           if (texture == nullptr) continue;
           m_doneQueue.enqueue({
@@ -231,14 +234,18 @@ private:
       auto width = kTexture->baseWidth;
       auto height = kTexture->baseHeight;
       auto mipLevels = kTexture->numLevels;
-      if (kTexture->isArray || kTexture->isCubemap || kTexture->numDimensions > 2) {
-        spdlog::warn("KTX texture {} it's not plain one, we cannot load it", job.filepath.string());
-        return nullptr;
-      }
+      if (kTexture->isArray || kTexture->isCubemap || kTexture->numDimensions > 2)
+        throw std::runtime_error(std::format("KTX texture {} it's not plain one, we cannot load it",
+                                             job.filepath.string()));
+
+      const auto format = static_cast<vk::Format>(ktxTexture2_GetVkFormat(kTexture));
+      if (format == vk::Format::eUndefined)
+        throw std::runtime_error(std::format("KTX texture {} request undefined image format",
+                                             job.filepath.string()));
+
       auto texture = std::make_unique<Texture>(
         m_device, m_allocator,
-        width, height, mipLevels,
-        static_cast<vk::Format>(kTexture->vkFormat),
+        width, height, mipLevels, format,
         vk::SampleCountFlagBits::e1,
         vk::ImageAspectFlagBits::eColor,
         vk::ImageUsageFlagBits::eSampled
