@@ -17,23 +17,35 @@ protected:
 
     auto str = fmt::to_string(formatted);
     auto color = level_to_color(msg.level);
-    TracyMessageC(str.c_str(), str.size(), color);
+    auto level = level_to_tracyLvl(msg.level);
+    TracyLogString(level, color, 0, str.size(), str.c_str());
   }
 
   void flush_() override {
   }
+
 private:
-  static uint32_t level_to_color(const spdlog::level::level_enum lvl)
-  {
-    switch (lvl)
-    {
-      case spdlog::level::trace:    return 0xFFFFFFFF; // white
-      case spdlog::level::debug:    return 0xFF00FFFF; // cyan
-      case spdlog::level::info:     return 0xFF00FF00; // green
-      case spdlog::level::warn:     return 0xFFFFFF00; // yellow
-      case spdlog::level::err:      return 0xFFFF0000; // red
+  static uint32_t level_to_color(const spdlog::level::level_enum lvl) {
+    switch (lvl) {
+      case spdlog::level::trace: return 0xFFFFFFFF; // white
+      case spdlog::level::debug: return 0xFF00FFFF; // cyan
+      case spdlog::level::info: return 0xFF00FF00; // green
+      case spdlog::level::warn: return 0xFFFFFF00; // yellow
+      case spdlog::level::err: return 0xFFFF0000; // red
       case spdlog::level::critical: return 0xFFFF4444; // bright red
-      default:                      return 0xFFFFFFFF; // fallback white
+      default: return 0xFFFFFFFF; // fallback white
+    }
+  }
+
+  static tracy::MessageSeverity level_to_tracyLvl(const spdlog::level::level_enum lvl) {
+    switch (lvl) {
+      case spdlog::level::trace: return tracy::MessageSeverity::Trace;
+      case spdlog::level::debug: return tracy::MessageSeverity::Debug;
+      case spdlog::level::info: return tracy::MessageSeverity::Info;
+      case spdlog::level::warn: return tracy::MessageSeverity::Warning;
+      case spdlog::level::err: return tracy::MessageSeverity::Error;
+      case spdlog::level::critical: return tracy::MessageSeverity::Fatal;
+      default: return tracy::MessageSeverity::Info;
     }
   }
 };
