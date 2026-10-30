@@ -7,8 +7,8 @@ TextureManager::TextureManager(
   TextureWorkerPool &workerPool,
   DescriptorSet &descriptorSet,
   const uint32_t shaderBinding
-): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_descriptorSet(&descriptorSet),
-   m_workerPool(&workerPool), m_shaderBinding(shaderBinding) {
+) : m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_descriptorSet(&descriptorSet),
+    m_workerPool(&workerPool), m_shaderBinding(shaderBinding) {
   m_sampler = createSamplerUnique(device);
 }
 
@@ -51,16 +51,16 @@ uint32_t TextureManager::loadTextureFromFile(
 }
 
 void TextureManager::checkTextureLoading() {
-  if (TextureLoadDone loadDone{}; m_workerPool->tryDequeueDone(loadDone)) {
+  while (m_workerPool->tryDequeueDone(m_pendingLoad)) {
     ZoneScopedN("Loaded texture move");
-    const auto slot = loadDone.job.texIndex;
+    const auto slot = m_pendingLoad.job.texIndex;
     if (m_textures[slot] != nullptr)
       spdlog::warn(std::format("Try to move texture {} into occupied slot {}",
-                               loadDone.job.filepath.string(), slot));
+                               m_pendingLoad.job.filepath.string(), slot));
 
-//TODO: gen mipmaps
+    //TODO: gen mipmaps
 
-    m_textures[slot] = std::move(loadDone.texture);
+    m_textures[slot] = std::move(m_pendingLoad.texture);
     m_textures[slot]->createImguiView();
     m_textureDescriptors[slot] = vk::DescriptorImageInfo(
       m_sampler.get(), m_textures[slot]->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
