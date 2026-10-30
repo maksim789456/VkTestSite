@@ -18,6 +18,11 @@
 #include "vulkan-memory-allocator-hpp/vk_mem_alloc.hpp"
 #include "tinyfiledialogs/tinyfiledialogs.h"
 
+#define VMA_DEBUG_LOG_FORMAT(format, ...) do { \
+printf((format), __VA_ARGS__); \
+printf("\n"); \
+} while(false)
+
 #include "utils.cpp"
 #include <string>
 #include <iostream>
@@ -27,7 +32,7 @@
 
 #include "QueueFamilyIndices.cpp"
 #include "Swapchain.h"
-#include "ShaderModule.h"
+#include "pipeline/ShaderModule.h"
 #include "Vertex.h"
 #include "DescriptorPool.h"
 #include "DescriptorSet.h"
@@ -35,11 +40,15 @@
 #include "Ubo.h"
 #include "Camera.h"
 #include "TextureManager.h"
-#include "Pipeline.h"
+#include "pipeline/Pipeline.h"
 #include "Light.h"
 #include "StagingBuffer.h"
 #include "TextureWorkersPool.h"
 #include "TransferThread.h"
+#include "core/VkContext.h"
+
+#include "../_autogen/geometry.ep.slang.h"
+#include "../_autogen/light.ep.slang.h"
 
 struct alignas(16) UniformBufferObject {
   glm::vec4 viewPos;
@@ -57,20 +66,14 @@ private:
   tracy::VkCtx *m_vkContext = nullptr;
   vk::CommandBuffer m_tracyCmdBuffer;
 
-  vk::detail::DynamicLoader m_loader;
-  vk::Instance m_instance;
-  vma::Allocator m_allocator = nullptr;
-#ifndef NDEBUG
-  vk::DebugUtilsMessengerEXT m_debugMessenger;
-#endif
-  vk::UniqueSurfaceKHR m_surface;
-  vk::PhysicalDevice m_physicalDevice;
-  vk::Device m_device;
-  vk::Queue m_graphicsQueue;
-  vk::Queue m_presentQueue;
-  Swapchain m_swapchain;
+  std::unique_ptr<vkts::VkContext> m_context;
+  vkts::VkContextConfig m_contextConfig;
+
+  std::unique_ptr<Swapchain> m_swapchain;
   vk::RenderPass m_renderPass;
+  std::unique_ptr<ShaderModule> m_geometryShader;
   vk::Pipeline m_geometryPipeline;
+  std::unique_ptr<ShaderModule> m_lightingShader;
   vk::Pipeline m_lightingPipeline;
   vk::CommandPool m_commandPool;
   DescriptorPool m_descriptorPool;
@@ -86,7 +89,6 @@ private:
   std::unique_ptr<TextureManager> m_texManager;
   std::unique_ptr<LightManager> m_lightManager;
 
-  vk::Queue m_transferQueue;
   std::unique_ptr<TransferThread> m_transferThread;
   std::unique_ptr<StagingBuffer> m_stagingBuffer;
   std::unique_ptr<TextureWorkerPool> m_textureWorkerPool;
@@ -106,16 +108,14 @@ private:
 
   void initWindow();
   void initVk();
-  void createInstance();
-  void createLogicalDevice();
-  void createQueues();
   void createRenderPass();
   void createPipeline();
   void createColorObjets();
   void createDepthObjets();
   void createFramebuffers();
   void createUniformBuffers();
-  void createDescriptorSet();
+
+  void fillDS();
   void createCommandPool();
   void createCommandBuffers();
   void createSyncObjects();
@@ -123,7 +123,7 @@ private:
   void mainLoop();
   void render(ImDrawData* draw_data, float deltaTime);
   void updateUniformBuffer(uint32_t imageIndex);
-  void recordCommandBuffer(ImDrawData* draw_data, const vk::CommandBuffer& commandBuffer, uint32_t imageIndex);
+  void recordCommandBuffer(ImDrawData *draw_data, const vk::CommandBuffer &commandBuffer, uint32_t localImageIdx, uint32_t presentImageIdx);
   void recreateSwapchain();
   void cleanupSwapchain();
   void cleanup();

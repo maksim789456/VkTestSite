@@ -1,15 +1,17 @@
 #include "VkTestSiteApp.h"
 #include "TracyLogSink.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/mdc.h"
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 int main() {
   const auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+  const auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("latest.log", true);
   const auto tracy_sink = std::make_shared<tracy_sink_mt>();
 
-  std::vector<spdlog::sink_ptr> sinks{console_sink, tracy_sink};
+  std::vector<spdlog::sink_ptr> sinks{console_sink, file_sink, tracy_sink};
 
   const auto logger = std::make_shared<spdlog::logger>("def_logger", sinks.begin(), sinks.end());
   spdlog::set_default_logger(logger);

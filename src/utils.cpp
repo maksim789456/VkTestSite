@@ -15,76 +15,69 @@
 #include <spdlog/spdlog.h>
 
 std::vector<char const *> static gatherLayers(
-  std::vector<std::string> const &layers
-#ifndef NDEBUG
-  , std::vector<vk::LayerProperties> const &layerProperties
-#endif
+  std::vector<std::string> const &requiredLayers,
+  std::span<const vk::LayerProperties> const &availableLayers,
+  bool enableValidationLayer = false
 ) {
   ZoneScoped;
   std::vector<char const *> enabledLayers;
-  enabledLayers.reserve(layers.size());
+  enabledLayers.reserve(requiredLayers.size());
 
-#ifndef NDEBUG
   const auto layerAvailable = [&](const std::string_view name) {
-    return std::ranges::any_of(layerProperties, [&](const vk::LayerProperties &lp) {
+    return std::ranges::any_of(availableLayers, [&](const vk::LayerProperties &lp) {
       return std::string_view(lp.layerName.data()) == name;
     });
   };
-#endif
 
-  for (const auto &layer: layers) {
-#ifndef NDEBUG
-    assert(layerAvailable(layer));
-#endif
+  for (const auto &layer: requiredLayers) {
+    if (!layerAvailable(layer)) {
+      spdlog::error("Layer {} not available", layer);
+      abort();
+    }
     enabledLayers.push_back(layer.data());
   }
 
-#ifndef NDEBUG
-  constexpr std::string_view validationLayer = "VK_LAYER_KHRONOS_validation";
-  if (std::ranges::none_of(layers, [&](const std::string &l) { return l == validationLayer; })
-      && layerAvailable(validationLayer)) {
-    enabledLayers.push_back(validationLayer.data());
+  if (enableValidationLayer) {
+    constexpr std::string_view validationLayer = "VK_LAYER_KHRONOS_validation";
+    const bool alreadyEnabled = std::ranges::contains(requiredLayers, validationLayer);
+    if (!alreadyEnabled && layerAvailable(validationLayer)) {
+      enabledLayers.push_back(validationLayer.data());
+    }
   }
-#endif
 
   return enabledLayers;
 }
 
 std::vector<char const *> static gatherExtensions(
-  std::vector<std::string> const &extensions
-#ifndef NDEBUG
-  , std::vector<vk::ExtensionProperties> const &extensionProperties
-#endif
+  std::vector<std::string> const &requiredExtensions,
+  std::span<const vk::ExtensionProperties> const &availableExtensions,
+  bool enableDebug = false
 ) {
   ZoneScoped;
   std::vector<char const *> enabledExtensions;
-  enabledExtensions.reserve(extensions.size());
+  enabledExtensions.reserve(requiredExtensions.size());
 
-#ifndef NDEBUG
   const auto extensionAvailable = [&](const std::string_view name) {
-    return std::ranges::any_of(extensionProperties, [&](const vk::ExtensionProperties &lp) {
+    return std::ranges::any_of(availableExtensions, [&](const vk::ExtensionProperties &lp) {
       return std::string_view(lp.extensionName.data()) == name;
     });
   };
-#endif
 
-  for (const auto &extension: extensions) {
-#ifndef NDEBUG
+  for (const auto &extension: requiredExtensions) {
     if (!extensionAvailable(extension)) {
-      spdlog::error(std::format("Extension {} not available", extension));
+      spdlog::error("Extension {} not available", extension);
       abort();
     }
-#endif
     enabledExtensions.push_back(extension.data());
   }
 
-#ifndef NDEBUG
-  constexpr std::string_view debugUtilsExtension = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
-  if (std::ranges::none_of(extensions, [&](const std::string &l) { return l == debugUtilsExtension; })
-      && extensionAvailable(debugUtilsExtension)) {
-    enabledExtensions.push_back(debugUtilsExtension.data());
+  if (enableDebug) {
+    constexpr std::string_view debugUtilsExtension = VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
+    const bool alreadyEnabled = std::ranges::contains(requiredExtensions, debugUtilsExtension);
+    if (!alreadyEnabled && extensionAvailable(debugUtilsExtension)) {
+      enabledExtensions.push_back(debugUtilsExtension.data());
+    }
   }
-#endif
 
   return enabledExtensions;
 }
@@ -185,7 +178,7 @@ static makeInstanceCreateInfoChain(
   return instanceCreateInfo;
 }
 
-std::optional<vk::PhysicalDevice> static pickPhysicalDevice(
+std::optional<vk::PhysicalDevice> static pickPhysicalDeviceHelper(
   const vk::Instance &instance,
   const vk::SurfaceKHR &surface,
   const std::vector<const char *> &required_extensions
@@ -330,15 +323,18 @@ static std::pair<vma::UniqueAllocation, vma::UniqueImage> createImageUnique(
   return allocator.createImageUnique(info, allocInfo);
 }
 
-static vk::UniqueSampler createSamplerUnique(const vk::Device device) {
+static vk::UniqueSampler createSamplerUnique(
+  const vk::Device device,
+  const bool enableAnisotropic = true
+) {
   auto info = vk::SamplerCreateInfo();
   info.setMagFilter(vk::Filter::eLinear)
       .setMinFilter(vk::Filter::eLinear)
       .setAddressModeU(vk::SamplerAddressMode::eRepeat)
       .setAddressModeV(vk::SamplerAddressMode::eRepeat)
       .setAddressModeW(vk::SamplerAddressMode::eRepeat)
-      .setAnisotropyEnable(true)
-      .setMaxAnisotropy(16.0)
+      .setAnisotropyEnable(enableAnisotropic)
+      .setMaxAnisotropy(16.0) //TODO: Req physical device for get maxSamplerAnisotropy
       .setBorderColor(vk::BorderColor::eIntOpaqueBlack)
       .setUnnormalizedCoordinates(false)
       .setCompareEnable(false)
@@ -346,7 +342,7 @@ static vk::UniqueSampler createSamplerUnique(const vk::Device device) {
       .setMipmapMode(vk::SamplerMipmapMode::eLinear)
       .setMipLodBias(0.0f)
       .setMinLod(0.0f)
-      .setMaxLod(0.0f);
+      .setMaxLod(enableAnisotropic ? VK_LOD_CLAMP_NONE : 0.0f);
   return device.createSamplerUnique(info);
 }
 
@@ -371,6 +367,8 @@ static void cmdTransitionImageLayout(
   const vk::Format format = vk::Format::eR32G32B32A32Sfloat,
   const uint32_t baseMipLevel = 0
 ) {
+  if (oldLayout == newLayout)
+    return;
   auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [oldLayout, newLayout]()
     -> std::tuple<vk::AccessFlags, vk::AccessFlags, vk::PipelineStageFlags, vk::PipelineStageFlags> {
         using AF = vk::AccessFlagBits;
@@ -387,6 +385,9 @@ static void cmdTransitionImageLayout(
         }
         if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
           return {AF::eTransferWrite, AF::eShaderRead, PF::eTransfer, PF::eFragmentShader};
+        }
+        if (oldLayout == vk::ImageLayout::eTransferSrcOptimal && newLayout == vk::ImageLayout::eTransferDstOptimal) {
+          return {AF::eTransferRead, AF::eTransferWrite, PF::eTransfer, PF::eTransfer};
         }
         if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eDepthStencilAttachmentOptimal) {
           return {
@@ -486,52 +487,102 @@ static void transitionImageLayout(
   });
 }
 
+enum TransferOwnershipAction {
+  Release,
+  Acquire
+};
+
+static void cmdTransferImageOwnership(
+  const vk::CommandBuffer cmd,
+  const vk::Image image,
+  const vk::ImageSubresourceRange &subresource,
+  const TransferOwnershipAction action,
+  const uint32_t srcQueueFamilyIdx,
+  const uint32_t dstQueueFamilyIdx
+) {
+  auto [srcAccessMask, dstAccessMask, srcStageMask, dstStageMask] = [action]()
+    -> std::tuple<vk::AccessFlags2, vk::AccessFlags2, vk::PipelineStageFlags2, vk::PipelineStageFlags2> {
+        using AF2 = vk::AccessFlagBits2;
+        using PF2 = vk::PipelineStageFlagBits2;
+
+        if (action == Release) {
+          return {AF2::eTransferWrite, AF2::eNone, PF2::eTransfer, PF2::eNone};
+        }
+        if (action == Acquire) {
+          return {AF2::eNone, AF2::eTransferWrite | AF2::eTransferRead, PF2::eNone, PF2::eTransfer};
+        }
+        return {};
+      }();
+
+  const auto barrier = vk::ImageMemoryBarrier2(
+    srcStageMask, srcAccessMask,
+    dstStageMask, dstAccessMask,
+    vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferDstOptimal,
+    srcQueueFamilyIdx, dstQueueFamilyIdx,
+    image, subresource
+  );
+  auto dep = vk::DependencyInfo();
+  dep.setImageMemoryBarriers(barrier);
+  cmd.pipelineBarrier2(dep);
+}
+
+static void cmdGenerateMipmaps(
+  const vk::CommandBuffer cmd,
+  const vk::Image image,
+  const uint32_t width, const uint32_t height,
+  const uint32_t mipLevels,
+  const vk::ImageLayout finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal
+) {
+  auto mipWidth = width;
+  auto mipHeight = height;
+  for (int mipLevel = 1; mipLevel < mipLevels; ++mipLevel) {
+    cmdTransitionImageLayout(
+      cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
+      1, {}, mipLevel - 1);
+
+    const auto srcSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel - 1, 0, 1);
+    const auto dstSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1);
+    auto blit = vk::ImageBlit(
+      srcSubResource,
+      {
+        vk::Offset3D(0, 0, 0),
+        vk::Offset3D(mipWidth, mipHeight, 1),
+      },
+      dstSubResource,
+      {
+        vk::Offset3D(0, 0, 0),
+        vk::Offset3D(mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1),
+      }
+    );
+    cmd.blitImage(
+      image, vk::ImageLayout::eTransferSrcOptimal,
+      image, vk::ImageLayout::eTransferDstOptimal,
+      blit, vk::Filter::eLinear
+    );
+
+    cmdTransitionImageLayout(
+      cmd, image, vk::ImageLayout::eTransferSrcOptimal, finalLayout,
+      1, {}, mipLevel - 1);
+
+    mipWidth = mipWidth > 1 ? mipWidth / 2 : mipWidth;
+    mipHeight = mipHeight > 1 ? mipHeight / 2 : mipHeight;
+  }
+
+  cmdTransitionImageLayout(
+    cmd, image, vk::ImageLayout::eTransferDstOptimal, finalLayout,
+    1, {}, mipLevels - 1);
+}
+
 static void generateMipmaps(
   const vk::Device device,
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
   const vk::Image image,
   const uint32_t width, const uint32_t height,
-  const uint32_t mipLevels
+  const uint32_t mipLevels,
+  const vk::ImageLayout finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal
 ) {
   executeSingleTimeCommands(device, graphicsQueue, commandPool, [&](const vk::CommandBuffer cmd) {
-    auto mipWidth = width;
-    auto mipHeight = height;
-    for (int mipLevel = 1; mipLevel < mipLevels; ++mipLevel) {
-      cmdTransitionImageLayout(
-        cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eTransferSrcOptimal,
-        1, {}, mipLevel - 1);
-
-      const auto srcSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel - 1, 0, 1);
-      const auto dstSubResource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, mipLevel, 0, 1);
-      auto blit = vk::ImageBlit(
-        srcSubResource,
-        {
-          vk::Offset3D(0, 0, 0),
-          vk::Offset3D(mipWidth, mipHeight, 1),
-        },
-        dstSubResource,
-        {
-          vk::Offset3D(0, 0, 0),
-          vk::Offset3D(mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1),
-        }
-      );
-      cmd.blitImage(
-        image, vk::ImageLayout::eTransferSrcOptimal,
-        image, vk::ImageLayout::eTransferDstOptimal,
-        blit, vk::Filter::eLinear
-      );
-
-      cmdTransitionImageLayout(
-        cmd, image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-        1, {}, mipLevel - 1);
-
-      mipWidth = mipWidth > 1 ? mipWidth / 2 : mipWidth;
-      mipHeight = mipHeight > 1 ? mipHeight / 2 : mipHeight;
-    }
-
-    cmdTransitionImageLayout(
-      cmd, image, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal,
-      1, {}, mipLevels - 1);
+    cmdGenerateMipmaps(cmd, image, width, height, mipLevels, finalLayout);
   });
 }

@@ -6,6 +6,7 @@
 #include <concurrentqueue/moodycamel/blockingconcurrentqueue.h>
 
 #include "StagingBuffer.h"
+#include "QueueFamilyIndices.cpp"
 #include "utils.cpp"
 #include "spdlog/mdc.h"
 
@@ -14,14 +15,16 @@ struct TextureUploadJob {
   StagingBuffer::Allocation allocation;
   vk::Image dstImage;
   vk::ImageSubresourceRange subresourceRange;
-  vk::BufferImageCopy region;
+  std::vector<vk::BufferImageCopy> regions;
   vk::ImageLayout srcImageLayout = vk::ImageLayout::eUndefined;
   vk::ImageLayout dstImageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+  bool doGenerateMipmaps = false;
 };
 
 /**
  * Handles asynchronous GPU uploads of staging buffer allocations to textures
- * - Pulls completed jobs from job queues (e.g., future texture loaders)
+ * - Pulls completed jobs from job queues (e.g., texture loaders and model loader)
  * - Records copy commands into a command buffer.
  * - Submits command buffer to a transfer-capable queue
  * - Uses semaphore signaling to track GPU completion of each allocation
@@ -33,8 +36,9 @@ public:
     const vk::Device device,
     const vk::Queue transferQueue,
     const uint32_t transferQueueFamilyIndex,
-    StagingBuffer &stagingBuffer
-  ): m_device(device), m_transferQueue(transferQueue), m_stagingBuffer(stagingBuffer), m_stop(false) {
+    StagingBuffer &stagingBuffer,
+    QueueFamilyIndices &familyIndices
+  ) : m_device(device), m_transferQueue(transferQueue), m_stagingBuffer(stagingBuffer), m_familyIndices(familyIndices) {
     ZoneScoped;
     const auto transferPoolInfo = vk::CommandPoolCreateInfo(
       vk::CommandPoolCreateFlagBits::eResetCommandBuffer, transferQueueFamilyIndex);
@@ -72,9 +76,10 @@ private:
 
   moodycamel::BlockingConcurrentQueue<TextureUploadJob> m_queue;
   std::thread m_thread;
-  std::atomic_bool m_stop;
+  std::atomic_bool m_stop = false;
 
   std::chrono::microseconds m_maxBatchWait = std::chrono::microseconds(2000);
+  QueueFamilyIndices &m_familyIndices;
 
   void threadLoop() {
     tracy::SetThreadName("VK Transfer Thread");
@@ -115,15 +120,19 @@ private:
 
       m_cmdBuff->copyBufferToImage(
         m_stagingBuffer.getBuffer(), job.dstImage,
-        vk::ImageLayout::eTransferDstOptimal, job.region);
-
-      cmdTransitionImageLayout2(
-        m_cmdBuff.get(),
-        job.dstImage,
-        vk::ImageLayout::eTransferDstOptimal,
-        job.dstImageLayout,
-        job.subresourceRange
+        vk::ImageLayout::eTransferDstOptimal, job.regions
       );
+
+      if (m_familyIndices.isTransferQueueSeparated()) {
+        cmdTransferImageOwnership(
+          m_cmdBuff.get(),
+          job.dstImage,
+          job.subresourceRange,
+          Release,
+          *m_familyIndices.transfer,
+          *m_familyIndices.graphics
+        ); //TODO: do Acquire on graphics side
+      }
     }
 
     m_cmdBuff->end();

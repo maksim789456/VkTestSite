@@ -30,6 +30,7 @@ public:
   }
 
   void onUpdate(const float deltaTime) {
+    ZoneScoped;
     const auto rotationMatrix = glm::mat4_cast(rotation);
     const glm::vec3 offset = rotationMatrix * glm::vec4(velocity * deltaTime * 5.0f, 0.0f);
     position += offset;
@@ -43,6 +44,7 @@ public:
   }
 
   void keyboardCallback(int key, int action, int mods) {
+    ZoneScoped;
     float value = action == GLFW_PRESS || action == GLFW_REPEAT ? 1.0f : 0.0f;
     value *= mods == GLFW_MOD_SHIFT ? 2.0f : 1.0f;
 
@@ -60,6 +62,7 @@ public:
   }
 
   void mouseCallback(GLFWwindow *window, double xpos, double ypos) {
+    ZoneScoped;
     bool left_pressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
     if (!left_pressed) {
       first_move = true;
@@ -93,6 +96,7 @@ public:
   }
 
   void updateFrustum() {
+    ZoneScoped;
     auto halfAngleY = glm::tan(fov * 0.5f);
     auto halfAngleX = halfAngleY * aspectRatio;
 
