@@ -52,14 +52,16 @@ uint32_t TextureManager::loadTextureFromFile(
 }
 
 void TextureManager::checkTextureLoading() {
-  if (TextureLoadDone loadDone{}; m_workerPool->tryDequeueDone(loadDone)) {
+  while (m_workerPool->tryDequeueDone(m_pendingLoad)) {
     ZoneScopedN("Loaded texture move");
-    const auto slot = loadDone.job.texIndex;
+    const auto slot = m_pendingLoad.job.texIndex;
     if (m_textures[slot] != nullptr)
       spdlog::warn(std::format("Try to move texture {} into occupied slot {}",
-                               loadDone.job.filepath.string(), slot));
+                               m_pendingLoad.job.filepath.string(), slot));
 
-    m_textures[slot] = std::move(loadDone.texture);
+    //TODO: gen mipmaps
+
+    m_textures[slot] = std::move(m_pendingLoad.texture);
     m_textures[slot]->createImguiView();
     m_textureDescriptors[slot] = vk::DescriptorImageInfo(
       m_sampler.get(), m_textures[slot]->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);

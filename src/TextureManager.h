@@ -46,6 +46,7 @@ private:
   std::unordered_map<std::string, uint32_t> m_cache = {};
   std::unordered_map<uint32_t, vk::DescriptorImageInfo> m_textureDescriptors = {};
   vk::UniqueSampler m_sampler;
+  TextureLoadDone m_pendingLoad = {};
 };
 
 
