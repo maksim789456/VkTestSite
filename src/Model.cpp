@@ -46,7 +46,8 @@ Model::Model(
   TextureManager &textureManager,
   LightManager &lightManager,
   const std::filesystem::path &modelPath
-) : m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_allocator(allocator) {
+) : m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool),
+    m_allocator(allocator), m_textureManager(&textureManager) {
   ZoneScoped;
   spdlog::info(std::format("Loading model from: {}", modelPath.string()));
   Assimp::Importer importer;
@@ -65,7 +66,7 @@ Model::Model(
   }
 
   const auto modelParent = modelPath.parent_path();
-  processMaterials(textureManager, scene, modelParent);
+  processMaterials(scene, modelParent);
   processLight(lightManager, scene);
   processNode(lightManager, scene->mRootNode, scene, glm::mat4(1.0f));
   m_name = std::string(scene->mRootNode->mName.C_Str());
@@ -114,7 +115,6 @@ void Model::processNode(
 }
 
 void Model::processMaterials(
-  TextureManager &textureManager,
   const aiScene *scene,
   const std::filesystem::path &modelParent
 ) {
@@ -126,10 +126,10 @@ void Model::processMaterials(
     aiMaterial *material = scene->mMaterials[matIdx];
     Material mat;
     if (const auto albedo = getMaterialAlbedoTextureFile(material))
-      mat.albedoTexIdx = textureManager.loadTextureFromFile(absoluteModelParent, *albedo);
+      mat.albedoTexIdx = m_textureManager->loadTextureFromFile(absoluteModelParent, *albedo);
 
     if (const auto normal = getMaterialNormalTextureFile(material))
-      mat.normalTexIdx = textureManager.loadTextureFromFile(absoluteModelParent, *normal);
+      mat.normalTexIdx = m_textureManager->loadTextureFromFile(absoluteModelParent, *normal);
 
     if (aiColor3D aiDiffuseColor; material->Get(AI_MATKEY_COLOR_DIFFUSE, aiDiffuseColor) == AI_SUCCESS) {
       mat.diffuseColor = glm::vec4(aiDiffuseColor.r, aiDiffuseColor.g, aiDiffuseColor.b, 1.0f);
@@ -289,6 +289,16 @@ vk::CommandBuffer Model::cmdDraw(
   cmdBuf.end();
 
   return cmdBuf;
+}
+
+void Model::unload() {
+  for (const auto material: m_materials) {
+    if (material.albedoTexIdx != EMPTY_TEXTURE_INDEX)
+      m_textureManager->unloadTexture(material.albedoTexIdx);
+
+    if (material.normalTexIdx != EMPTY_TEXTURE_INDEX)
+      m_textureManager->unloadTexture(material.normalTexIdx);
+  }
 }
 
 void Model::drawUI() {

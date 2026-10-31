@@ -87,6 +87,7 @@ std::optional<Texture *> TextureManager::getTexture(const uint32_t slot) {
 }
 
 void TextureManager::unloadTexture(const uint32_t slot) {
+  spdlog::debug("Unloading texture {}", slot);
   if (const auto tex = m_textures.find(slot); tex != m_textures.end()) {
     m_textures.erase(tex);
   }
@@ -96,5 +97,11 @@ void TextureManager::unloadTexture(const uint32_t slot) {
       m_cache.erase(c);
       break;
     }
+  }
+
+  if (const auto ds = m_textureDescriptors.find(slot); ds != m_textureDescriptors.end()) {
+    // We don't care about m_descriptorSet: if texture unloaded, we don't read this slot
+    // The next texture in this slot overwrite DS
+    m_textureDescriptors.erase(ds);
   }
 }

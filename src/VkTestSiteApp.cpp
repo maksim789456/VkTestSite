@@ -433,6 +433,7 @@ void VkTestSiteApp::mainLoop() {
     }
     if (m_modelLoaded && ImGui::Button("Unload model")) {
       m_lightManager->cleanup();
+      m_model->unload();
       m_model.reset();
       m_modelLoaded = false;
     }

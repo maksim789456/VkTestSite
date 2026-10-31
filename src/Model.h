@@ -73,6 +73,8 @@ public:
 
   void drawUI();
 
+  void unload();
+
   ~Model() = default;
 
 private:
@@ -84,7 +86,6 @@ private:
   );
 
   void processMaterials(
-    TextureManager &textureManager,
     const aiScene *scene,
     const std::filesystem::path &modelParent
   );
@@ -112,5 +113,6 @@ private:
   vk::Queue m_graphicsQueue = nullptr;
   vk::CommandPool m_commandPool = nullptr;
   vma::Allocator m_allocator = nullptr;
+  TextureManager *m_textureManager = nullptr;
 };
 #endif //MODEL_H
