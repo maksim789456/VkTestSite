@@ -7,8 +7,8 @@ TextureManager::TextureManager(
   TextureWorkerPool &workerPool,
   DescriptorSet &descriptorSet,
   const uint32_t shaderBinding
-): m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_descriptorSet(&descriptorSet),
-   m_workerPool(&workerPool), m_shaderBinding(shaderBinding) {
+) : m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_descriptorSet(&descriptorSet),
+    m_workerPool(&workerPool), m_shaderBinding(shaderBinding) {
   ZoneScoped;
   m_sampler = createSamplerUnique(device);
 }
@@ -54,9 +54,17 @@ void TextureManager::checkTextureLoading() {
   while (m_workerPool->tryDequeueDone(m_pendingLoad)) {
     ZoneScopedN("Loaded texture move");
     const auto slot = m_pendingLoad.job.texIndex;
-    if (m_textures[slot] != nullptr)
-      spdlog::warn(std::format("Try to move texture {} into occupied slot {}",
-                               m_pendingLoad.job.filepath.string(), slot));
+    if (!m_pendingLoad.texture) {
+      spdlog::error("Texture worker return empty texture for slot {}", slot);
+      continue;
+    }
+    if (slot >= MAX_TEXTURE_PER_DESCRIPTOR) {
+      spdlog::error("Texture {} has invalid slot {}", m_pendingLoad.job.filepath.string(), slot);
+      continue;
+    }
+    if (const auto it = m_textures.find(slot); it != m_textures.end() && it->second != nullptr) {
+      spdlog::error("Texture {} overwrite occupied slot {}", m_pendingLoad.job.filepath.string(), slot);
+    }
 
     //TODO: gen mipmaps
 
