@@ -591,7 +591,8 @@ void VkTestSiteApp::recordCommandBuffer(ImDrawData *draw_data, const vk::Command
       commandBuffer.executeCommands(modelCmd);
     }
   }
-  commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers); {
+  commandBuffer.nextSubpass(vk::SubpassContents::eSecondaryCommandBuffers);
+  if (m_modelLoaded) {
     //Light subpass
     auto lightCmd = m_lightingCommandBuffers[localImageIdx].get();
     auto inheritanceInfo = vk::CommandBufferInheritanceInfo(m_renderPass, 1, m_framebuffers[presentImageIdx]);
