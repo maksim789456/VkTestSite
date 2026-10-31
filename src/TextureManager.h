@@ -22,8 +22,7 @@ public:
 
   uint32_t loadTextureFromFile(
     const std::filesystem::path &textureParent,
-    const std::filesystem::path &filename,
-    vk::Format format = vk::Format::eR8G8B8A8Unorm
+    const std::filesystem::path &filename
   );
 
   void checkTextureLoading();
