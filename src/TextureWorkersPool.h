@@ -43,12 +43,21 @@ class TextureWorkerPool {
 public:
   TextureWorkerPool(
     const vk::Device device,
+    const vk::PhysicalDevice physicalDevice,
     const vma::Allocator allocator,
     StagingBuffer &stagingBuffer,
     TransferThread &transferThread,
     uint32_t threadCount = 0
   ) : m_device(device), m_allocator(allocator), m_stagingBuffer(stagingBuffer), m_transferThread(transferThread) {
     ZoneScoped;
+    const auto ktxFormats = std::vector{vk::Format::eBc7SrgbBlock, vk::Format::eBc7UnormBlock};
+    constexpr auto reqFeatures = vk::FormatFeatureFlagBits::eSampledImage | vk::FormatFeatureFlagBits::eTransferDst;
+    for (const auto ktxFormat: ktxFormats) {
+      const auto props = physicalDevice.getFormatProperties(ktxFormat);
+      if (const bool supported = (props.optimalTilingFeatures & reqFeatures) == reqFeatures; !supported)
+        throw new std::runtime_error("Current GPU cannot handle BC7 format for ktx textures");
+    }
+
     if (threadCount <= 0) {
       const auto hardwareThreads = std::thread::hardware_concurrency();
       threadCount = hardwareThreads > 2 ? hardwareThreads - 2 : 1;

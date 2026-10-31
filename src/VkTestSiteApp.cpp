@@ -80,8 +80,9 @@ void VkTestSiteApp::initVk() {
     m_context->device(), m_context->transferQueue(),
     *indices.transfer,
     *m_stagingBuffer, *m_context->queueFamilyIndices());
-  m_textureWorkerPool = std::make_unique<TextureWorkerPool>(m_context->device(), m_context->allocator(),
-                                                            *m_stagingBuffer, *m_transferThread);
+  m_textureWorkerPool = std::make_unique<TextureWorkerPool>(
+    m_context->device(),m_context->physicalDevice(),m_context->allocator(),
+    *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
     m_context->device(), m_context->graphicsQueue(), m_commandPool, *m_textureWorkerPool, m_geometryDescriptorSet, 1);
 
