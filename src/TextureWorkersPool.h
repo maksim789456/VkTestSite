@@ -156,68 +156,73 @@ private:
 
   std::unique_ptr<Texture> loadGenericTexture(const TextureLoadJob &job) {
     ZoneScoped;
-    int width, height, channels;
-    stbi_uc *origPixels; {
-      ZoneScopedN("Texture Loading");
-      origPixels = stbi_load(
-        job.filepath.string().c_str(),
-        &width,
-        &height,
-        &channels,
-        4
+    try {
+      int width, height, channels;
+      stbi_uc *origPixels; {
+        ZoneScopedN("Texture Loading");
+        origPixels = stbi_load(
+          job.filepath.string().c_str(),
+          &width,
+          &height,
+          &channels,
+          4
+        );
+        if (!origPixels) {
+          spdlog::error("Failed to load generic texture image: " + job.filepath.string());
+          return nullptr;
+        }
+      }
+
+      const vk::DeviceSize targetSize = static_cast<vk::DeviceSize>(width) * height * 4;
+      auto mipLevels = static_cast<uint32_t>(
+        std::floor(std::log2(std::max(width, height))) + 1
       );
-      if (!origPixels) {
-        spdlog::error("Failed to load generic texture image: " + job.filepath.string());
-        return nullptr;
+
+      auto texture = std::make_unique<Texture>(
+        m_device, m_allocator,
+        width, height, mipLevels,
+        vk::Format::eR8G8B8A8Unorm,
+        vk::SampleCountFlagBits::e1,
+        vk::ImageAspectFlagBits::eColor,
+        vk::ImageUsageFlagBits::eSampled
+        | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst,
+        true,
+        job.filepath.string()
+      );
+
+      auto alloc = m_stagingBuffer.allocateBlocking(targetSize); {
+        ZoneScopedN("Staging texture data copy");
+
+        if (channels != 4) {
+          spdlog::error("Texture {} have {} channels, force load 4", job.filepath.c_str(), channels);
+        }
+        memcpy(alloc.mapped, origPixels, targetSize);
+      } {
+        ZoneScopedN("Free stbi ptr");
+        stbi_image_free(origPixels);
       }
+
+      const TextureUploadJob copyJob{
+        .allocation = alloc,
+        .dstImage = texture->getImage(),
+        .subresourceRange = vk::ImageSubresourceRange(
+          vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1),
+        .regions = {
+          vk::BufferImageCopy(
+            alloc.offset, 0, 0,
+            vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
+            vk::Offset3D(0, 0, 0),
+            vk::Extent3D(width, height, 1))
+        },
+        .doGenerateMipmaps = mipLevels > 1
+      };
+      m_transferThread.pushJob(copyJob);
+
+      return texture;
+    } catch (...) {
+      spdlog::error("Failed to load generic texture {}", job.filepath.string());
+      return nullptr;
     }
-
-    const vk::DeviceSize targetSize = static_cast<vk::DeviceSize>(width) * height * 4;
-    auto mipLevels = static_cast<uint32_t>(
-      std::floor(std::log2(std::max(width, height))) + 1
-    );
-
-    auto texture = std::make_unique<Texture>(
-      m_device, m_allocator,
-      width, height, mipLevels,
-      vk::Format::eR8G8B8A8Unorm,
-      vk::SampleCountFlagBits::e1,
-      vk::ImageAspectFlagBits::eColor,
-      vk::ImageUsageFlagBits::eSampled
-      | vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst,
-      true,
-      job.filepath.string()
-    );
-
-    auto alloc = m_stagingBuffer.allocateBlocking(targetSize); {
-      ZoneScopedN("Staging texture data copy");
-
-      if (channels != 4) {
-        spdlog::error("Texture {} have {} channels, force load 4", job.filepath.c_str(), channels);
-      }
-      memcpy(alloc.mapped, origPixels, targetSize);
-    } {
-      ZoneScopedN("Free stbi ptr");
-      stbi_image_free(origPixels);
-    }
-
-    const TextureUploadJob copyJob{
-      .allocation = alloc,
-      .dstImage = texture->getImage(),
-      .subresourceRange = vk::ImageSubresourceRange(
-        vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1),
-      .regions = {
-        vk::BufferImageCopy(
-          alloc.offset, 0, 0,
-          vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1),
-          vk::Offset3D(0, 0, 0),
-          vk::Extent3D(width, height, 1))
-      },
-      .doGenerateMipmaps = mipLevels > 1
-    };
-    m_transferThread.pushJob(copyJob);
-
-    return texture;
   }
 
   std::unique_ptr<Texture> loadKtxTexture(const TextureLoadJob &job) {
