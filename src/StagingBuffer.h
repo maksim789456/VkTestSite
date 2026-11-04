@@ -41,7 +41,7 @@ public:
     const vk::Device device,
     const vma::Allocator allocator,
     const vk::DeviceSize bufferSize
-  ): m_device(device), m_allocator(allocator), m_bufferSize(bufferSize) {
+  ) : m_device(device), m_allocator(allocator), m_bufferSize(bufferSize) {
     ZoneScoped;
     std::tie(m_bufferAlloc, m_buffer) = createBufferUnique(
       allocator,
@@ -198,6 +198,10 @@ public:
   [[nodiscard]] vk::SemaphoreSubmitInfo makeSignalInfo() const {
     return {m_timeline.get(), m_nextTimelineValue, vk::PipelineStageFlagBits2::eAllCommands};
   }
+
+  [[nodiscard]] vk::Semaphore getTimeline() const { return m_timeline.get(); }
+
+  [[nodiscard]] uint64_t pendingTimelineValue() const { return m_nextTimelineValue; }
 
   [[nodiscard]] vk::Buffer getBuffer() const { return m_buffer.get(); }
 

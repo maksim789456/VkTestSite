@@ -5,12 +5,26 @@ TextureManager::TextureManager(
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
   TextureWorkerPool &workerPool,
+  TransferThread &transferThread,
+  QueueFamilyIndices &familyIndices,
   DescriptorSet &descriptorSet,
   const uint32_t shaderBinding
-) : m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_descriptorSet(&descriptorSet),
-    m_workerPool(&workerPool), m_shaderBinding(shaderBinding) {
+) : m_device(device), m_graphicsQueue(graphicsQueue), m_descriptorSet(&descriptorSet), m_workerPool(&workerPool),
+    m_transferThread(&transferThread), m_familyIndices(&familyIndices), m_shaderBinding(shaderBinding) {
   ZoneScoped;
   m_sampler = createSamplerUnique(device);
+
+  const auto transferCmdInfo = vk::CommandBufferAllocateInfo(
+    commandPool, vk::CommandBufferLevel::ePrimary, 1);
+  m_uploadCmd = std::move(m_device.allocateCommandBuffersUnique(transferCmdInfo).front());
+  m_uploadFence = m_device.createFenceUnique({vk::FenceCreateFlagBits::eSignaled});
+}
+
+TextureManager::~TextureManager() {
+  ZoneScoped;
+  m_device.waitIdle();
+  m_pendingTextures.clear();
+  m_submittedSlots.clear();
 }
 
 uint32_t TextureManager::loadTextureFromFile(
@@ -66,14 +80,111 @@ void TextureManager::checkTextureLoading() {
       spdlog::error("Texture {} overwrite occupied slot {}", m_pendingLoad.job.filepath.string(), slot);
     }
 
-    //TODO: gen mipmaps
+    m_pendingTextures[slot] = std::move(m_pendingLoad.texture);
 
-    m_textures[slot] = std::move(m_pendingLoad.texture);
-    m_textures[slot]->createImguiView();
-    m_textureDescriptors[slot] = vk::DescriptorImageInfo(
-      m_sampler.get(), m_textures[slot]->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors[slot]);
+    // m_textures[slot] = std::move(m_pendingLoad.texture);
+    // m_textures[slot]->createImguiView();
+    // m_textureDescriptors[slot] = vk::DescriptorImageInfo(
+    // m_sampler.get(), m_textures[slot]->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    // m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors[slot]);
   }
+}
+
+void TextureManager::finalizeUploads() {
+  ZoneScoped;
+  if (m_uploadPending) {
+    if (m_device.getFenceStatus(*m_uploadFence) != vk::Result::eSuccess)
+      return;
+
+    for (const auto slot: m_submittedSlots) {
+      ZoneScopedN("Bind finished texture");
+      const auto pending = m_pendingTextures.find(slot);
+      if (pending == m_pendingTextures.end())
+        continue;
+
+      const auto &texture = m_textures[slot] = std::move(pending->second);
+      m_pendingTextures.erase(pending);
+
+      texture->createImguiView();
+      m_textureDescriptors[slot] = vk::DescriptorImageInfo(
+        m_sampler.get(), texture->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+      m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors[slot]);
+
+      spdlog::info("Texture slot {} uploaded and ready", slot);
+    }
+
+    m_submittedSlots.clear();
+    m_uploadPending = false;
+  }
+
+  TextureUploadFinished tmpFinished = {};
+  std::vector<TextureUploadFinished> finishedUploads;
+  while (m_transferThread->tryDequeueFinished(tmpFinished)) {
+    finishedUploads.push_back(tmpFinished);
+  }
+  if (finishedUploads.empty())
+    return;
+
+  m_uploadCmd->reset();
+  m_uploadCmd->begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+
+  vk::Semaphore waitSemaphore = nullptr;
+  uint64_t waitValue = 0;
+  m_submittedSlots.clear();
+
+  for (auto &uploadJob: finishedUploads) {
+    ZoneScopedN("Record upload finish");
+
+    if (!m_pendingTextures.contains(uploadJob.slot))
+      continue;
+
+    if (!waitSemaphore)
+      waitSemaphore = uploadJob.waitSemaphore;
+    waitValue = std::max(waitValue, uploadJob.waitValue);
+
+    if (m_familyIndices->isTransferQueueSeparated()) {
+      cmdTransferImageOwnership(
+        *m_uploadCmd,
+        uploadJob.dstImage,
+        uploadJob.subresourceRange,
+        Acquire,
+        *m_familyIndices->transfer,
+        *m_familyIndices->graphics
+      );
+    }
+
+    if (uploadJob.doGenerateMipmaps) {
+      cmdGenerateMipmaps(
+        *m_uploadCmd,
+        uploadJob.dstImage,
+        uploadJob.baseExtent.width, uploadJob.baseExtent.height,
+        uploadJob.subresourceRange.levelCount,
+        uploadJob.dstImageLayout
+      );
+    } else {
+      cmdTransitionImageLayout2(
+        *m_uploadCmd,
+        uploadJob.dstImage,
+        vk::ImageLayout::eTransferDstOptimal,
+        uploadJob.dstImageLayout,
+        uploadJob.subresourceRange
+      );
+    }
+
+    m_submittedSlots.push_back(uploadJob.slot);
+  }
+
+  m_uploadCmd->end();
+  if (m_submittedSlots.empty())
+    return;
+
+  m_device.resetFences(*m_uploadFence);
+
+  const auto waitInfo = vk::SemaphoreSubmitInfo(waitSemaphore, waitValue, vk::PipelineStageFlagBits2::eAllCommands);
+  const auto cmdInfo = vk::CommandBufferSubmitInfo(*m_uploadCmd);
+  m_graphicsQueue.submit2(vk::SubmitInfo2({}, waitInfo, cmdInfo, {}), *m_uploadFence);
+
+  m_uploadPending = true;
 }
 
 void TextureManager::updateDS(DescriptorSet &descriptorSet) {
@@ -95,7 +206,16 @@ std::optional<Texture *> TextureManager::getTexture(const uint32_t slot) {
 }
 
 void TextureManager::unloadTexture(const uint32_t slot) {
+  ZoneScoped;
   spdlog::debug("Unloading texture {}", slot);
+
+  if (m_uploadPending
+    && std::ranges::contains(m_submittedSlots, slot))
+    m_device.waitIdle();
+
+  m_pendingTextures.erase(slot);
+  std::erase(m_submittedSlots, slot);
+
   if (const auto tex = m_textures.find(slot); tex != m_textures.end()) {
     m_textures.erase(tex);
   }

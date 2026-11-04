@@ -203,6 +203,7 @@ private:
       }
 
       const TextureUploadJob copyJob{
+        .slot = job.texIndex,
         .allocation = alloc,
         .dstImage = texture->getImage(),
         .subresourceRange = vk::ImageSubresourceRange(
@@ -214,6 +215,7 @@ private:
             vk::Offset3D(0, 0, 0),
             vk::Extent3D(width, height, 1))
         },
+        .baseExtent = vk::Extent2D(width, height),
         .doGenerateMipmaps = mipLevels > 1
       };
       m_transferThread.pushJob(copyJob);
@@ -303,11 +305,14 @@ private:
       }
 
       const TextureUploadJob copyJob{
+        .slot = job.texIndex,
         .allocation = alloc,
         .dstImage = texture->getImage(),
         .subresourceRange = vk::ImageSubresourceRange(
           vk::ImageAspectFlagBits::eColor, 0, mipLevels, 0, 1),
-        .regions = regions
+        .regions = regions,
+        .baseExtent = vk::Extent2D(width, height),
+        .doGenerateMipmaps = false
       };
       m_transferThread.pushJob(copyJob);
 
