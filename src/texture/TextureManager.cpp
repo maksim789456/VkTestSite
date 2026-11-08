@@ -56,13 +56,13 @@ uint32_t TextureManager::loadTextureFromFile(
       break;
     }
   }
-  spdlog::info(std::format("Push texture loading job: file {} at slot {}", filename.string(), slot));
 
   if (slot >= MAX_TEXTURE_PER_DESCRIPTOR) {
     spdlog::error("Texture store full (limit = {})", MAX_TEXTURE_PER_DESCRIPTOR);
     return EMPTY_TEXTURE_INDEX;
   }
 
+  spdlog::info(std::format("Push texture loading job: file {} at slot {}", filename.string(), slot));
   const auto textureJob = TextureLoadJob{
     .texIndex = slot,
     .uploadId = m_nextUploadId++,
