@@ -77,24 +77,24 @@ uint32_t TextureManager::loadTextureFromFile(
 }
 
 void TextureManager::checkTextureLoading() {
-  while (m_workerPool->tryDequeueDone(m_pendingLoad)) {
+  while (m_workerPool->tryDequeueDone(m_pendingDoneJob)) {
     ZoneScopedN("Loaded texture move");
-    const auto slot = m_pendingLoad.job.texIndex;
-    if (!m_pendingLoad.texture) {
+    const auto slot = m_pendingDoneJob.job.texIndex;
+    if (!m_pendingDoneJob.texture) {
       spdlog::error("Texture worker return empty texture for slot {}", slot);
       continue;
     }
     if (slot >= MAX_TEXTURE_PER_DESCRIPTOR) {
-      spdlog::error("Texture {} has invalid slot {}", m_pendingLoad.job.filepath.string(), slot);
+      spdlog::error("Texture {} has invalid slot {}", m_pendingDoneJob.job.filepath.string(), slot);
       continue;
     }
     if (const auto it = m_textures.find(slot); it != m_textures.end() && it->second != nullptr) {
-      spdlog::error("Texture {} overwrite occupied slot {}", m_pendingLoad.job.filepath.string(), slot);
+      spdlog::error("Texture {} overwrite occupied slot {}", m_pendingDoneJob.job.filepath.string(), slot);
     }
 
     m_pendingTextures[slot] = PendingTexture{
-      .texture = std::move(m_pendingLoad.texture),
-      .uploadId = m_pendingLoad.job.uploadId,
+      .texture = std::move(m_pendingDoneJob.texture),
+      .uploadId = m_pendingDoneJob.job.uploadId,
     };
   }
 }
