@@ -346,6 +346,19 @@ static vk::UniqueSampler createSamplerUnique(
   return device.createSamplerUnique(info);
 }
 
+static vk::Format unormalizeFormat(const vk::Format format) {
+  switch (format) {
+    case vk::Format::eR8G8B8Srgb:
+      return vk::Format::eR8G8B8Unorm;
+    case vk::Format::eR8G8B8A8Srgb:
+      return vk::Format::eR8G8B8A8Unorm;
+    case vk::Format::eBc7SrgbBlock:
+      return vk::Format::eBc7UnormBlock;
+    default:
+      return format;
+  }
+}
+
 static vk::UniqueImageView createImageViewUnique(
   const vk::Device device,
   const vk::Image image,

@@ -256,7 +256,8 @@ private:
         throw std::runtime_error(std::format("KTX texture {} it's not plain one, we cannot load it",
                                              job.filepath.string()));
 
-      const auto format = static_cast<vk::Format>(ktxTexture2_GetVkFormat(kTexture));
+      auto format = unormalizeFormat(static_cast<vk::Format>(ktxTexture2_GetVkFormat(kTexture)));
+      spdlog::debug("KTX texture {} have format: {}", job.filepath.string(), vk::to_string(format));
       if (format == vk::Format::eUndefined)
         throw std::runtime_error(std::format("KTX texture {} request undefined image format",
                                              job.filepath.string()));
