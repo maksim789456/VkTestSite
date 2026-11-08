@@ -10,8 +10,8 @@
 #include <ktx.h>
 #include <ktxvulkan.h>
 
-#include "StagingBuffer.h"
-#include "TransferThread.h"
+#include "../StagingBuffer.h"
+#include "../TransferThread.h"
 #include "Texture.h"
 #include <filesystem>
 

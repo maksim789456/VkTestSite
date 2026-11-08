@@ -1,6 +1,6 @@
 #include "ShaderModule.h"
 
-#include "Texture.h"
+#include "../texture/Texture.h"
 
 ShaderModule::ShaderModule(
   const vk::Device &device,

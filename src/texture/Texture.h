@@ -8,10 +8,10 @@
 #include <stb_image.h>
 #include <imgui_impl_vulkan.h>
 
-#include "utils.cpp"
-#include "BufferUtils.cpp"
-#include "StagingBuffer.h"
-#include "TransferThread.h"
+#include "../utils.cpp"
+#include "../BufferUtils.cpp"
+#include "../StagingBuffer.h"
+#include "../TransferThread.h"
 #include <filesystem>
 #include <cmath>
 #include <algorithm>

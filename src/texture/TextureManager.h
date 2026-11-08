@@ -1,12 +1,12 @@
 #ifndef TEXTUREMANAGER_H
 #define TEXTUREMANAGER_H
 
-#include "DescriptorSet.h"
+#include "../DescriptorSet.h"
 #include "TextureWorkersPool.h"
-#include "Swapchain.h"
+#include "../Swapchain.h"
 #include "Texture.h"
-#include "utils.cpp"
-#include "texture/NullTexture.h"
+#include "../utils.cpp"
+#include "NullTexture.h"
 
 class TextureManager {
 public:

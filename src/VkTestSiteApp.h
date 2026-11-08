@@ -39,11 +39,11 @@ printf("\n"); \
 #include "Model.h"
 #include "Ubo.h"
 #include "Camera.h"
-#include "TextureManager.h"
+#include "texture/TextureManager.h"
 #include "pipeline/Pipeline.h"
 #include "Light.h"
 #include "StagingBuffer.h"
-#include "TextureWorkersPool.h"
+#include "texture/TextureWorkersPool.h"
 #include "TransferThread.h"
 #include "core/VkContext.h"
 
