@@ -6,6 +6,7 @@
 #include "Swapchain.h"
 #include "Texture.h"
 #include "utils.cpp"
+#include "texture/NullTexture.h"
 
 class TextureManager {
 public:
@@ -13,6 +14,7 @@ public:
     vk::Device device,
     vk::Queue graphicsQueue,
     vk::CommandPool commandPool,
+    vma::Allocator allocator,
     TextureWorkerPool &workerPool,
     TransferThread &transferThread,
     QueueFamilyIndices &familyIndices,
@@ -31,7 +33,7 @@ public:
 
   void finalizeUploads();
 
-  void updateDS(DescriptorSet& descriptorSet);
+  void updateDS(DescriptorSet &descriptorSet);
 
   std::optional<Texture *> getTexture(uint32_t slot);
 
@@ -53,6 +55,7 @@ private:
   std::unordered_map<uint32_t, vk::DescriptorImageInfo> m_textureDescriptors = {};
   vk::UniqueSampler m_sampler;
   TextureLoadDone m_pendingLoad = {};
+  std::unique_ptr<NullTexture> m_placeholder;
 
   bool m_uploadPending = false;
   std::vector<uint32_t> m_submittedSlots = {};

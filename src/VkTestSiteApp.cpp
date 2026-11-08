@@ -84,8 +84,9 @@ void VkTestSiteApp::initVk() {
     m_context->device(),m_context->physicalDevice(),m_context->allocator(),
     *m_stagingBuffer, *m_transferThread);
   m_texManager = std::make_unique<TextureManager>(
-    m_context->device(), m_context->graphicsQueue(), m_commandPool, *m_textureWorkerPool,
-    *m_transferThread, *m_context->queueFamilyIndices(), m_geometryDescriptorSet, 1);
+    m_context->device(), m_context->graphicsQueue(), m_commandPool, m_context->allocator(),
+    *m_textureWorkerPool, *m_transferThread, *m_context->queueFamilyIndices(),
+    m_geometryDescriptorSet, 1);
 
   m_camera = std::make_unique<Camera>(m_swapchain->extent); {
     ZoneScopedN("Setup window callbacks");

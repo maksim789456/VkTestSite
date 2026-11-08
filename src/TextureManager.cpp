@@ -4,6 +4,7 @@ TextureManager::TextureManager(
   const vk::Device device,
   const vk::Queue graphicsQueue,
   const vk::CommandPool commandPool,
+  const vma::Allocator allocator,
   TextureWorkerPool &workerPool,
   TransferThread &transferThread,
   QueueFamilyIndices &familyIndices,
@@ -18,6 +19,15 @@ TextureManager::TextureManager(
     commandPool, vk::CommandBufferLevel::ePrimary, 1);
   m_uploadCmd = std::move(m_device.allocateCommandBuffersUnique(transferCmdInfo).front());
   m_uploadFence = m_device.createFenceUnique({vk::FenceCreateFlagBits::eSignaled});
+
+  // Makes placeholder and fill all DS slots
+  // TODO: Gate the draw?
+  m_placeholder = std::make_unique<NullTexture>(device, allocator, graphicsQueue, commandPool);
+  for (uint32_t slot = 0; slot < MAX_TEXTURE_PER_DESCRIPTOR; ++slot) {
+    m_textureDescriptors[slot] = vk::DescriptorImageInfo(
+      m_sampler.get(), m_placeholder->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors[slot]);
+  }
 }
 
 TextureManager::~TextureManager() {
@@ -190,8 +200,8 @@ void TextureManager::finalizeUploads() {
 void TextureManager::updateDS(DescriptorSet &descriptorSet) {
   ZoneScoped;
   m_descriptorSet = &descriptorSet;
-  for (const auto &[slot, texture]: m_textures) {
-    if (texture == nullptr) continue;
+  // Every slot is always bound: real texture where finished, placeholder otherwise.
+  for (uint32_t slot = 0; slot < MAX_TEXTURE_PER_DESCRIPTOR; ++slot) {
     m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors.at(slot));
   }
 }
@@ -227,9 +237,7 @@ void TextureManager::unloadTexture(const uint32_t slot) {
     }
   }
 
-  if (const auto ds = m_textureDescriptors.find(slot); ds != m_textureDescriptors.end()) {
-    // We don't care about m_descriptorSet: if texture unloaded, we don't read this slot
-    // The next texture in this slot overwrite DS
-    m_textureDescriptors.erase(ds);
-  }
+  m_textureDescriptors[slot] = vk::DescriptorImageInfo(
+    m_sampler.get(), m_placeholder->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+  m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors[slot]);
 }
