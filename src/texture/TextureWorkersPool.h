@@ -131,26 +131,18 @@ private:
         ZoneScoped;
         if (!job.filepath.has_extension()) {
           spdlog::error("Job filepath must be contains file extension");
+          m_doneQueue.enqueue({.job = job, .texture = nullptr});
           continue;
         }
 
         auto ext = job.filepath.extension().string();
         std::ranges::transform(ext, ext.begin(), tolower);
-        if (ext == ".ktx" || ext == ".ktx2") {
-          auto texture = loadKtxTexture(job);
-          if (texture == nullptr) continue;
-          m_doneQueue.enqueue({
-            .job = job,
-            .texture = std::move(texture)
-          });
-        } else {
-          auto texture = loadGenericTexture(job);
-          if (texture == nullptr) continue;
-          m_doneQueue.enqueue({
-            .job = job,
-            .texture = std::move(texture)
-          });
-        }
+        m_doneQueue.enqueue({
+          .job = job,
+          .texture = ext == ".ktx" || ext == ".ktx2"
+                       ? loadKtxTexture(job)
+                       : loadGenericTexture(job)
+        });
       }
     }
   }
@@ -261,6 +253,11 @@ private:
       if (format == vk::Format::eUndefined)
         throw std::runtime_error(std::format("KTX texture {} request undefined image format",
                                              job.filepath.string()));
+
+      if (mipLevels == 1) {
+        spdlog::warn("KTX texture {} has no mip chain and {} cannot be blitted, sampling will alias",
+                     job.filepath.string(), vk::to_string(format));
+      }
 
       auto texture = std::make_unique<Texture>(
         m_device, m_allocator,
