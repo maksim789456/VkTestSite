@@ -34,7 +34,7 @@ public:
   );
 
   ~Texture() {
-    if (m_useSampler) {
+    if (m_useSampler && m_imguiDS.get() != nullptr) {
       ImGui_ImplVulkan_RemoveTexture(m_imguiDS.release());
     }
   }
