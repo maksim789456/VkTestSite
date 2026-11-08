@@ -462,42 +462,8 @@ void VkTestSiteApp::mainLoop() {
     ImGui::RadioButton("BiTangent (TBN)", &m_debugView, 6);
     ImGui::End();
 
-    if (m_modelLoaded && ImGui::Begin("Texture Browser")) {
-      static unsigned int selected = -1; {
-        ImGui::BeginChild("Slots", ImVec2(ImGui::GetContentRegionAvail().x * 0.2f, 260), ImGuiChildFlags_None,
-                          ImGuiWindowFlags_HorizontalScrollbar);
-        for (const auto &id: m_texManager->m_textures | std::views::keys) {
-          if (ImGui::Selectable(std::format("Slot: {}", id).c_str(), selected == id)) {
-            selected = id;
-          }
-        }
-        ImGui::EndChild();
-      }
-      ImGui::SameLine();
-
-      ImGui::BeginChild("Preview", ImVec2(0, 260));
-      if (selected != -1) {
-        if (auto tex = m_texManager->getTexture(selected); tex.has_value()) {
-          float scale = 1.0f;
-          const auto width = static_cast<float>(tex.value()->width);
-          const auto height = static_cast<float>(tex.value()->height);
-          if (width > height) {
-            scale = 256.0f / width;
-          } else {
-            scale = 256.0f / height;
-          }
-
-          ImVec2 previewSize(width * scale, height * scale);
-          ImGui::Image(tex.value()->getImGuiID(), previewSize);
-        }
-      } else {
-        ImGui::Text("Select a slot...");
-      }
-      ImGui::EndChild();
-      ImGui::End();
-    }
-
     if (m_modelLoaded) {
+      m_texManager->drawUI();
       m_model->drawUI();
     }
 

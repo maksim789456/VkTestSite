@@ -258,3 +258,40 @@ void TextureManager::unloadTexture(const uint32_t slot) {
     m_sampler.get(), m_placeholder->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
   m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors[slot]);
 }
+
+void TextureManager::drawUI() {
+  if (ImGui::Begin("Texture Browser")) {
+    static unsigned int selected = -1; {
+      ImGui::BeginChild("Slots", ImVec2(ImGui::GetContentRegionAvail().x * 0.2f, 260), ImGuiChildFlags_None,
+                        ImGuiWindowFlags_HorizontalScrollbar);
+      for (const auto &id: m_textures | std::views::keys) {
+        if (ImGui::Selectable(std::format("Slot: {}", id).c_str(), selected == id)) {
+          selected = id;
+        }
+      }
+      ImGui::EndChild();
+    }
+    ImGui::SameLine();
+
+    ImGui::BeginChild("Preview", ImVec2(0, 260));
+    if (selected != -1) {
+      if (const auto tex = getTexture(selected); tex.has_value()) {
+        float scale = 1.0f;
+        const auto width = static_cast<float>(tex.value()->width);
+        const auto height = static_cast<float>(tex.value()->height);
+        if (width > height) {
+          scale = 256.0f / width;
+        } else {
+          scale = 256.0f / height;
+        }
+
+        ImVec2 previewSize(width * scale, height * scale);
+        ImGui::Image(tex.value()->getImGuiID(), previewSize);
+      }
+    } else {
+      ImGui::Text("Select a slot...");
+    }
+    ImGui::EndChild();
+  }
+  ImGui::End();
+}

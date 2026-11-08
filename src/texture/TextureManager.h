@@ -39,7 +39,7 @@ public:
 
   void unloadTexture(uint32_t slot);
 
-  std::unordered_map<uint32_t, std::unique_ptr<Texture> > m_textures = {};
+  void drawUI();
 
 private:
   /// Loaded on the worker threads, upload + mip pass not finished yet.
@@ -64,6 +64,7 @@ private:
   QueueFamilyIndices *m_familyIndices = nullptr;
   uint32_t m_shaderBinding = 0;
 
+  std::unordered_map<uint32_t, std::unique_ptr<Texture> > m_textures = {};
   std::unordered_map<std::string, uint32_t> m_cache = {};
   std::unordered_map<uint32_t, vk::DescriptorImageInfo> m_textureDescriptors = {};
   vk::UniqueSampler m_sampler;
