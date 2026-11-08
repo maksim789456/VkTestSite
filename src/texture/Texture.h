@@ -16,6 +16,7 @@
 #include <cmath>
 #include <algorithm>
 
+#define EMPTY_TEXTURE_INDEX 99
 #define MAX_TEXTURE_PER_DESCRIPTOR 64
 
 class Texture {

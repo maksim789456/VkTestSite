@@ -125,11 +125,13 @@ void Model::processMaterials(
   for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx) {
     aiMaterial *material = scene->mMaterials[matIdx];
     Material mat;
-    if (const auto albedo = getMaterialAlbedoTextureFile(material))
+    if (const auto albedo = getMaterialAlbedoTextureFile(material)) {
       mat.albedoTexIdx = m_textureManager->loadTextureFromFile(absoluteModelParent, *albedo);
+    }
 
-    if (const auto normal = getMaterialNormalTextureFile(material))
+    if (const auto normal = getMaterialNormalTextureFile(material)) {
       mat.normalTexIdx = m_textureManager->loadTextureFromFile(absoluteModelParent, *normal);
+    }
 
     if (aiColor3D aiDiffuseColor; material->Get(AI_MATKEY_COLOR_DIFFUSE, aiDiffuseColor) == AI_SUCCESS) {
       mat.diffuseColor = glm::vec4(aiDiffuseColor.r, aiDiffuseColor.g, aiDiffuseColor.b, 1.0f);

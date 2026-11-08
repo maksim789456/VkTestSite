@@ -33,8 +33,6 @@ public:
 
   void finalizeUploads();
 
-  void updateDS(DescriptorSet &descriptorSet);
-
   std::optional<Texture *> getTexture(uint32_t slot);
 
   void unloadTexture(uint32_t slot);

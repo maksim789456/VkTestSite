@@ -59,8 +59,8 @@ uint32_t TextureManager::loadTextureFromFile(
   spdlog::info(std::format("Push texture loading job: file {} at slot {}", filename.string(), slot));
 
   if (slot >= MAX_TEXTURE_PER_DESCRIPTOR) {
-    throw std::runtime_error(
-      std::format("Texture store full (limit = {})", MAX_TEXTURE_PER_DESCRIPTOR));
+    spdlog::error("Texture store full (limit = {})", MAX_TEXTURE_PER_DESCRIPTOR);
+    return EMPTY_TEXTURE_INDEX;
   }
 
   const auto textureJob = TextureLoadJob{
@@ -198,15 +198,6 @@ void TextureManager::finalizeUploads() {
   m_graphicsQueue.submit2(vk::SubmitInfo2({}, waitInfo, cmdInfo, {}), *m_uploadFence);
 
   m_uploadPending = true;
-}
-
-void TextureManager::updateDS(DescriptorSet &descriptorSet) {
-  ZoneScoped;
-  m_descriptorSet = &descriptorSet;
-  // Every slot is always bound: real texture where finished, placeholder otherwise.
-  for (uint32_t slot = 0; slot < MAX_TEXTURE_PER_DESCRIPTOR; ++slot) {
-    m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors.at(slot));
-  }
 }
 
 std::optional<Texture *> TextureManager::getTexture(const uint32_t slot) {

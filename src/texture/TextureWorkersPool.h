@@ -231,7 +231,7 @@ private:
 
   std::unique_ptr<Texture> loadKtxTexture(const TextureLoadJob &job) {
     ZoneScoped;
-    ktxTexture2 *kTexture;
+    ktxTexture2 *kTexture = nullptr;
     try {
       {
         ZoneScopedN("Load KTX2 Texture");

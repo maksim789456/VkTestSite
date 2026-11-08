@@ -23,8 +23,6 @@
 #include "utils.cpp"
 #include <tracy/TracyVulkan.hpp>
 
-#define EMPTY_TEXTURE_INDEX 99
-
 struct alignas(16) ModelPushConsts {
   glm::mat4 model;
 };
