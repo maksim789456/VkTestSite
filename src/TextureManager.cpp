@@ -34,6 +34,7 @@ TextureManager::~TextureManager() {
   ZoneScoped;
   m_device.waitIdle();
   m_pendingTextures.clear();
+  m_retiredTextures.clear();
   m_submittedSlots.clear();
 }
 
@@ -64,6 +65,7 @@ uint32_t TextureManager::loadTextureFromFile(
 
   const auto textureJob = TextureLoadJob{
     .texIndex = slot,
+    .uploadId = m_nextUploadId++,
     .filepath = texturePath,
   };
 
@@ -90,13 +92,10 @@ void TextureManager::checkTextureLoading() {
       spdlog::error("Texture {} overwrite occupied slot {}", m_pendingLoad.job.filepath.string(), slot);
     }
 
-    m_pendingTextures[slot] = std::move(m_pendingLoad.texture);
-
-    // m_textures[slot] = std::move(m_pendingLoad.texture);
-    // m_textures[slot]->createImguiView();
-    // m_textureDescriptors[slot] = vk::DescriptorImageInfo(
-    // m_sampler.get(), m_textures[slot]->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    // m_descriptorSet->updateTexture(m_device, m_shaderBinding, slot, m_textureDescriptors[slot]);
+    m_pendingTextures[slot] = PendingTexture{
+      .texture = std::move(m_pendingLoad.texture),
+      .uploadId = m_pendingLoad.job.uploadId,
+    };
   }
 }
 
@@ -106,13 +105,14 @@ void TextureManager::finalizeUploads() {
     if (m_device.getFenceStatus(*m_uploadFence) != vk::Result::eSuccess)
       return;
 
-    for (const auto slot: m_submittedSlots) {
+    for (const auto &[slot, uploadId]: m_submittedSlots) {
       ZoneScopedN("Bind finished texture");
       const auto pending = m_pendingTextures.find(slot);
-      if (pending == m_pendingTextures.end())
+      // Slot was unloaded or reused by a newer upload while this pass was running.
+      if (pending == m_pendingTextures.end() || pending->second.uploadId != uploadId)
         continue;
 
-      const auto &texture = m_textures[slot] = std::move(pending->second);
+      const auto &texture = m_textures[slot] = std::move(pending->second.texture);
       m_pendingTextures.erase(pending);
 
       texture->createImguiView();
@@ -145,7 +145,10 @@ void TextureManager::finalizeUploads() {
   for (auto &uploadJob: finishedUploads) {
     ZoneScopedN("Record upload finish");
 
-    if (!m_pendingTextures.contains(uploadJob.slot))
+    m_retiredTextures.erase(uploadJob.uploadId);
+
+    const auto pending = m_pendingTextures.find(uploadJob.slot);
+    if (pending == m_pendingTextures.end() || pending->second.uploadId != uploadJob.uploadId)
       continue;
 
     if (!waitSemaphore)
@@ -181,7 +184,7 @@ void TextureManager::finalizeUploads() {
       );
     }
 
-    m_submittedSlots.push_back(uploadJob.slot);
+    m_submittedSlots.push_back({uploadJob.slot, uploadJob.uploadId});
   }
 
   m_uploadCmd->end();
@@ -219,12 +222,26 @@ void TextureManager::unloadTexture(const uint32_t slot) {
   ZoneScoped;
   spdlog::debug("Unloading texture {}", slot);
 
-  if (m_uploadPending
-    && std::ranges::contains(m_submittedSlots, slot))
+  const auto isSlotUploading = std::ranges::any_of(
+    m_submittedSlots, [slot](const SubmittedUpload &upload) { return upload.slot == slot; });
+
+  // The in-flight graphics pass may still reference this image.
+  if (m_uploadPending && isSlotUploading)
     m_device.waitIdle();
 
-  m_pendingTextures.erase(slot);
-  std::erase(m_submittedSlots, slot);
+  if (const auto pending = m_pendingTextures.find(slot); pending != m_pendingTextures.end()) {
+    if (isSlotUploading) {
+      // Transfer and mip pass both completed (waitIdle above), nothing references it.
+      m_pendingTextures.erase(pending);
+    } else {
+      // The transfer thread may still be copying into this image: keep it alive until
+      // its TextureUploadFinished arrives, otherwise the GPU writes into freed memory.
+      m_retiredTextures[pending->second.uploadId] = std::move(pending->second.texture);
+      m_pendingTextures.erase(pending);
+    }
+  }
+
+  std::erase_if(m_submittedSlots, [slot](const SubmittedUpload &upload) { return upload.slot == slot; });
 
   if (const auto tex = m_textures.find(slot); tex != m_textures.end()) {
     m_textures.erase(tex);

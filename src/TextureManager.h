@@ -40,7 +40,20 @@ public:
   void unloadTexture(uint32_t slot);
 
   std::unordered_map<uint32_t, std::unique_ptr<Texture> > m_textures = {};
+
 private:
+  /// Loaded on the worker threads, upload + mip pass not finished yet.
+  struct PendingTexture {
+    std::unique_ptr<Texture> texture;
+    uint32_t uploadId = 0;
+  };
+
+  /// Slot + upload id of a graphics-side pass submitted with m_uploadCmd.
+  struct SubmittedUpload {
+    uint32_t slot = 0;
+    uint32_t uploadId = 0;
+  };
+
   vk::Device m_device = nullptr;
   vk::Queue m_graphicsQueue = nullptr;
   vk::UniqueCommandBuffer m_uploadCmd;
@@ -54,12 +67,17 @@ private:
   std::unordered_map<std::string, uint32_t> m_cache = {};
   std::unordered_map<uint32_t, vk::DescriptorImageInfo> m_textureDescriptors = {};
   vk::UniqueSampler m_sampler;
+
   TextureLoadDone m_pendingLoad = {};
   std::unique_ptr<NullTexture> m_placeholder;
+  uint32_t m_nextUploadId = 1;
 
   bool m_uploadPending = false;
-  std::vector<uint32_t> m_submittedSlots = {};
-  std::unordered_map<uint32_t, std::unique_ptr<Texture> > m_pendingTextures = {};
+  std::vector<SubmittedUpload> m_submittedSlots = {};
+  std::unordered_map<uint32_t, PendingTexture> m_pendingTextures = {};
+
+  /// Textures unloaded while their transfer may still be running
+  std::unordered_map<uint32_t, std::unique_ptr<Texture> > m_retiredTextures = {};
 };
 
 

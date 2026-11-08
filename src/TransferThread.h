@@ -13,6 +13,7 @@
 // TODO: More universal job struct to copy into buffer
 struct TextureUploadJob {
   uint32_t slot = UINT32_MAX;
+  uint32_t uploadId = 0;
   StagingBuffer::Allocation allocation;
   vk::Image dstImage;
   vk::ImageSubresourceRange subresourceRange;
@@ -26,6 +27,7 @@ struct TextureUploadJob {
 
 struct TextureUploadFinished {
   uint32_t slot = UINT32_MAX;
+  uint32_t uploadId = 0;
   vk::Image dstImage = nullptr;
   vk::ImageSubresourceRange subresourceRange;
   vk::Extent2D baseExtent{};
@@ -175,6 +177,7 @@ private:
     for (const auto &job: batch) {
       m_finished.enqueue({
         .slot = job.slot,
+        .uploadId = job.uploadId,
         .dstImage = job.dstImage,
         .subresourceRange = job.subresourceRange,
         .baseExtent = job.baseExtent,

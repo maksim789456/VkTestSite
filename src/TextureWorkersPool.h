@@ -17,6 +17,7 @@
 
 struct TextureLoadJob {
   uint32_t texIndex = UINT32_MAX;
+  uint32_t uploadId = 0;
   std::filesystem::path filepath;
 };
 
@@ -55,7 +56,7 @@ public:
     for (const auto ktxFormat: ktxFormats) {
       const auto props = physicalDevice.getFormatProperties(ktxFormat);
       if (const bool supported = (props.optimalTilingFeatures & reqFeatures) == reqFeatures; !supported)
-        throw new std::runtime_error("Current GPU cannot handle BC7 format for ktx textures");
+        throw std::runtime_error("Current GPU cannot handle BC7 format for ktx textures");
     }
 
     if (threadCount <= 0) {
@@ -204,6 +205,7 @@ private:
 
       const TextureUploadJob copyJob{
         .slot = job.texIndex,
+        .uploadId = job.uploadId,
         .allocation = alloc,
         .dstImage = texture->getImage(),
         .subresourceRange = vk::ImageSubresourceRange(
@@ -306,6 +308,7 @@ private:
 
       const TextureUploadJob copyJob{
         .slot = job.texIndex,
+        .uploadId = job.uploadId,
         .allocation = alloc,
         .dstImage = texture->getImage(),
         .subresourceRange = vk::ImageSubresourceRange(
