@@ -29,8 +29,6 @@ void VkTestSiteApp::run() {
   mainLoop();
 
   m_context->device().waitIdle();
-  ImGui_ImplVulkan_Shutdown();
-  ImGui_ImplGlfw_Shutdown();
   cleanup();
   glfwDestroyWindow(m_window);
   glfwTerminate();
@@ -712,6 +710,10 @@ void VkTestSiteApp::cleanup() {
     m_model.reset();
   m_texManager.reset();
   m_textureWorkerPool.reset();
+
+  ImGui_ImplVulkan_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+
   m_lightManager.reset();
   m_transferThread.reset();
   m_stagingBuffer.reset();
