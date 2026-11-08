@@ -708,15 +708,15 @@ void VkTestSiteApp::cleanup() {
 
   if (m_modelLoaded)
     m_model.reset();
-  m_texManager.reset();
   m_textureWorkerPool.reset();
+  m_transferThread.reset();
+  m_stagingBuffer.reset();
+  m_texManager.reset();
 
   ImGui_ImplVulkan_Shutdown();
   ImGui_ImplGlfw_Shutdown();
 
   m_lightManager.reset();
-  m_transferThread.reset();
-  m_stagingBuffer.reset();
   m_imguiCommandBuffers.clear();
   m_lightingCommandBuffers.clear();
   m_context->device().destroyCommandPool(m_commandPool);
