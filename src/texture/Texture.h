@@ -8,14 +8,15 @@
 #include <stb_image.h>
 #include <imgui_impl_vulkan.h>
 
-#include "utils.cpp"
-#include "BufferUtils.cpp"
-#include "StagingBuffer.h"
-#include "TransferThread.h"
+#include "../utils.cpp"
+#include "../BufferUtils.cpp"
+#include "../StagingBuffer.h"
+#include "../TransferThread.h"
 #include <filesystem>
 #include <cmath>
 #include <algorithm>
 
+#define EMPTY_TEXTURE_INDEX 99
 #define MAX_TEXTURE_PER_DESCRIPTOR 64
 
 class Texture {
@@ -34,7 +35,7 @@ public:
   );
 
   ~Texture() {
-    if (m_useSampler) {
+    if (m_useSampler && m_imguiDS.get() != nullptr) {
       ImGui_ImplVulkan_RemoveTexture(m_imguiDS.release());
     }
   }
@@ -53,7 +54,11 @@ public:
   vk::Image getImage() { return m_image.get(); };
   vk::ImageView getImageView(const uint32_t mipLevel = 0) { return m_imageViews.at(mipLevel).get(); };
   vk::Sampler getSampler() { return m_sampler.get(); };
-  ImTextureID getImGuiID() { return reinterpret_cast<ImTextureID>(static_cast<VkDescriptorSet>(m_imguiDS.get())); };
+  ImTextureID getImGuiID() {
+    if (!m_useSampler)
+      return ImTextureID_Invalid;
+    return reinterpret_cast<ImTextureID>(static_cast<VkDescriptorSet>(m_imguiDS.get()));
+  };
   const uint32_t width, height, mipLevels;
 
 private:
@@ -77,7 +82,7 @@ inline Texture::Texture(
   const vk::ImageUsageFlags usage,
   const bool useSampler,
   const std::string &name
-): width(width), height(height), mipLevels(mipLevels) {
+): width(width), height(height), mipLevels(mipLevels), m_useSampler(useSampler) {
   ZoneScoped;
   std::tie(m_imageAlloc, m_image) = createImageUnique(
     allocator,

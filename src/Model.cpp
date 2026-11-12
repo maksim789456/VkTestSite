@@ -46,7 +46,8 @@ Model::Model(
   TextureManager &textureManager,
   LightManager &lightManager,
   const std::filesystem::path &modelPath
-) : m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool), m_allocator(allocator) {
+) : m_device(device), m_graphicsQueue(graphicsQueue), m_commandPool(commandPool),
+    m_allocator(allocator), m_textureManager(&textureManager) {
   ZoneScoped;
   spdlog::info(std::format("Loading model from: {}", modelPath.string()));
   Assimp::Importer importer;
@@ -65,7 +66,7 @@ Model::Model(
   }
 
   const auto modelParent = modelPath.parent_path();
-  processMaterials(textureManager, scene, modelParent);
+  processMaterials(scene, modelParent);
   processLight(lightManager, scene);
   processNode(lightManager, scene->mRootNode, scene, glm::mat4(1.0f));
   m_name = std::string(scene->mRootNode->mName.C_Str());
@@ -100,7 +101,7 @@ void Model::processNode(
 
   for (unsigned int m = 0; m < node->mNumMeshes; ++m) {
     aiMesh *mesh = scene->mMeshes[node->mMeshes[m]];
-    auto gpuMesh = createMesh(mesh, scene, globalTransform);
+    auto gpuMesh = createMesh(mesh, globalTransform);
     m_submeshes.push_back({
       .mesh = std::move(gpuMesh),
       .materialIndex = mesh->mMaterialIndex,
@@ -114,7 +115,6 @@ void Model::processNode(
 }
 
 void Model::processMaterials(
-  TextureManager &textureManager,
   const aiScene *scene,
   const std::filesystem::path &modelParent
 ) {
@@ -125,11 +125,13 @@ void Model::processMaterials(
   for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx) {
     aiMaterial *material = scene->mMaterials[matIdx];
     Material mat;
-    if (const auto albedo = getMaterialAlbedoTextureFile(material))
-      mat.albedoTexIdx = textureManager.loadTextureFromFile(absoluteModelParent, *albedo);
+    if (const auto albedo = getMaterialAlbedoTextureFile(material)) {
+      mat.albedoTexIdx = m_textureManager->loadTextureFromFile(absoluteModelParent, *albedo);
+    }
 
-    if (const auto normal = getMaterialNormalTextureFile(material))
-      mat.normalTexIdx = textureManager.loadTextureFromFile(absoluteModelParent, *normal);
+    if (const auto normal = getMaterialNormalTextureFile(material)) {
+      mat.normalTexIdx = m_textureManager->loadTextureFromFile(absoluteModelParent, *normal);
+    }
 
     if (aiColor3D aiDiffuseColor; material->Get(AI_MATKEY_COLOR_DIFFUSE, aiDiffuseColor) == AI_SUCCESS) {
       mat.diffuseColor = glm::vec4(aiDiffuseColor.r, aiDiffuseColor.g, aiDiffuseColor.b, 1.0f);
@@ -189,40 +191,39 @@ void Model::processLight(LightManager &lightManager, const aiScene *scene) {
 
 std::unique_ptr<Mesh<Vertex, uint32_t> > Model::createMesh(
   const aiMesh *mesh,
-  const aiScene *scene,
+  // const aiScene *scene,
   const glm::mat4 &transform
 ) {
   ZoneScoped;
 
   std::vector<Vertex> vertices;
+  vertices.reserve(mesh->mNumVertices);
   std::vector<uint32_t> indices;
+  indices.reserve(mesh->mNumFaces * 3);
 
-  auto texCords = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0] : nullptr;
-  auto normalMat = glm::mat3(glm::transpose(glm::inverse(transform)));
-  for (unsigned int f = 0; f < mesh->mNumFaces; ++f) {
-    aiFace &face = mesh->mFaces[f];
-    for (unsigned int i = 0; i < face.mNumIndices; ++i) {
-      auto vertexIndex = face.mIndices[i];
-      auto pos = mesh->mVertices[vertexIndex];
-      auto normal = mesh->HasNormals() ? mesh->mNormals[vertexIndex] : aiVector3D(0, 0, 1.0);
-      auto texCord = texCords ? texCords[vertexIndex] : aiVector3D(0, 0, 0);
-      auto mat = m_materials[mesh->mMaterialIndex];
+  const auto mat = m_materials[mesh->mMaterialIndex];
+  const auto texCords = mesh->HasTextureCoords(0) ? mesh->mTextureCoords[0] : nullptr;
+  const auto normalMat = glm::mat3(glm::transpose(glm::inverse(transform)));
 
-      glm::vec4 transformedPos = transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f);
-      auto N = glm::normalize(normalMat * glm::vec3(normal.x, normal.y, normal.z));
+  for (unsigned int v = 0; v < mesh->mNumVertices; ++v) {
+    const auto pos = mesh->mVertices[v];
+    const auto normal = mesh->HasNormals() ? mesh->mNormals[v] : aiVector3D(0, 0, 1.0);
+    const auto texCord = texCords ? texCords[v] : aiVector3D(0, 0, 0);
+    const auto N = glm::normalize(normalMat * glm::vec3(normal.x, normal.y, normal.z));
 
-      vertices.push_back({
-        .Position = transformedPos,
-        .Normal = N,
-        .UV = glm::vec2(texCord.x, 1.0f - texCord.y),
-        .Color = mat.diffuseColor,
-        .TextureIdx = mat.albedoTexIdx,
-        .NormalTextureIdx = mat.normalTexIdx
-      });
+    vertices.push_back({
+      .Position = transform * glm::vec4(pos.x, pos.y, pos.z, 1.0f),
+      .Normal = N,
+      .UV = glm::vec2(texCord.x, 1.0f - texCord.y),
+      .Color = mat.diffuseColor,
+      .TextureIdx = mat.albedoTexIdx,
+      .NormalTextureIdx = mat.normalTexIdx
+    });
+  }
 
-      //indices.push_back(baseIndex + static_cast<uint32_t>(vertices.size() - baseIndex - 1));
-      indices.push_back(static_cast<uint32_t>(indices.size()));
-    }
+  for (int f = 0; f < mesh->mNumFaces; ++f) {
+    const auto &face = mesh->mFaces[f];
+    indices.insert(indices.end(), face.mIndices, face.mIndices + face.mNumIndices);
   }
 
   return std::make_unique<Mesh<Vertex, uint32_t> >(
@@ -290,6 +291,16 @@ vk::CommandBuffer Model::cmdDraw(
   cmdBuf.end();
 
   return cmdBuf;
+}
+
+void Model::unload() {
+  for (const auto material: m_materials) {
+    if (material.albedoTexIdx != EMPTY_TEXTURE_INDEX)
+      m_textureManager->unloadTexture(material.albedoTexIdx);
+
+    if (material.normalTexIdx != EMPTY_TEXTURE_INDEX)
+      m_textureManager->unloadTexture(material.normalTexIdx);
+  }
 }
 
 void Model::drawUI() {

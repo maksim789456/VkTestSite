@@ -5,36 +5,44 @@
 #include <vector>
 
 struct QueueFamilyIndices {
-  uint32_t graphics;
-  uint32_t present;
-  uint32_t transfer;
+  std::optional<uint32_t> graphics;
+  std::optional<uint32_t> present;
+  std::optional<uint32_t> transfer;
 
-  [[nodiscard]] bool isTransferQueueSeparated() const { return graphics != transfer; }
+  [[nodiscard]] bool isTransferQueueSeparated() const {
+    return graphics && transfer && *graphics != *transfer;
+  }
 
-  QueueFamilyIndices() = default;
+  QueueFamilyIndices() = delete;
 
   QueueFamilyIndices(
     const vk::SurfaceKHR &surface,
     const vk::PhysicalDevice physical_device
   ) {
-    auto families = physical_device.getQueueFamilyProperties();
-    graphics = present = transfer = UINT32_MAX;
+    const auto families = physical_device.getQueueFamilyProperties();
 
     for (uint32_t i = 0; i < families.size(); ++i) {
-      auto family = families[i];
-      if (family.queueFlags & vk::QueueFlagBits::eGraphics) {
-        if (graphics == UINT32_MAX) graphics = i;
+      const auto family = families[i];
+      const auto flags = family.queueFlags;
+
+      if (!graphics
+          && flags & vk::QueueFlagBits::eGraphics) {
+        graphics = i;
       }
-      if (physical_device.getSurfaceSupportKHR(i, surface)) {
-        if (present == UINT32_MAX) present = i;
+      if (!present
+          && physical_device.getSurfaceSupportKHR(i, surface)) {
+        present = i;
       }
-      if (family.queueCount == 1) continue;
-      if (family.queueFlags & vk::QueueFlagBits::eTransfer) {
-        if (transfer == UINT32_MAX) transfer = i;
+
+      // Whenever possible, we try to achieve a separate family for transfer queue
+      if (!transfer && graphics
+        && *graphics != i
+        && flags & vk::QueueFlagBits::eTransfer) {
+        transfer = i;
       }
     }
 
-    if (transfer == UINT32_MAX) {
+    if (!transfer) {
       transfer = graphics;
     }
   }

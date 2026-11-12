@@ -15,6 +15,20 @@ DescriptorSet::DescriptorSet(
   create(device, descriptorPool, name);
 }
 
+DescriptorSet::DescriptorSet(
+  const vk::Device &device,
+  const vk::DescriptorPool &descriptorPool,
+  const uint32_t descriptorSetCount,
+  ShaderModule &shader,
+  const std::string &name,
+  vk::DescriptorSetLayoutCreateFlags dslFlags
+) : m_descriptorSetCount(descriptorSetCount), m_source(Shader) {
+  ZoneScoped;
+  const auto layouts = std::views::values(shader.getDSLayouts());
+  setup_layout(device, std::vector(layouts.begin(), layouts.end()), shader.getDSPushConsts(), name, dslFlags);
+  create(device, descriptorPool, name);
+}
+
 /**
  * Create descriptor set layout and pipeline layout by provided DS layouts
  * @param device refence to logical device
@@ -79,6 +93,10 @@ void DescriptorSet::create(
       setObjectName(device, m_descriptorSets[i], std::format("{} {}", name, i));
     }
   }
+
+  // Don't initial fill DS if it created from ShaderModule, we don't need writes
+  if (m_source == Shader)
+    return;
 
   for (uint32_t i = 0; i < m_descriptorSetCount; i++) {
     m_descriptorSetWrites.clear();

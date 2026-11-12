@@ -6,22 +6,42 @@
 #include <concurrentqueue/moodycamel/blockingconcurrentqueue.h>
 
 #include "StagingBuffer.h"
+#include "QueueFamilyIndices.cpp"
 #include "utils.cpp"
 #include "spdlog/mdc.h"
 
 // TODO: More universal job struct to copy into buffer
 struct TextureUploadJob {
+  uint32_t slot = UINT32_MAX;
+  uint32_t uploadId = 0;
   StagingBuffer::Allocation allocation;
   vk::Image dstImage;
   vk::ImageSubresourceRange subresourceRange;
-  vk::BufferImageCopy region;
+  std::vector<vk::BufferImageCopy> regions;
+  vk::Extent2D baseExtent{}; // mip 0 size
   vk::ImageLayout srcImageLayout = vk::ImageLayout::eUndefined;
   vk::ImageLayout dstImageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+  bool doGenerateMipmaps = false;
+};
+
+struct TextureUploadFinished {
+  uint32_t slot = UINT32_MAX;
+  uint32_t uploadId = 0;
+  vk::Image dstImage = nullptr;
+  vk::ImageSubresourceRange subresourceRange;
+  vk::Extent2D baseExtent{};
+  vk::ImageLayout dstImageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+  bool doGenerateMipmaps = false;
+
+  vk::Semaphore waitSemaphore = nullptr;
+  uint64_t waitValue = 0;
 };
 
 /**
  * Handles asynchronous GPU uploads of staging buffer allocations to textures
- * - Pulls completed jobs from job queues (e.g., future texture loaders)
+ * - Pulls completed jobs from job queues (e.g., texture loaders and model loader)
  * - Records copy commands into a command buffer.
  * - Submits command buffer to a transfer-capable queue
  * - Uses semaphore signaling to track GPU completion of each allocation
@@ -33,8 +53,9 @@ public:
     const vk::Device device,
     const vk::Queue transferQueue,
     const uint32_t transferQueueFamilyIndex,
-    StagingBuffer &stagingBuffer
-  ): m_device(device), m_transferQueue(transferQueue), m_stagingBuffer(stagingBuffer), m_stop(false) {
+    StagingBuffer &stagingBuffer,
+    QueueFamilyIndices &familyIndices
+  ) : m_device(device), m_transferQueue(transferQueue), m_stagingBuffer(stagingBuffer), m_familyIndices(familyIndices) {
     ZoneScoped;
     const auto transferPoolInfo = vk::CommandPoolCreateInfo(
       vk::CommandPoolCreateFlagBits::eResetCommandBuffer, transferQueueFamilyIndex);
@@ -62,6 +83,10 @@ public:
     m_queue.enqueue(job);
   }
 
+  bool tryDequeueFinished(TextureUploadFinished &finished) {
+    return m_finished.try_dequeue(finished);
+  }
+
 private:
   vk::Device m_device;
   vk::Queue m_transferQueue;
@@ -71,10 +96,12 @@ private:
   vk::UniqueFence m_submitFence;
 
   moodycamel::BlockingConcurrentQueue<TextureUploadJob> m_queue;
+  moodycamel::ConcurrentQueue<TextureUploadFinished> m_finished;
   std::thread m_thread;
-  std::atomic_bool m_stop;
+  std::atomic_bool m_stop = false;
 
   std::chrono::microseconds m_maxBatchWait = std::chrono::microseconds(2000);
+  QueueFamilyIndices &m_familyIndices;
 
   void threadLoop() {
     tracy::SetThreadName("VK Transfer Thread");
@@ -115,22 +142,27 @@ private:
 
       m_cmdBuff->copyBufferToImage(
         m_stagingBuffer.getBuffer(), job.dstImage,
-        vk::ImageLayout::eTransferDstOptimal, job.region);
-
-      cmdTransitionImageLayout2(
-        m_cmdBuff.get(),
-        job.dstImage,
-        vk::ImageLayout::eTransferDstOptimal,
-        job.dstImageLayout,
-        job.subresourceRange
+        vk::ImageLayout::eTransferDstOptimal, job.regions
       );
+
+      if (m_familyIndices.isTransferQueueSeparated()) {
+        cmdTransferImageOwnership(
+          m_cmdBuff.get(),
+          job.dstImage,
+          job.subresourceRange,
+          Release,
+          *m_familyIndices.transfer,
+          *m_familyIndices.graphics
+        );
+      }
     }
 
     m_cmdBuff->end();
 
     for (auto &job: batch) {
       m_stagingBuffer.trackAlloc(job.allocation);
-    } {
+    }
+    const auto signalValue = m_stagingBuffer.pendingTimelineValue(); {
       ZoneScopedN("Queue Submit");
       const auto cbSubmitInfo = vk::CommandBufferSubmitInfo(m_cmdBuff.get());
       const auto sigInfo = m_stagingBuffer.makeSignalInfo();
@@ -140,6 +172,22 @@ private:
     } {
       ZoneScopedN("Wait Queue");
       auto _ = m_device.waitForFences(*m_submitFence, VK_TRUE, UINT64_MAX);
+    }
+
+    for (const auto &job: batch) {
+      m_finished.enqueue({
+        .slot = job.slot,
+        .uploadId = job.uploadId,
+        .dstImage = job.dstImage,
+        .subresourceRange = job.subresourceRange,
+        .baseExtent = job.baseExtent,
+        .dstImageLayout = job.dstImageLayout,
+
+        .doGenerateMipmaps = job.doGenerateMipmaps,
+
+        .waitSemaphore = m_stagingBuffer.getTimeline(),
+        .waitValue = signalValue
+      });
     }
 
     m_stagingBuffer.pollReclaimed();

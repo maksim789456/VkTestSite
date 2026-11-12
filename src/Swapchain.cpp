@@ -64,23 +64,15 @@ std::vector<vk::ImageView> create_swapchain_image_views(
   return imageViews;
 }
 
-Swapchain::Swapchain(): format() {
-}
-
-Swapchain::Swapchain(
-  const vk::SurfaceKHR &surface,
-  const vk::Device &device,
-  const vk::PhysicalDevice &physical_device,
-  GLFWwindow *window
-) {
+Swapchain::Swapchain(const vkts::VkContext &context) : m_context(context) {
   ZoneScoped;
-  auto indices = QueueFamilyIndices(surface, physical_device);
-  auto format_khr = get_swapchain_surface_format(surface, physical_device);
+  auto indices = *m_context.queueFamilyIndices();
+  auto format_khr = get_swapchain_surface_format(context.surface(), context.physicalDevice());
   this->format = format_khr.format;
   auto present_mode = vk::PresentModeKHR::eFifo;
-  this->extent = get_swapchain_extent(window, surface, physical_device);
+  this->extent = get_swapchain_extent(&context.window(), context.surface(), context.physicalDevice());
 
-  auto capabilities = physical_device.getSurfaceCapabilitiesKHR(surface);
+  auto capabilities = context.physicalDevice().getSurfaceCapabilitiesKHR(context.surface());
 
   auto image_count = capabilities.minImageCount + 1;
   if (capabilities.maxImageCount != 0 && image_count > capabilities.maxImageCount) {
@@ -90,15 +82,15 @@ Swapchain::Swapchain(
   std::vector<uint32_t> queue_family_indices{};
   vk::SharingMode sharing_mode{};
   if (indices.graphics != indices.present) {
-    queue_family_indices.push_back(indices.graphics);
-    queue_family_indices.push_back(indices.present);
+    queue_family_indices.push_back(*indices.graphics);
+    queue_family_indices.push_back(*indices.present);
     sharing_mode = vk::SharingMode::eConcurrent;
   } else {
     sharing_mode = vk::SharingMode::eExclusive;
   }
 
-  vk::SwapchainCreateInfoKHR info = vk::SwapchainCreateInfoKHR{}
-      .setSurface(surface)
+  const auto info = vk::SwapchainCreateInfoKHR{}
+      .setSurface(context.surface())
       .setMinImageCount(image_count)
       .setImageFormat(format_khr.format)
       .setImageColorSpace(format_khr.colorSpace)
@@ -113,9 +105,46 @@ Swapchain::Swapchain(
       .setClipped(true)
       .setOldSwapchain(nullptr);
 
-  swapchain = device.createSwapchainKHR(info);
-  images = device.getSwapchainImagesKHR(swapchain);
-  imageViews = create_swapchain_image_views(device, images, format);
+  swapchain = context.device().createSwapchainKHR(info);
+  images = context.device().getSwapchainImagesKHR(swapchain);
+  imageViews = create_swapchain_image_views(context.device(), images, format);
+}
+
+std::pair<bool, uint32_t> Swapchain::acquireNextImageKHR(
+  const vk::Semaphore semaphore,
+  const vk::Fence fence
+) {
+  ZoneScoped;
+
+  try {
+    const auto acquireResult = m_context.device().acquireNextImageKHR(
+      swapchain, UINT64_MAX, semaphore, fence);
+    imageIndex = acquireResult.value;
+  } catch (vk::OutOfDateKHRError &) {
+    return {true, -1};
+  } catch (vk::SystemError &) {
+    throw std::runtime_error("Failed to acquire swapchain image!");
+  }
+
+  return {false, imageIndex};
+}
+
+bool Swapchain::present(vk::Semaphore semaphore) {
+  const auto presentInfo = vk::PresentInfoKHR(semaphore, swapchain, imageIndex);
+  vk::Result presentResult;
+  try {
+    presentResult = m_context.presentQueue().presentKHR(presentInfo);
+  } catch (vk::OutOfDateKHRError &) {
+    presentResult = vk::Result::eErrorOutOfDateKHR;
+  } catch (vk::SystemError &) {
+    throw std::runtime_error("Failed to present swapchain image!");
+  }
+
+  if (presentResult == vk::Result::eSuboptimalKHR || presentResult == vk::Result::eErrorOutOfDateKHR) {
+    return true;
+  }
+
+  return false;
 }
 
 void Swapchain::cmdSetViewport(const vk::CommandBuffer cmdBuffer) const {

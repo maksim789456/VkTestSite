@@ -15,15 +15,13 @@
 #include "DescriptorSet.h"
 #include "Mesh.h"
 #include "Swapchain.h"
-#include "Texture.h"
-#include "TextureManager.h"
+#include "texture/Texture.h"
+#include "texture/TextureManager.h"
 #include "Light.h"
 #include "Vertex.h"
 #include "Transform.h"
 #include "utils.cpp"
 #include <tracy/TracyVulkan.hpp>
-
-#define EMPTY_TEXTURE_INDEX 99
 
 struct alignas(16) ModelPushConsts {
   glm::mat4 model;
@@ -73,6 +71,8 @@ public:
 
   void drawUI();
 
+  void unload();
+
   ~Model() = default;
 
 private:
@@ -84,7 +84,6 @@ private:
   );
 
   void processMaterials(
-    TextureManager &textureManager,
     const aiScene *scene,
     const std::filesystem::path &modelParent
   );
@@ -96,7 +95,7 @@ private:
 
   std::unique_ptr<Mesh<Vertex, uint32_t> > createMesh(
     const aiMesh *mesh,
-    const aiScene *scene,
+    // const aiScene *scene,
     const glm::mat4 &transform
   );
 
@@ -112,5 +111,6 @@ private:
   vk::Queue m_graphicsQueue = nullptr;
   vk::CommandPool m_commandPool = nullptr;
   vma::Allocator m_allocator = nullptr;
+  TextureManager *m_textureManager = nullptr;
 };
 #endif //MODEL_H
