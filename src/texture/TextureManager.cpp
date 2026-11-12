@@ -211,6 +211,7 @@ std::optional<Texture *> TextureManager::getTexture(const uint32_t slot) {
 
 void TextureManager::unloadTexture(const uint32_t slot) {
   ZoneScoped;
+  //TODO: Possible bug when we unload texture in flight
   spdlog::debug("Unloading texture {}", slot);
 
   const auto isSlotUploading = std::ranges::any_of(
@@ -267,17 +268,21 @@ void TextureManager::drawUI() {
     ImGui::BeginChild("Preview", ImVec2(0, 260));
     if (selected != -1) {
       if (const auto tex = getTexture(selected); tex.has_value()) {
-        float scale = 1.0f;
-        const auto width = static_cast<float>(tex.value()->width);
-        const auto height = static_cast<float>(tex.value()->height);
-        if (width > height) {
-          scale = 256.0f / width;
+        if (tex.value()->getImGuiID() == ImTextureID_Invalid) {
+          ImGui::Text("No preview for current texture");
         } else {
-          scale = 256.0f / height;
-        }
+          float scale = 1.0f;
+          const auto width = static_cast<float>(tex.value()->width);
+          const auto height = static_cast<float>(tex.value()->height);
+          if (width > height) {
+            scale = 256.0f / width;
+          } else {
+            scale = 256.0f / height;
+          }
 
-        ImVec2 previewSize(width * scale, height * scale);
-        ImGui::Image(tex.value()->getImGuiID(), previewSize);
+          ImVec2 previewSize(width * scale, height * scale);
+          ImGui::Image(tex.value()->getImGuiID(), previewSize);
+        }
       }
     } else {
       ImGui::Text("Select a slot...");
